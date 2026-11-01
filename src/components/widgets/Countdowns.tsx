@@ -228,7 +228,17 @@ function CountdownCard({ c, st, onEdit }: { c: Countdown; st: CountdownState; on
       exit={{ opacity: 0, scale: 0.97, filter: "blur(4px)", transition: { duration: 0.18, ease } }}
       transition={spring}
     >
-      <button type="button" className="cd-card" onClick={(e) => onEdit(c.id, e.currentTarget)} aria-label={`${c.title}, ${countdownPhrase(st)}`}>
+      <button
+        type="button"
+        className="cd-card"
+        onClick={(e) => onEdit(c.id, e.currentTarget)}
+        onPointerMove={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          e.currentTarget.style.setProperty("--mx", `${e.clientX - r.left}px`);
+          e.currentTarget.style.setProperty("--my", `${e.clientY - r.top}px`);
+        }}
+        aria-label={`${c.title}, ${countdownPhrase(st)}`}
+      >
         <Eclipse progress={st.progress} size={30} className="cd-eclipse" />
         <span className="cd-text">
           <span className="cd-title">

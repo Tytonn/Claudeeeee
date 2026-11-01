@@ -256,6 +256,20 @@
     background-color var(--t-med) var(--ease),
     transform 200ms var(--ease);
 }
+/* A soft light that follows the cursor. */
+.cd-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(200px circle at var(--mx, 50%) var(--my, 50%), color-mix(in oklch, var(--accent) 10%, transparent), transparent 70%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 380ms var(--ease);
+}
+.cd-card:hover::before {
+  opacity: 1;
+}
 .cd-card:hover {
   box-shadow:
     inset 0 0 0 1px var(--line-2),

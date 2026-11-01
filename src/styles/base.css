@@ -2,6 +2,13 @@
    umbra — design tokens + base
    ─────────────────────────────────────────────────────────────────────────── */
 
+/* Typed so accent changes can glide instead of snap. */
+@property --accent {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: oklch(0.77 0.125 286);
+}
+
 :root {
   color-scheme: dark;
 
@@ -76,6 +83,11 @@
   /* layout */
   --sidebar-w: 264px;
   --rail-w: 316px;
+}
+
+/* Only after first paint, so a saved accent doesn't animate in on load. */
+html.is-ready {
+  transition: --accent 800ms var(--ease);
 }
 
 *,
