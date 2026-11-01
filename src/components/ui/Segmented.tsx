@@ -1,0 +1,38 @@
+import { useId, type ReactNode } from "react";
+import { motion } from "motion/react";
+import { spring } from "../../lib/motion";
+
+type Option<T extends string> = { value: T; label: ReactNode; title?: string };
+
+type Props<T extends string> = {
+  value: T;
+  options: Option<T>[];
+  onChange: (value: T) => void;
+  label: string;
+  size?: "sm" | "md";
+};
+
+export function Segmented<T extends string>({ value, options, onChange, label, size = "md" }: Props<T>) {
+  const id = useId();
+  return (
+    <div className={`segmented ${size}`} role="radiogroup" aria-label={label}>
+      {options.map((o) => {
+        const selected = o.value === value;
+        return (
+          <button
+            key={o.value}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            title={o.title}
+            className={`segmented-item ${selected ? "is-selected" : ""}`}
+            onClick={() => onChange(o.value)}
+          >
+            {selected && <motion.span layoutId={`seg-${id}`} className="segmented-pill" transition={spring} />}
+            <span className="segmented-label">{o.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}

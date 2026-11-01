@@ -1,0 +1,260 @@
+/* ───────────────────────────────────────────────────────────────────────────
+   umbra — design tokens + base
+   ─────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  color-scheme: dark;
+
+  /* surfaces */
+  --bg: #060607;
+  --canvas: #0b0c0e;
+  --raised: #111215;
+  --float: rgb(17 18 21 / 0.82);
+  --float-solid: #121316;
+
+  /* ink */
+  --fg-1: #f3f3f5;
+  --fg-body: #d3d3d9;
+  --fg-2: #a9a9b2;
+  --fg-3: #74747e;
+  --fg-4: #4d4d56;
+  --fg-5: #34343b;
+
+  /* lines + states */
+  --line: rgb(255 255 255 / 0.055);
+  --line-2: rgb(255 255 255 / 0.085);
+  --line-3: rgb(255 255 255 / 0.13);
+  --hover: rgb(255 255 255 / 0.035);
+  --active: rgb(255 255 255 / 0.06);
+  --press: rgb(255 255 255 / 0.085);
+
+  /* accent (set at runtime from settings) */
+  --accent: oklch(0.77 0.125 286);
+  --accent-ink: #0b0b0e;
+  --accent-1: color-mix(in oklch, var(--accent) 8%, transparent);
+  --accent-2: color-mix(in oklch, var(--accent) 16%, transparent);
+  --accent-3: color-mix(in oklch, var(--accent) 32%, transparent);
+  --accent-text: color-mix(in oklch, var(--accent) 88%, white);
+
+  --danger: oklch(0.7 0.16 22);
+  --danger-1: color-mix(in oklch, var(--danger) 12%, transparent);
+  --live: oklch(0.8 0.16 155);
+
+  /* type */
+  --font-sans: "Geist Variable", "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono Variable", "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-display: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+  --font-editor: var(--font-sans);
+  --editor-size: 16.5px;
+
+  /* shape */
+  --r-xs: 5px;
+  --r-sm: 7px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 18px;
+
+  /* depth */
+  --shadow-float:
+    0 0 0 1px rgb(255 255 255 / 0.07),
+    inset 0 1px 0 rgb(255 255 255 / 0.05),
+    0 24px 60px -12px rgb(0 0 0 / 0.75),
+    0 8px 20px -8px rgb(0 0 0 / 0.6);
+  --shadow-pop:
+    0 0 0 1px rgb(255 255 255 / 0.08),
+    inset 0 1px 0 rgb(255 255 255 / 0.06),
+    0 12px 32px -8px rgb(0 0 0 / 0.7);
+
+  /* motion */
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --t-fast: 120ms;
+  --t-med: 220ms;
+  --t-slow: 420ms;
+
+  /* layout */
+  --sidebar-w: 264px;
+  --rail-w: 316px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg-1);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  font-feature-settings: "ss01", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+/* Film grain — sits behind content so text stays crisp. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: -50%;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.06;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+#root {
+  position: relative;
+  z-index: 1;
+  isolation: isolate;
+}
+
+::selection {
+  background: var(--accent-3);
+  color: var(--fg-1);
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+}
+
+button {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+a {
+  color: inherit;
+}
+
+input,
+textarea {
+  background: none;
+  border: 0;
+  outline: none;
+  caret-color: var(--accent);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--fg-4);
+  opacity: 1;
+}
+
+:focus-visible {
+  outline: none;
+}
+
+.focus-ring:focus-visible,
+button:focus-visible,
+[role="button"]:focus-visible,
+a:focus-visible {
+  box-shadow:
+    0 0 0 1px var(--accent-3),
+    0 0 0 4px var(--accent-1);
+}
+
+svg {
+  flex-shrink: 0;
+}
+
+/* Scrollbars: invisible until you need them. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+*:hover {
+  scrollbar-color: rgb(255 255 255 / 0.09) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 99px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+*:hover::-webkit-scrollbar-thumb {
+  background-color: rgb(255 255 255 / 0.09);
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(255 255 255 / 0.16) !important;
+}
+
+/* utility */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-feature-settings: "zero" 0;
+}
+
+.label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 450;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--fg-4);
+}
+
+.display {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}
