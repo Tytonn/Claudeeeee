@@ -3,6 +3,7 @@ import type { Editor } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { useApp } from "../../store/app";
 import { buildExtensions } from "./extensions";
+import { safeDoc } from "./safeDoc";
 import { BubbleBar } from "./BubbleBar";
 import { SlashMenu } from "./SlashMenu";
 import { wordCount } from "../../lib/text";
@@ -54,7 +55,7 @@ export function NoteEditor({ noteId, scroller }: Props) {
   const editor = useEditor(
     {
       extensions: buildExtensions({ onExitTop: focusTitleEnd }),
-      content: note?.doc ?? "",
+      content: safeDoc(note?.doc, note?.text ?? "") ?? "",
       immediatelyRender: true,
       shouldRerenderOnTransaction: false,
       editorProps: {
@@ -113,8 +114,8 @@ export function NoteEditor({ noteId, scroller }: Props) {
     if (!editor || doc === lastDoc.current) return;
     lastDoc.current = doc;
     if (editor.isFocused || pending.current) return;
-    editor.commands.setContent(doc ?? "", { emitUpdate: false });
-  }, [editor, doc]);
+    editor.commands.setContent(safeDoc(doc, useApp.getState().notes[noteId]?.text ?? "") ?? "", { emitUpdate: false });
+  }, [editor, doc, noteId]);
 
   // Auto-grow the title where `field-sizing` isn't supported.
   useLayoutEffect(() => {

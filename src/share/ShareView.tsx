@@ -7,6 +7,8 @@ import { ArrowRight, Download, Link2Off, Lock, Repeat } from "lucide-react";
 import { ApiError, fetchShare } from "../lib/api";
 import { open } from "../lib/crypto";
 import type { SharePayload } from "../lib/types";
+import { sanitizePayload } from "../lib/sanitize";
+import { safeDoc } from "../components/editor/safeDoc";
 import { countdownPhrase, describeCountdown, formatDate, formatTime, ordinal, relativeLong, splitDuration } from "../lib/dates";
 import { useNow } from "../lib/hooks";
 import { navigate } from "../lib/router";
@@ -210,7 +212,8 @@ export function ShareView({ id, keyRaw }: { id: string; keyRaw: string }) {
       try {
         res = await fetchShare(id, etag);
       } catch (err) {
-        if (err instanceof ApiError && err.status === 404) {
+        // Only the share function's own "not_found" means the link is gone (not a host 404 page).
+        if (err instanceof ApiError && err.code === "not_found") {
           setPhase(loaded.current ? "removed" : "not-found");
           stopped = true;
           return;
@@ -222,7 +225,9 @@ export function ShareView({ id, keyRaw }: { id: string; keyRaw: string }) {
       }
       if (res) {
         try {
-          const data = await open<SharePayload>(keyRaw, res.share);
+          const data = sanitizePayload(await open<unknown>(keyRaw, res.share));
+          if (!data) throw new Error("empty_payload");
+          if (data.note) data.note.doc = safeDoc(data.note.doc, data.note.text);
           etag = res.etag;
           setPayload(data);
           setUpdatedAt(res.share.updatedAt);

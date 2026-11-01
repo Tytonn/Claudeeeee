@@ -8,7 +8,7 @@ import { useIsMobile, useNow } from "../lib/hooks";
 import { ALT, MOD, isMac } from "../lib/theme";
 import { displayTitle } from "../lib/text";
 import { relativeLong } from "../lib/dates";
-import { flushEditor, newNote, selectAdjacent } from "../lib/actions";
+import { flushEditor, newNote, selectAdjacent, trashNote } from "../lib/actions";
 import { play } from "../lib/sound";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
@@ -21,6 +21,7 @@ import { SettingsModal } from "./overlays/Settings";
 import { ShortcutsModal } from "./overlays/Shortcuts";
 import { Toasts } from "./overlays/Toasts";
 import { Eclipse } from "./ui/Eclipse";
+import { ErrorBoundary } from "./ErrorBoundary";
 import { Kbd } from "./ui/Kbd";
 
 function useGlobalShortcuts() {
@@ -279,7 +280,19 @@ export function Workspace() {
                 animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
                 transition={{ duration: 0.38, ease: [0.16, 1, 0.3, 1] }}
               >
-                <NoteEditor noteId={activeId} scroller={scroller} />
+                <ErrorBoundary
+                  fallback={
+                    <div className="note-broken">
+                      <h2 className="display">This note couldn't be opened.</h2>
+                      <p>Something in it isn't readable. Your other notes are fine.</p>
+                      <button type="button" className="ghost-btn" onClick={() => trashNote(activeId)}>
+                        <Trash2 size={14} strokeWidth={1.8} /> Move it to trash
+                      </button>
+                    </div>
+                  }
+                >
+                  <NoteEditor noteId={activeId} scroller={scroller} />
+                </ErrorBoundary>
               </motion.div>
             ) : (
               <EmptyState />

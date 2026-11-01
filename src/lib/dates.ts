@@ -60,7 +60,13 @@ export function describeCountdown(c: Pick<Countdown, "date" | "time" | "repeat" 
     const origin = fromISODate(c.date, c.time);
     target = occurrenceIn(now.getFullYear(), c);
     if (dayDiff(now, target) < 0) target = occurrenceIn(now.getFullYear() + 1, c);
-    start = occurrenceIn(target.getFullYear() - 1, c);
+    if (dayDiff(origin, target) < 0) {
+      // The first occurrence hasn't happened yet (e.g. a wedding date next year).
+      target = origin;
+      start = new Date(Math.min(c.createdAt, target.getTime() - DAY));
+    } else {
+      start = occurrenceIn(target.getFullYear() - 1, c);
+    }
     const n = target.getFullYear() - origin.getFullYear();
     nth = n > 0 ? n : null;
   } else {

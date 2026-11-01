@@ -138,9 +138,9 @@ export const useApp = create<AppState>()(
       const t = now();
       const note: Note = {
         id,
-        title: init.title ?? "",
-        doc: (init.doc as JSONContent) ?? null,
-        text: init.text ?? "",
+        title: typeof init.title === "string" ? init.title : "",
+        doc: init.doc && typeof init.doc === "object" ? (init.doc as JSONContent) : null,
+        text: typeof init.text === "string" ? init.text : "",
         createdAt: t,
         updatedAt: t,
       };
@@ -301,7 +301,7 @@ export const useApp = create<AppState>()(
       const t = now();
       // Skip anything already on the list (e.g. saving the same link twice).
       const existing = new Set(get().todos.map((x) => x.text.trim().toLowerCase()));
-      const incoming = items.filter((i) => i.text.trim() && !existing.has(i.text.trim().toLowerCase()));
+      const incoming = items.filter((i) => typeof i?.text === "string" && i.text.trim() && !existing.has(i.text.trim().toLowerCase()));
       const fresh: Todo[] = incoming.map((i, k) => ({
         id: uid(),
         text: i.text,
@@ -345,7 +345,7 @@ export const useApp = create<AppState>()(
       const t = now();
       const key = (c: Pick<Countdown, "title" | "date">) => `${c.title.trim().toLowerCase()}|${c.date}`;
       const existing = new Set(get().countdowns.map(key));
-      const incoming = items.filter((c) => !existing.has(key(c)));
+      const incoming = items.filter((c) => typeof c?.title === "string" && /^\d{4}-\d{2}-\d{2}$/.test(String(c.date)) && !existing.has(key(c)));
       set((s) => ({
         countdowns: [
           ...s.countdowns,

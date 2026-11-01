@@ -16,7 +16,8 @@ import "./styles/overlays.css";
 import "./styles/viewer.css";
 
 import { useApp } from "./store/app";
-import { loadAll, startPersistence } from "./store/persist";
+import { loadAll, startPersistence, storageOk } from "./store/persist";
+import { toast } from "./store/toasts";
 import { startShareSync } from "./store/shareSync";
 import { applyTheme } from "./lib/theme";
 import { setSoundEnabled } from "./lib/sound";
@@ -38,7 +39,15 @@ async function boot() {
     },
   );
 
-  startPersistence();
+  if (storageOk) {
+    startPersistence();
+  } else {
+    // Couldn't read what's saved: don't write either, or we'd overwrite it with a blank slate.
+    toast("Couldn't open your saved notes in this browser, so nothing will be saved right now. Try reloading.", {
+      tone: "error",
+      duration: 24 * 3_600_000,
+    });
+  }
   startShareSync();
 
   // Give the fonts a beat so the first frame is already in the right type.

@@ -802,3 +802,20 @@ html[data-typing] .topbar:hover {
 .rail-share {
   display: inline-flex;
 }
+
+.note-broken {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 18vh 32px 0;
+  text-align: center;
+}
+.note-broken h2 {
+  margin: 0 0 10px;
+  font-size: 32px;
+  font-weight: 400;
+}
+.note-broken p {
+  margin: 0 0 22px;
+  font-size: 14px;
+  color: var(--fg-3);
+}

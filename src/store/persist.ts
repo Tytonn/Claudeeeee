@@ -1,5 +1,7 @@
 import { createStore, delMany, entries, getMany, set as idbSet, setMany } from "idb-keyval";
 import type { Countdown, Note, Settings, ShareRecord, Todo } from "../lib/types";
+import { normalizeCountdown, normalizeList, normalizeNote, normalizeShareRecord, normalizeTodo } from "../lib/sanitize";
+import { safeDoc } from "../components/editor/safeDoc";
 import { DEFAULT_SETTINGS, useApp } from "./app";
 import { seedData } from "./seed";
 
@@ -7,6 +9,16 @@ const db = createStore("umbra", "kv");
 const SETTINGS_KEY = "umbra:settings";
 const UI_KEY = "umbra:ui";
 const TRASH_TTL = 30 * 86_400_000;
+
+/*
+ * Storage layout (IndexedDB "umbra"/"kv"):
+ *   note:<id>        one record per note
+ *   share:<anchor>   one record per live link (anchor = note id or "board")
+ *   todos            the to-do list (ordered array)
+ *   countdowns       the countdowns (array)
+ *   meta             { seeded }
+ * Settings + the open note id live in localStorage so first paint is instant.
+ */
 
 function readLocal<T>(key: string, fallback: T): T {
   try {
@@ -25,41 +37,73 @@ function writeLocal(key: string, value: unknown) {
   }
 }
 
+/** False when saved data couldn't be read — we then refuse to write, so nothing gets overwritten. */
 export let storageOk = true;
 
-export async function loadAll() {
-  let rows: [IDBValidKey, unknown][] = [];
-  try {
-    rows = await entries(db);
-  } catch (err) {
-    console.warn("IndexedDB unavailable", err);
-    storageOk = false;
+let applyingRemote = false;
+/** True while a change that originated in another tab is being applied to this tab's store. */
+export const isApplyingRemote = () => applyingRemote;
+
+async function readAll(): Promise<[IDBValidKey, unknown][] | null> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await entries(db);
+    } catch (err) {
+      console.warn(`Reading saved data failed (attempt ${attempt + 1})`, err);
+      await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
+    }
   }
+  return null;
+}
+
+export async function loadAll() {
+  const rows = await readAll();
+  if (!rows) storageOk = false;
 
   const notes: Record<string, Note> = {};
   let todos: Todo[] | null = null;
   let countdowns: Countdown[] | null = null;
-  let shares: Record<string, ShareRecord> = {};
+  const shares: Record<string, ShareRecord> = {};
+  let legacyShares = false;
   let seeded = false;
   const expired: string[] = [];
 
-  for (const [k, v] of rows) {
+  for (const [k, v] of rows ?? []) {
     const key = String(k);
     if (key.startsWith("note:")) {
-      const note = v as Note;
+      const note = normalizeNote(v);
+      if (!note) continue;
+      // Trash empties itself after 30 days. (Any live link is revoked by shareSync on start.)
       if (note.deletedAt && Date.now() - note.deletedAt > TRASH_TTL) expired.push(key);
       else notes[note.id] = note;
-    } else if (key === "todos") todos = v as Todo[];
-    else if (key === "countdowns") countdowns = v as Countdown[];
-    else if (key === "shares") shares = v as Record<string, ShareRecord>;
+    } else if (key.startsWith("share:")) {
+      const record = normalizeShareRecord(v);
+      if (record) shares[record.anchor] = record;
+    } else if (key === "shares") {
+      // Older layout kept every link under one key.
+      legacyShares = true;
+      for (const raw of Object.values((v ?? {}) as Record<string, unknown>)) {
+        const record = normalizeShareRecord(raw);
+        if (record && !shares[record.anchor]) shares[record.anchor] = record;
+      }
+    } else if (key === "todos") todos = normalizeList(v, normalizeTodo);
+    else if (key === "countdowns") countdowns = normalizeList(v, normalizeCountdown);
     else if (key === "meta") seeded = Boolean((v as { seeded?: boolean })?.seeded);
   }
-  if (expired.length) void delMany(expired, db).catch(() => {});
+
+  if (storageOk) {
+    if (expired.length) void delMany(expired, db).catch(() => {});
+    if (legacyShares) {
+      void setMany(Object.values(shares).map((r) => [`share:${r.anchor}`, r] as [string, unknown]), db)
+        .then(() => delMany(["shares"], db))
+        .catch(() => {});
+    }
+  }
 
   const settings = readLocal<Settings>(SETTINGS_KEY, DEFAULT_SETTINGS);
   const ui = readLocal<{ activeId: string | null }>(UI_KEY, { activeId: null });
 
-  if (!seeded && Object.keys(notes).length === 0 && storageOk) {
+  if (storageOk && !seeded && Object.keys(notes).length === 0) {
     const seed = seedData();
     for (const n of seed.notes) notes[n.id] = n;
     todos = seed.todos;
@@ -78,7 +122,7 @@ export async function loadAll() {
     } catch {
       /* ignore */
     }
-  } else if (!seeded) {
+  } else if (storageOk && !seeded) {
     void idbSet("meta", { seeded: true, at: Date.now() }, db).catch(() => {});
   }
 
@@ -91,7 +135,6 @@ export function startPersistence() {
   let pending = new Map<string, unknown>();
   let deletions = new Set<string>();
   let timer = 0;
-  let applyingRemote = false;
   const channel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("umbra-sync") : null;
 
   const flush = async () => {
@@ -111,9 +154,24 @@ export function startPersistence() {
       channel?.postMessage({ keys: [...sets.map(([k]) => k), ...dels] });
     } catch (err) {
       console.error("Save failed", err);
-      // Re-queue so the next change retries.
-      for (const [k, v] of sets) if (!pending.has(k)) pending.set(k, v);
-      for (const k of dels) deletions.add(k);
+      // Re-queue (without clobbering anything newer) so the next change retries.
+      for (const [k, v] of sets) if (!pending.has(k) && !deletions.has(k)) pending.set(k, v);
+      for (const k of dels) if (!pending.has(k)) deletions.add(k);
+    }
+  };
+
+  const diffRecords = <T,>(prefix: string, next: Record<string, T>, before: Record<string, T>) => {
+    for (const id in next) {
+      if (next[id] !== before[id]) {
+        pending.set(prefix + id, next[id]);
+        deletions.delete(prefix + id);
+      }
+    }
+    for (const id in before) {
+      if (!next[id]) {
+        pending.delete(prefix + id);
+        deletions.add(prefix + id);
+      }
     }
   };
 
@@ -122,30 +180,17 @@ export function startPersistence() {
       prev = s;
       return;
     }
-    if (s.notes !== prev.notes) {
-      for (const id in s.notes) {
-        if (s.notes[id] !== prev.notes[id]) {
-          pending.set(`note:${id}`, s.notes[id]);
-          deletions.delete(`note:${id}`);
-        }
-      }
-      for (const id in prev.notes) {
-        if (!s.notes[id]) {
-          pending.delete(`note:${id}`);
-          deletions.add(`note:${id}`);
-        }
-      }
-    }
+    if (s.notes !== prev.notes) diffRecords("note:", s.notes, prev.notes);
+    if (s.shares !== prev.shares) diffRecords("share:", s.shares, prev.shares);
     if (s.todos !== prev.todos) pending.set("todos", s.todos);
     if (s.countdowns !== prev.countdowns) pending.set("countdowns", s.countdowns);
-    if (s.shares !== prev.shares) pending.set("shares", s.shares);
     if (s.settings !== prev.settings) writeLocal(SETTINGS_KEY, s.settings);
     if (s.ui.activeId !== prev.ui.activeId) writeLocal(UI_KEY, { activeId: s.ui.activeId });
     prev = s;
     if ((pending.size || deletions.size) && !timer) timer = window.setTimeout(() => void flush(), 140);
   });
 
-  // Pull any debounced editor text into the store first, then write synchronously-started IDB txns.
+  // Pull any debounced editor text into the store first, then start the IDB writes.
   const flushAll = () => {
     window.dispatchEvent(new Event("umbra:flush-editor"));
     void flush();
@@ -157,27 +202,40 @@ export function startPersistence() {
 
   if (channel) {
     channel.onmessage = async (event: MessageEvent<{ keys?: string[] }>) => {
-      const keys = (event.data?.keys ?? []).filter((k) => typeof k === "string");
+      const keys = (event.data?.keys ?? []).filter((k): k is string => typeof k === "string");
       if (!keys.length) return;
       const values = await getMany(keys, db).catch(() => null);
       if (!values) return;
+      // The other tab's write is newer than anything we still have queued for these keys.
+      for (const key of keys) {
+        pending.delete(key);
+        deletions.delete(key);
+      }
       applyingRemote = true;
       try {
         useApp.setState((s) => {
           const next: Partial<typeof s> = {};
           let notes = s.notes;
+          let shares = s.shares;
           keys.forEach((key, i) => {
             const value = values[i];
             if (key.startsWith("note:")) {
               const id = key.slice(5);
               if (notes === s.notes) notes = { ...s.notes };
-              if (value) notes[id] = value as Note;
+              const note = value ? normalizeNote(value) : null;
+              if (note) notes[id] = note;
               else delete notes[id];
-            } else if (key === "todos" && value) next.todos = value as Todo[];
-            else if (key === "countdowns" && value) next.countdowns = value as Countdown[];
-            else if (key === "shares" && value) next.shares = value as Record<string, ShareRecord>;
+            } else if (key.startsWith("share:")) {
+              const anchor = key.slice(6);
+              if (shares === s.shares) shares = { ...s.shares };
+              const record = value ? normalizeShareRecord(value) : null;
+              if (record) shares[anchor] = record;
+              else delete shares[anchor];
+            } else if (key === "todos" && value) next.todos = normalizeList(value, normalizeTodo);
+            else if (key === "countdowns" && value) next.countdowns = normalizeList(value, normalizeCountdown);
           });
           if (notes !== s.notes) next.notes = notes;
+          if (shares !== s.shares) next.shares = shares;
           return next;
         });
       } finally {
@@ -226,13 +284,13 @@ export async function exportAll(): Promise<Blob> {
 }
 
 export function importBackup(raw: unknown): { notes: number; todos: number; countdowns: number } {
-  const data = raw as { app?: string; notes?: Note[]; todos?: Todo[]; countdowns?: Countdown[] };
+  const data = raw as { app?: string; notes?: unknown; todos?: unknown; countdowns?: unknown };
   if (!data || data.app !== "umbra") throw new Error("This doesn't look like an umbra backup.");
   const s = useApp.getState();
   const notes = { ...s.notes };
   let n = 0;
-  for (const note of data.notes ?? []) {
-    if (!note?.id) continue;
+  for (const note of normalizeList(data.notes, normalizeNote)) {
+    note.doc = safeDoc(note.doc, note.text);
     const existing = notes[note.id];
     if (!existing || existing.updatedAt < note.updatedAt) {
       notes[note.id] = note;
@@ -240,9 +298,9 @@ export function importBackup(raw: unknown): { notes: number; todos: number; coun
     }
   }
   const todoIds = new Set(s.todos.map((t) => t.id));
-  const newTodos = (data.todos ?? []).filter((t) => t?.id && !todoIds.has(t.id));
+  const newTodos = normalizeList(data.todos, normalizeTodo).filter((t) => !todoIds.has(t.id));
   const cdIds = new Set(s.countdowns.map((c) => c.id));
-  const newCds = (data.countdowns ?? []).filter((c) => c?.id && !cdIds.has(c.id));
+  const newCds = normalizeList(data.countdowns, normalizeCountdown).filter((c) => !cdIds.has(c.id));
   useApp.setState({ notes, todos: [...s.todos, ...newTodos], countdowns: [...s.countdowns, ...newCds] });
   return { notes: n, todos: newTodos.length, countdowns: newCds.length };
 }

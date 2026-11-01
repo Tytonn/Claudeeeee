@@ -106,14 +106,14 @@ export function wordCount(text: string): number {
 }
 
 export function displayTitle(note: Pick<Note, "title" | "text">): string {
-  const t = note.title.trim();
+  const t = String(note.title ?? "").trim();
   if (t) return t;
-  const first = note.text.split("\n").find((l) => l.trim());
+  const first = String(note.text ?? "").split("\n").find((l) => l.trim());
   return first ? first.trim().slice(0, 80) : "Untitled";
 }
 
 export function isBlank(note: Pick<Note, "title" | "text">): boolean {
-  return !note.title.trim() && !note.text.trim();
+  return !String(note.title ?? "").trim() && !String(note.text ?? "").trim();
 }
 
 export function snippet(text: string, query: string, radius = 48): string {
