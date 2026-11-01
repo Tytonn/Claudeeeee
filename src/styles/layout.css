@@ -798,3 +798,7 @@ html[data-typing] .topbar:hover {
   color: var(--fg-3);
   box-shadow: inset 0 0 0 1px var(--line);
 }
+
+.rail-share {
+  display: inline-flex;
+}

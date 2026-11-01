@@ -18,7 +18,9 @@ export function Rail() {
   const setUI = useApp((s) => s.setUI);
   const isMobile = useIsMobile();
   const now = useNow(60_000);
-  const shareBtn = useRef<HTMLButtonElement>(null);
+  // A stable wrapper: the button inside swaps (icon → "Live" pill) once shared,
+  // and the share sheet must stay anchored through that swap.
+  const shareAnchor = useRef<HTMLSpanElement>(null);
   const d = new Date(now);
 
   if (!settings.todos && !settings.countdowns) return <aside className="rail is-empty" aria-hidden />;
@@ -36,10 +38,10 @@ export function Rail() {
             <div className="rail-day display">{d.toLocaleDateString(undefined, { weekday: "long" })}</div>
             <div className="rail-full mono">{d.toLocaleDateString(undefined, { month: "long", day: "numeric" })}</div>
           </div>
+          <span ref={shareAnchor} className="rail-share">
           {shared ? (
             <Tooltip label="Lists are shared — manage link">
               <button
-                ref={shareBtn}
                 type="button"
                 className={`pill-btn sm is-live ${shareOpen ? "is-open" : ""}`}
                 onClick={() => (shareOpen ? setUI({ share: null }) : openShare(BOARD))}
@@ -49,15 +51,16 @@ export function Rail() {
               </button>
             </Tooltip>
           ) : (
-            <IconButton ref={shareBtn} label="Share your lists" active={shareOpen} onClick={() => (shareOpen ? setUI({ share: null }) : openShare(BOARD))}>
+            <IconButton label="Share your lists" active={shareOpen} onClick={() => (shareOpen ? setUI({ share: null }) : openShare(BOARD))}>
               <Share size={15} strokeWidth={1.7} />
             </IconButton>
           )}
+          </span>
         </header>
         {settings.countdowns && <Countdowns />}
         {settings.todos && <Todos />}
       </div>
-      <ShareSheet anchor={BOARD} open={shareOpen} anchorEl={shareBtn.current} onClose={() => setUI({ share: null })} />
+      <ShareSheet anchor={BOARD} open={shareOpen} anchorEl={shareAnchor.current} onClose={() => setUI({ share: null })} />
     </aside>
   );
 }
