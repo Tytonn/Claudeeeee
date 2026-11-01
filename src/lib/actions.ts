@@ -3,6 +3,9 @@ import { toast } from "../store/toasts";
 import { docToMarkdown, displayTitle, slugify } from "./text";
 import { play } from "./sound";
 import { FLUSH_EVENT } from "../components/editor/NoteEditor";
+import { fx } from "../fx/engine";
+import { dissolve, eclipseWipe } from "../fx/dom";
+import { setEntrance } from "../fx/intent";
 
 export const NEW_COUNTDOWN_EVENT = "umbra:new-countdown";
 
@@ -12,8 +15,13 @@ export function flushEditor() {
 
 export function newNote(init?: { title?: string }) {
   flushEditor();
+  if (fx.active) {
+    // The diamond ring: sunlight bursts from the edge of the page, and it develops in.
+    setEntrance("dawn");
+    fx.diamondRing();
+    play("dawn");
+  } else play("pop");
   const id = app().createNote(init);
-  play("pop");
   return id;
 }
 
@@ -23,8 +31,15 @@ export function trashNote(id: string) {
   const note = s.notes[id];
   if (!note) return;
   const wasBlank = !note.title.trim() && !note.text.trim();
+  if (fx.active && s.ui.activeId === id && s.ui.view === "notes") {
+    // The umbra passes over the page and swallows it.
+    eclipseWipe(document.querySelector<HTMLElement>(".canvas .note"), document.querySelector<HTMLElement>("main.canvas"));
+    setEntrance("none");
+  } else if (fx.active) {
+    dissolve(document.querySelector<HTMLElement>(`[data-note-id="${id}"]`));
+    play("drop");
+  } else play("drop");
   s.trashNote(id);
-  play("drop");
   if (!wasBlank) {
     toast(`Moved “${displayTitle(note).slice(0, 40)}” to trash`, {
       action: { label: "Undo", run: () => app().restoreNote(id) },

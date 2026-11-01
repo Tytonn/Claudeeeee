@@ -13,6 +13,7 @@ export const DEFAULT_SETTINGS: Settings = {
   countdowns: true,
   sounds: true,
   fadeWhileTyping: true,
+  effects: "cosmic",
   name: "",
   sidebar: true,
   rail: true,

@@ -1,6 +1,7 @@
 /* ── Note column ─────────────────────────────────────────────────────────── */
 
 .note {
+  position: relative;
   max-width: 732px;
   min-height: 100%;
   margin: 0 auto;

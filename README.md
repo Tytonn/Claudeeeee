@@ -1,12 +1,24 @@
 # umbra
 
-**A quiet place to write.** A minimal, dark note-taking site with an optional to-do list, countdowns, and live, end-to-end encrypted sharing.
+**A quiet place to write — under a total eclipse.** A dark, cinematic note-taking site with a living light show, an optional to-do list, countdowns, and live, end-to-end encrypted sharing.
 
 ![umbra](public/og.png)
 
 ---
 
 ## What's inside
+
+**The light show**
+- A living sky behind everything (WebGL): a drifting nebula with glowing filaments and dark dust lanes, three depths of twinkling stars that shift with your cursor, and shooting stars — now and then a fireball or a little meteor shower.
+- The editor is the moon in a total eclipse. A solar corona pours out from behind it in long, flowing streamers, swings toward your cursor, and throws off coronal loops. The side panels are smoked glass, so you see the sky through them.
+- Your cursor is a light source: panels catch a rim of light where it passes, countdown cards tilt toward it and cast shadows away from it.
+- Writing: a caret made of light, letters that land white-hot and cool to ink, erased letters that fall away as ash, sparks, and a sunburst every 100 words. While you type, the sky calms down so it never gets in the way.
+- **New note:** the diamond ring — a blinding flash on the moon's rim, lens flare, a shockwave through the sky.
+- **Delete the open note:** the moon slides across and swallows it. Anything else you delete dissolves into embers.
+- **Check off a to-do:** a sunburst, then it burns away and its light streaks into *Completed*.
+- **Share:** a beam of light goes up and the link decodes itself out of cipher glyphs. Your friend's page opens under a vast eclipsed moon; the note decrypts with a scanning line, the diamond ring flashes, and the corona flares whenever you edit.
+- Plus: a short eclipse intro once per visit, a light trail when you switch notes, the new accent color flooding the screen from the swatch you clicked, a live clock, and a sky that slowly wakes up if you leave it alone.
+- **Settings → Effects:** *Cosmic* (everything), *Subtle* (a calm sky and small flourishes) or *Off*. If your system asks for reduced motion, umbra uses *Subtle* automatically.
 
 **Notes**
 - A calm rich-text editor: type <kbd>/</kbd> for blocks (headings, lists, checklists, quotes, code, dividers, today's date), select text for a formatting bubble, or just write Markdown (`#`, `-`, `[]`, `>`, ```` ``` ````, `==highlight==`).
@@ -31,7 +43,7 @@
 
 **Everything else**
 - Command palette (<kbd>Ctrl/⌘ K</kbd>) for searching notes and running any command.
-- Focus mode, fade-while-typing, 7 accent colors, 3 writing fonts (Sans / Serif / Mono), 3 text sizes, optional sounds.
+- Focus mode, fade-while-typing, 7 accent colors (each one recolors the whole sky), 3 writing fonts (Sans / Serif / Mono), 3 text sizes, 3 effect levels, optional sounds.
 - Works on phones, prints cleanly, keyboard-first everywhere (press <kbd>?</kbd>).
 
 ---
@@ -111,6 +123,7 @@ npm run typecheck
 - **Name:** the wordmark is plain text — search for `umbra` in `index.html`, `src/`, and `public/manifest.webmanifest`.
 - **Default accent / settings:** `DEFAULT_SETTINGS` in [`src/store/app.ts`](src/store/app.ts); the palette lives in [`src/lib/theme.ts`](src/lib/theme.ts).
 - **Design tokens** (colors, type, radii, motion): the top of [`src/styles/base.css`](src/styles/base.css).
+- **The sky and effects:** the WebGL sky (nebula, stars, corona) is one shader in [`src/fx/shaders.ts`](src/fx/shaders.ts); everything else (meteors, flares, particles, trails) is in [`src/fx/engine.ts`](src/fx/engine.ts). Each accent's nebula color is in [`src/lib/theme.ts`](src/lib/theme.ts).
 
 ## Project layout
 
@@ -122,10 +135,11 @@ src/
     widgets/                   to-dos, countdowns, date picker
     overlays/                  command palette, settings, share sheet, toasts
     ui/                        primitives (tooltip, popover, menu, switch, eclipse…)
+  fx/                          the light engine: WebGL sky, effects overlay, intro, light caret
   share/ShareView.tsx          what your friend sees
   store/                       state, IndexedDB persistence, live share sync
   lib/                         crypto, dates, markdown export, sounds, theme
   styles/                      design system + component styles
 ```
 
-Built with React, TipTap, Motion, Zustand, Floating UI, chrono-node, and the Geist + Instrument Serif + Newsreader typefaces.
+Built with React, TipTap, Motion, Zustand, Floating UI, chrono-node, WebGL and Canvas, and the Geist + Instrument Serif + Newsreader typefaces.

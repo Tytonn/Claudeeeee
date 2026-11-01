@@ -36,6 +36,7 @@ export type Countdown = {
 export type AccentId = "iris" | "moon" | "sky" | "mint" | "corona" | "ember" | "rose";
 export type FontId = "sans" | "serif" | "mono";
 export type SizeId = "s" | "m" | "l";
+export type EffectsId = "cosmic" | "subtle" | "off";
 
 export type Settings = {
   accent: AccentId;
@@ -45,6 +46,7 @@ export type Settings = {
   countdowns: boolean;
   sounds: boolean;
   fadeWhileTyping: boolean;
+  effects: EffectsId;
   name: string;
   sidebar: boolean;
   rail: boolean;

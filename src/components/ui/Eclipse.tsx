@@ -9,13 +9,15 @@ type Props = {
   /** Animate the moon on hover / when progress changes. */
   animated?: boolean;
   glow?: boolean;
+  /** A white-hot core fading to the accent at the limb, for big, close-up suns. */
+  luminous?: boolean;
 };
 
 const ANGLE = (-38 * Math.PI) / 180;
 
-export function Eclipse({ progress, size = 28, className = "", animated = true, glow = true }: Props) {
+export function Eclipse({ progress, size = 28, className = "", animated = true, glow = true, luminous = false }: Props) {
   const raw = useId().replace(/[^a-zA-Z0-9_-]/g, "");
-  const ids = { mask: `ecl-m-${raw}`, halo: `ecl-h-${raw}`, blur: `ecl-b-${raw}`, fade: `ecl-f-${raw}`, fadeGrad: `ecl-fg-${raw}` };
+  const ids = { mask: `ecl-m-${raw}`, halo: `ecl-h-${raw}`, blur: `ecl-b-${raw}`, fade: `ecl-f-${raw}`, fadeGrad: `ecl-fg-${raw}`, sun: `ecl-s-${raw}` };
   const p = Math.min(1, Math.max(0, progress));
   const r = 7;
   const c = 12;
@@ -39,6 +41,11 @@ export function Eclipse({ progress, size = 28, className = "", animated = true, 
         <filter id={ids.blur} x="-50%" y="-50%" width="200%" height="200%">
           <feGaussianBlur stdDeviation="0.9" />
         </filter>
+        <radialGradient id={ids.sun} cx="46%" cy="44%" r="58%">
+          <stop offset="0%" stopColor="#fff" />
+          <stop offset="45%" style={{ stopColor: "color-mix(in oklch, var(--accent) 35%, white)" }} />
+          <stop offset="100%" style={{ stopColor: "var(--accent)" }} />
+        </radialGradient>
         {/* The moon fades out softly at the edge of the glow instead of being hard-clipped. */}
         <radialGradient id={ids.fadeGrad} cx="50%" cy="50%" r="50%">
           <stop offset="70%" stopColor="white" />
@@ -55,7 +62,7 @@ export function Eclipse({ progress, size = 28, className = "", animated = true, 
           <circle cx={c} cy={c} r={r + 0.1} fill="none" style={{ stroke: "var(--accent-text)" }} strokeWidth={0.6} opacity={0.9} />
         </>
       )}
-      <circle cx={c} cy={c} r={r} mask={`url(#${ids.mask})`} style={{ fill: "var(--accent)" }} />
+      <circle cx={c} cy={c} r={r} mask={`url(#${ids.mask})`} style={{ fill: luminous ? `url(#${ids.sun})` : "var(--accent)" }} />
       {/* The moon: an opaque dark body, so the glow reads behind it, never through it. */}
       <g mask={`url(#${ids.fade})`}>
         <motion.circle

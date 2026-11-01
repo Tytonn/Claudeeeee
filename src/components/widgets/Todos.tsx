@@ -8,6 +8,8 @@ import { haptic, play } from "../../lib/sound";
 import { ease, spring } from "../../lib/motion";
 import { Checkbox } from "../ui/Checkbox";
 import { IconButton } from "../ui/IconButton";
+import { fx } from "../../fx/engine";
+import { dissolve } from "../../fx/dom";
 
 function focusTodo(id: string | undefined, where: "start" | "end" = "end") {
   if (!id) return;
@@ -35,10 +37,27 @@ function TodoRow({ todo, prevId, nextId, addInput }: RowProps) {
   const controls = useDragControls();
   const [settling, setSettling] = useState(false);
   const timer = useRef<number | undefined>(undefined);
+  const row = useRef<HTMLLIElement>(null);
   const updateTodo = useApp((s) => s.updateTodo);
 
   const commitDone = () => {
     const openCount = useApp.getState().todos.filter((t) => !t.done).length;
+    const el = row.current;
+    if (el && fx.active) {
+      // Dissolve into embers, and send a streak of light to the Completed list.
+      const from = el.getBoundingClientRect();
+      const target =
+        el.closest(".todos")?.querySelector<HTMLElement>(".todo-done-toggle") ?? el.closest(".todos")?.querySelector<HTMLElement>(".widget-head .label");
+      dissolve(el);
+      if (target) {
+        const to = target.getBoundingClientRect();
+        fx.trail({ x: from.left + 22, y: from.top + from.height / 2 }, { x: to.left + 12, y: to.top + to.height / 2 }, () => {
+          target.classList.remove("pulse");
+          void target.offsetWidth;
+          target.classList.add("pulse");
+        });
+      }
+    }
     useApp.getState().toggleTodo(todo.id);
     if (openCount === 1) window.setTimeout(() => play("done"), 120);
   };
@@ -74,6 +93,7 @@ function TodoRow({ todo, prevId, nextId, addInput }: RowProps) {
 
   return (
     <Reorder.Item
+      ref={row}
       as="li"
       value={todo.id}
       dragListener={false}

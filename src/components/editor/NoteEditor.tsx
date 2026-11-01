@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { useApp } from "../../store/app";
 import { buildExtensions } from "./extensions";
 import { safeDoc } from "./safeDoc";
+import { LightCaret } from "../../fx/LightCaret";
+import { fx } from "../../fx/engine";
+import { play } from "../../lib/sound";
 import { BubbleBar } from "./BubbleBar";
 import { SlashMenu } from "./SlashMenu";
 import { wordCount } from "../../lib/text";
@@ -23,6 +26,9 @@ export function NoteEditor({ noteId, scroller }: Props) {
   const isShared = useApp((s) => Boolean(s.shares[noteId]));
   const updateNote = useApp((s) => s.updateNote);
   const titleRef = useRef<HTMLTextAreaElement>(null);
+  const [noteEl, setNoteEl] = useState<HTMLDivElement | null>(null);
+  const wordsRef = useRef<HTMLSpanElement>(null);
+  const milestone = useRef<number | null>(null);
   const saveTimer = useRef<number | undefined>(undefined);
   const pending = useRef<Editor | null>(null);
   // The doc object this editor last loaded or produced. Title edits keep the same
@@ -136,14 +142,26 @@ export function NoteEditor({ noteId, scroller }: Props) {
     };
   }, [editor]);
 
-  if (!note) return null;
+  const words = note ? wordCount(`${note.title} ${note.text}`) : 0;
 
-  const words = wordCount(`${note.title} ${note.text}`);
+  // Every hundred words, a little burst of light by the counter.
+  useEffect(() => {
+    const step = Math.floor(words / 100);
+    if (milestone.current !== null && step > milestone.current && step > 0 && fx.active) {
+      const r = wordsRef.current?.getBoundingClientRect();
+      if (r) fx.sunburst(r.left + r.width / 2, r.top + r.height / 2);
+      play("chime");
+    }
+    milestone.current = step;
+  }, [words]);
+
+  if (!note) return null;
   const minutes = Math.round(words / 230);
 
   return (
     <div
       className="note"
+      ref={setNoteEl}
       onMouseDown={(e) => {
         // Clicking the empty space below the text puts the caret at the end.
         if (e.target === e.currentTarget && editor) {
@@ -177,7 +195,7 @@ export function NoteEditor({ noteId, scroller }: Props) {
       <div className="note-meta mono">
         <span>{formatDate(new Date(note.createdAt), { weekday: false })}</span>
         <span className="sep" />
-        <span className="tabular">
+        <span className="tabular" ref={wordsRef}>
           {words.toLocaleString()} word{words === 1 ? "" : "s"}
         </span>
         {minutes >= 1 && (
@@ -196,6 +214,7 @@ export function NoteEditor({ noteId, scroller }: Props) {
         )}
       </div>
       <EditorContent editor={editor} className="note-body" />
+      <LightCaret editor={editor} container={noteEl} />
       {editor && <BubbleBar editor={editor} />}
       <SlashMenu />
     </div>

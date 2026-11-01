@@ -1,6 +1,7 @@
 import { useMemo, useState, type CSSProperties } from "react";
 import { motion } from "motion/react";
 import { easeOut } from "../../lib/motion";
+import { fx } from "../../fx/engine";
 
 function Burst({ count = 9 }: { count?: number }) {
   const parts = useMemo(
@@ -50,7 +51,12 @@ export function Checkbox({ checked, onToggle, label, size = 18 }: Props) {
       style={{ width: size, height: size }}
       onClick={(e) => {
         e.stopPropagation();
-        if (!checked) setBurst((b) => b + 1);
+        if (!checked) {
+          if (fx.active) {
+            const r = e.currentTarget.getBoundingClientRect();
+            fx.sunburst(r.left + r.width / 2, r.top + r.height / 2);
+          } else setBurst((b) => b + 1);
+        }
         onToggle();
       }}
     >

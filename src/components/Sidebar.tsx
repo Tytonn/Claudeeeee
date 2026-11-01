@@ -14,6 +14,7 @@ import { IconButton } from "./ui/IconButton";
 import { Kbd } from "./ui/Kbd";
 import { Menu, type MenuItem } from "./ui/Menu";
 import { Popover, pointAnchor } from "./ui/Popover";
+import { fx } from "../fx/engine";
 
 export function noteMenuItems(note: Note, opts: { share?: boolean } = {}): MenuItem[] {
   return [
@@ -70,12 +71,12 @@ export function Sidebar() {
             <Logo size={20} />
             <span className="wordmark display">umbra</span>
           </div>
-          <IconButton label="New note" kbd={`${ALT} N`} onClick={() => newNote()}>
+          <IconButton label="New note" kbd={`${ALT} N`} onClick={() => newNote()} data-magnetic>
             <SquarePen size={16} strokeWidth={1.7} />
           </IconButton>
         </header>
 
-        <button type="button" className="sb-search" onClick={() => setUI({ palette: true })}>
+        <button type="button" className="sb-search" data-light onClick={() => setUI({ palette: true })}>
           <Search size={14} strokeWidth={1.8} />
           <span>Search</span>
           <Kbd keys={`${MOD} K`} subtle />
@@ -108,10 +109,17 @@ export function Sidebar() {
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: -6, transition: { duration: 0.14 } }}
                         type="button"
+                        data-note-id={n.id}
                         className={`sb-item ${active ? "is-active" : ""} ${menu?.id === n.id ? "is-menu" : ""}`}
                         aria-current={active ? "page" : undefined}
-                        onClick={() => {
+                        onClick={(e) => {
                           flushEditor();
+                          // A streak of light carries the note across into the editor.
+                          if (fx.full && n.id !== activeId && !e.currentTarget.closest(".is-mobile")) {
+                            const r = e.currentTarget.getBoundingClientRect();
+                            const p = fx.panelRect;
+                            fx.trail({ x: r.right - 10, y: r.top + r.height / 2 }, { x: p.x + Math.min(150, p.w * 0.16), y: p.y + 150 }, undefined, { quiet: true, dur: 440 });
+                          }
                           selectNote(n.id);
                           if (view !== "notes") setUI({ view: "notes" });
                         }}

@@ -1,4 +1,5 @@
 import { useRef, useState, type ReactNode } from "react";
+import { flushSync } from "react-dom";
 import { motion } from "motion/react";
 import { Download, FileText, LayoutList, Link2, Upload, X } from "lucide-react";
 import { useApp } from "../../store/app";
@@ -6,7 +7,9 @@ import { BOARD, shareUrl, stopShare } from "../../store/shareSync";
 import { exportAll, importBackup } from "../../store/persist";
 import { toast } from "../../store/toasts";
 import { ACCENTS, FONTS } from "../../lib/theme";
-import type { AccentId, FontId, SizeId } from "../../lib/types";
+import type { AccentId, EffectsId, FontId, SizeId } from "../../lib/types";
+import { fx } from "../../fx/engine";
+import { oklchToRgb, to255 } from "../../fx/color";
 import { displayTitle } from "../../lib/text";
 import { relativeLong } from "../../lib/dates";
 import { download, flushEditor } from "../../lib/actions";
@@ -39,9 +42,37 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
+/** The new accent floods out from the swatch, like light spilling across the room. */
+function pickAccent(id: AccentId, e: React.MouseEvent) {
+  const set = () => useApp.getState().setSettings({ accent: id });
+  const x = e.clientX;
+  const y = e.clientY;
+  const start = (document as Document & { startViewTransition?: (cb: () => void) => { ready: Promise<void>; finished: Promise<void> } })
+    .startViewTransition;
+  if (!start || !fx.active || useApp.getState().settings.accent === id) {
+    set();
+    return;
+  }
+  const root = document.documentElement;
+  root.classList.add("vt-accent");
+  const t = start.call(document, () => flushSync(set));
+  const radius = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+  t.ready
+    .then(() => {
+      root.animate(
+        { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${radius}px at ${x}px ${y}px)`] },
+        { duration: 780, easing: "cubic-bezier(0.22, 0.9, 0.25, 1)", pseudoElement: "::view-transition-new(root)" },
+      );
+      const c = to255(oklchToRgb(ACCENTS[id].color));
+      fx.ring(x, y, 8, 120, { dur: 700, color: c });
+      fx.burst(x, y, { count: 30, speed: 260, colors: [c, [255, 255, 255]], life: 0.9 });
+    })
+    .catch(() => {});
+  t.finished.finally(() => root.classList.remove("vt-accent"));
+}
+
 function Swatches() {
   const accent = useApp((s) => s.settings.accent);
-  const setSettings = useApp((s) => s.setSettings);
   return (
     <div className="swatches" role="radiogroup" aria-label="Accent color">
       {(Object.keys(ACCENTS) as AccentId[]).map((id) => (
@@ -54,7 +85,7 @@ function Swatches() {
           title={ACCENTS[id].name}
           className="swatch"
           style={{ "--sw": ACCENTS[id].color } as React.CSSProperties}
-          onClick={() => setSettings({ accent: id })}
+          onClick={(e) => pickAccent(id, e)}
         >
           {accent === id && <motion.span layoutId="swatch-ring" className="swatch-ring" transition={spring} />}
           <span className="swatch-core" />
@@ -165,6 +196,19 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
                 { value: "l", label: "L" },
               ]}
               onChange={(size) => setSettings({ size })}
+            />
+          </Row>
+          <Row label="Effects" desc="The living sky, solar flares, light trails and embers. Calm it down any time.">
+            <Segmented<EffectsId>
+              label="Effects"
+              size="sm"
+              value={settings.effects}
+              options={[
+                { value: "cosmic", label: "Cosmic" },
+                { value: "subtle", label: "Subtle" },
+                { value: "off", label: "Off" },
+              ]}
+              onChange={(effects) => setSettings({ effects })}
             />
           </Row>
           <Row label="Fade while typing" desc="Everything except your words quietly dims as you write.">

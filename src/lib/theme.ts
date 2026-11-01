@@ -1,13 +1,14 @@
 import type { AccentId, FontId, Settings, SizeId } from "./types";
 
-export const ACCENTS: Record<AccentId, { name: string; color: string }> = {
-  iris: { name: "Iris", color: "oklch(0.77 0.125 286)" },
-  moon: { name: "Moon", color: "oklch(0.93 0.008 270)" },
-  sky: { name: "Sky", color: "oklch(0.8 0.105 232)" },
-  mint: { name: "Mint", color: "oklch(0.84 0.115 168)" },
-  corona: { name: "Corona", color: "oklch(0.86 0.115 82)" },
-  ember: { name: "Ember", color: "oklch(0.76 0.145 46)" },
-  rose: { name: "Rose", color: "oklch(0.79 0.115 356)" },
+/** `nebula` is a second hue the sky blends with the accent, so space never looks flat. */
+export const ACCENTS: Record<AccentId, { name: string; color: string; nebula: string }> = {
+  iris: { name: "Iris", color: "oklch(0.77 0.125 286)", nebula: "oklch(0.52 0.15 245)" },
+  moon: { name: "Moon", color: "oklch(0.93 0.008 270)", nebula: "oklch(0.5 0.06 255)" },
+  sky: { name: "Sky", color: "oklch(0.8 0.105 232)", nebula: "oklch(0.5 0.15 285)" },
+  mint: { name: "Mint", color: "oklch(0.84 0.115 168)", nebula: "oklch(0.5 0.12 215)" },
+  corona: { name: "Corona", color: "oklch(0.86 0.115 82)", nebula: "oklch(0.55 0.16 35)" },
+  ember: { name: "Ember", color: "oklch(0.76 0.145 46)", nebula: "oklch(0.5 0.17 355)" },
+  rose: { name: "Rose", color: "oklch(0.79 0.115 356)", nebula: "oklch(0.5 0.15 300)" },
 };
 
 export const FONTS: Record<FontId, { name: string; stack: string }> = {

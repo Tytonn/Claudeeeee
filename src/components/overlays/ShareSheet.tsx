@@ -10,6 +10,8 @@ import { displayTitle } from "../../lib/text";
 import { play } from "../../lib/sound";
 import { Popover } from "../ui/Popover";
 import { Switch } from "../ui/Switch";
+import { fx } from "../../fx/engine";
+import { useScramble } from "../../fx/useScramble";
 
 function explain(err: unknown): string {
   if (err instanceof ApiError) {
@@ -47,6 +49,7 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [name, setName] = useState(settings.name);
+  const [justCreated, setJustCreated] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -55,11 +58,13 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
     setError(null);
     setCopied(false);
     setName(settings.name);
+    setJustCreated(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const url = record ? shareUrl(record) : "";
   const prettyUrl = record ? `${location.host}/s/${record.id}` : "";
+  const shownUrl = useScramble(prettyUrl, { enabled: justCreated && fx.active, duration: 900, delay: 150 });
   const nothing = isBoard && !todos && !cds;
 
   const copy = async (value: string) => {
@@ -91,7 +96,13 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
     setError(null);
     try {
       const r = await startShare(anchor, { includeTodos: todos, includeCountdowns: cds });
-      play("chime");
+      // Send it up: a beam of light rises from the button.
+      if (fx.active && anchorEl && "getBoundingClientRect" in anchorEl) {
+        const b = anchorEl.getBoundingClientRect();
+        fx.beam(b.left + b.width / 2, b.top + b.height / 2);
+        play("transmit");
+        setJustCreated(true);
+      } else play("chime");
       const ok = await copy(shareUrl(r));
       toast(ok ? "Link created and copied" : "Link created", { tone: "success" });
     } catch (err) {
@@ -180,7 +191,7 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
             <motion.div key="live" className="share-live" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.2 }}>
               <div className="share-link">
                 <span className="share-url mono" title={url}>
-                  {prettyUrl}
+                  {shownUrl}
                   <span className="share-url-key">#••••</span>
                 </span>
                 <button type="button" className={`share-copy ${copied ? "is-copied" : ""}`} onClick={() => void copy(url)}>

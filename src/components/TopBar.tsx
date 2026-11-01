@@ -92,6 +92,7 @@ export function TopBar() {
               <button
                 ref={shareBtn}
                 type="button"
+                data-magnetic
                 className={`pill-btn ${shared ? "is-live" : ""} ${shareAnchor === activeId ? "is-open" : ""}`}
                 onClick={() => (shareAnchor === activeId ? setUI({ share: null }) : openShare(activeId))}
               >

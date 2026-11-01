@@ -9,6 +9,7 @@ import { countdownPhrase, describeCountdown, formatDate, formatTime, ordinal, pa
 import { useNow } from "../../lib/hooks";
 import { play } from "../../lib/sound";
 import { NEW_COUNTDOWN_EVENT } from "../../lib/actions";
+import { fx } from "../../fx/engine";
 import { ease, spring } from "../../lib/motion";
 import { Eclipse } from "../ui/Eclipse";
 import { IconButton } from "../ui/IconButton";
@@ -79,7 +80,11 @@ export function CountdownForm({ initial, onSubmit, onCancel, onDelete }: FormPro
   }, [title, repeatTouched]);
 
   useEffect(() => {
-    requestAnimationFrame(() => input.current?.focus());
+    // Focus right away so the first keystrokes land in the title even on a slow frame,
+    // then once more after the entrance animation has laid out.
+    input.current?.focus({ preventScroll: true });
+    const raf = requestAnimationFrame(() => input.current?.focus({ preventScroll: true }));
+    return () => cancelAnimationFrame(raf);
   }, []);
 
   const effDate = date ?? parsed?.date ?? null;
@@ -216,6 +221,18 @@ function unitFor(st: CountdownState): string {
 
 function CountdownCard({ c, st, onEdit }: { c: Countdown; st: CountdownState; onEdit: (id: string, el: HTMLElement) => void }) {
   const live = st.hasTime && st.ms > 0 && st.ms < 86_400_000;
+  const sun = useRef<HTMLSpanElement>(null);
+  const isToday = st.phase === "today";
+
+  // On the day itself, the little eclipse throws off solar flares.
+  useEffect(() => {
+    if (!isToday) return;
+    const id = window.setInterval(() => {
+      const r = sun.current?.getBoundingClientRect();
+      if (r && r.width && r.bottom > 0 && r.top < innerHeight) fx.prominence(r.left + r.width / 2, r.top + r.height / 2, r.width * 0.3);
+    }, 1600);
+    return () => window.clearInterval(id);
+  }, [isToday]);
   const { h, m, s } = splitDuration(st.ms);
   const sub = [formatDate(st.target), c.time ? formatTime(st.target) : null, c.repeat === "yearly" && st.nth ? ordinal(st.nth) : null].filter(Boolean).join(" · ");
 
@@ -231,6 +248,8 @@ function CountdownCard({ c, st, onEdit }: { c: Countdown; st: CountdownState; on
       <button
         type="button"
         className="cd-card"
+        data-light
+        data-tilt
         onClick={(e) => onEdit(c.id, e.currentTarget)}
         onPointerMove={(e) => {
           const r = e.currentTarget.getBoundingClientRect();
@@ -239,7 +258,9 @@ function CountdownCard({ c, st, onEdit }: { c: Countdown; st: CountdownState; on
         }}
         aria-label={`${c.title}, ${countdownPhrase(st)}`}
       >
-        <Eclipse progress={st.progress} size={30} className="cd-eclipse" />
+        <span className="cd-eclipse-wrap" ref={sun}>
+          <Eclipse progress={st.progress} size={30} className="cd-eclipse" />
+        </span>
         <span className="cd-text">
           <span className="cd-title">
             {c.title}

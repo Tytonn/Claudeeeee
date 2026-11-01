@@ -9,6 +9,8 @@ import { open } from "../lib/crypto";
 import type { SharePayload } from "../lib/types";
 import { sanitizePayload } from "../lib/sanitize";
 import { safeDoc } from "../components/editor/safeDoc";
+import { fx } from "../fx/engine";
+import { useScramble } from "../fx/useScramble";
 import { countdownPhrase, describeCountdown, formatDate, formatTime, ordinal, relativeLong, splitDuration } from "../lib/dates";
 import { useNow } from "../lib/hooks";
 import { navigate } from "../lib/router";
@@ -66,7 +68,7 @@ function HeroCountdown({ c, now }: { c: SharedCountdown; now: number }) {
   const { h, m, s } = splitDuration(st.ms);
   return (
     <div className={`hero-cd is-${st.phase}`}>
-      <Eclipse progress={st.progress} size={132} className="hero-eclipse" />
+      <Eclipse progress={st.progress} size={132} className="hero-eclipse" luminous />
       <div className="hero-value">
         {st.phase === "today" && !live ? (
           <span className="hero-today display">Today</span>
@@ -184,6 +186,16 @@ function StateScreen({ phase }: { phase: Phase }) {
   );
 }
 
+/** The title decodes itself out of cipher glyphs the first time it appears. */
+function DecodedTitle({ text, decode }: { text: string; decode: boolean }) {
+  const shown = useScramble(text, { enabled: decode, duration: 1100, delay: 250 });
+  return (
+    <h1 className="note-title display static" aria-label={text}>
+      {shown}
+    </h1>
+  );
+}
+
 export function ShareView({ id, keyRaw }: { id: string; keyRaw: string }) {
   const [phase, setPhase] = useState<Phase>(keyRaw ? "loading" : "missing-key");
   const [payload, setPayload] = useState<SharePayload | null>(null);
@@ -194,6 +206,17 @@ export function ShareView({ id, keyRaw }: { id: string; keyRaw: string }) {
   const ownAnchor = useApp((s) => Object.values(s.shares).find((r) => r.id === id)?.anchor ?? null);
   const now = useNow(1000);
   const loaded = useRef(false);
+  const [firstReveal] = useState(() => fx.active);
+  const titleRef = useRef<HTMLElement>(null);
+
+  // A vast moon hangs above the page; its corona arcs across the top of the sky.
+  useEffect(() => {
+    fx.setMoon(() => {
+      const r = Math.max(innerWidth * 0.46, 380);
+      return { x: innerWidth / 2, y: -r * 0.64, r };
+    });
+    return () => fx.setMoon(null);
+  }, []);
 
   useEffect(() => {
     if (!keyRaw) return;
@@ -231,7 +254,16 @@ export function ShareView({ id, keyRaw }: { id: string; keyRaw: string }) {
           etag = res.etag;
           setPayload(data);
           setUpdatedAt(res.share.updatedAt);
-          if (loaded.current) setPulse((p) => p + 1);
+          if (loaded.current) {
+            // A live edit arrives: the light stirs.
+            setPulse((p) => p + 1);
+            fx.flareUp(0.7);
+            const r = titleRef.current?.getBoundingClientRect();
+            if (r) fx.shockwave(r.left + r.width / 2, r.top + 20, 0.6, 1300);
+          } else {
+            // Decrypted: the diamond ring.
+            window.setTimeout(() => fx.diamondRing(), 200);
+          }
           loaded.current = true;
           setPhase("ready");
           interval = 4000;
@@ -350,14 +382,17 @@ export function ShareView({ id, keyRaw }: { id: string; keyRaw: string }) {
                 {heroOnly && <HeroCountdown c={cds[0].c} now={now} />}
 
                 {payload.note && (
-                  <article className="viewer-note">
+                  <article className={`viewer-note ${firstReveal ? "decrypt" : ""}`} ref={titleRef}>
                     {pulse > 0 && (
                       <motion.div key={pulse} className="viewer-pulse" aria-hidden initial={{ opacity: 1 }} animate={{ opacity: 0 }} transition={{ duration: 1.6, ease: "easeOut" }} />
                     )}
-                    <h1 className="note-title display static">{payload.note.title || "Untitled"}</h1>
-                    <ErrorBoundary fallback={<div className="doc-error">This note's formatting couldn't be displayed.</div>}>
-                      <ReadOnlyDoc doc={payload.note.doc} />
-                    </ErrorBoundary>
+                    <div className="decrypt-body">
+                      <DecodedTitle text={payload.note.title || "Untitled"} decode={firstReveal} />
+                      <ErrorBoundary fallback={<div className="doc-error">This note's formatting couldn't be displayed.</div>}>
+                        <ReadOnlyDoc doc={payload.note.doc} />
+                      </ErrorBoundary>
+                    </div>
+                    {firstReveal && <div className="decrypt-scan" aria-hidden />}
                   </article>
                 )}
 

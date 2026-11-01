@@ -1,0 +1,752 @@
+/* ───────────────────────────────────────────────────────────────────────────
+   umbra — light & shadow effects
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* Layers: sky (WebGL) → dust → grain → app → ghosts → effects overlay. */
+.fx-sky,
+.fx-dust,
+.fx-over {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  pointer-events: none;
+}
+.fx-sky,
+.fx-dust {
+  z-index: 0;
+}
+.fx-over {
+  z-index: 950;
+}
+body::before {
+  z-index: 1;
+}
+#root {
+  z-index: 2;
+}
+.fx-ghost {
+  position: fixed;
+  z-index: 940;
+  pointer-events: none;
+}
+
+@property --beam {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+@property --sweep {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 0%;
+}
+
+/* ── Glass: the sky shows through ────────────────────────────────────────── */
+
+html[data-fx="cosmic"] .canvas,
+html[data-fx="subtle"] .canvas {
+  background: rgb(8 9 11 / 0.76);
+  -webkit-backdrop-filter: blur(26px) saturate(1.4);
+  backdrop-filter: blur(26px) saturate(1.4);
+}
+html[data-fx="cosmic"] .modal,
+html[data-fx="subtle"] .modal {
+  background: linear-gradient(180deg, rgb(20 21 25 / 0.84), rgb(12 13 16 / 0.88));
+}
+html[data-fx="cosmic"] .overlay {
+  background: rgb(2 2 4 / 0.42);
+}
+
+/* ── Rim light: elements catch the cursor's light along their edges ─────── */
+
+html:not([data-fx="off"]) [data-light]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  padding: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(240px circle at var(--lx, -999px) var(--ly, -999px), color-mix(in oklch, var(--accent) 70%, white), transparent 68%);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: var(--near, 0);
+  transition: opacity 260ms var(--ease);
+}
+
+/* …and cast soft shadows away from it. */
+html:not([data-fx="off"]) .cd-card[data-light] {
+  box-shadow:
+    calc(var(--sx, 0) * 16px) calc(var(--sy, 0) * 16px + 8px) 30px -12px rgb(0 0 0 / 0.8),
+    inset 0 0 0 1px var(--line),
+    inset 0 1px 0 rgb(255 255 255 / 0.035);
+}
+html:not([data-fx="off"]) .cd-card[data-light]:hover {
+  box-shadow:
+    calc(var(--sx, 0) * 22px) calc(var(--sy, 0) * 22px + 12px) 36px -12px rgb(0 0 0 / 0.85),
+    inset 0 0 0 1px var(--line-2),
+    inset 0 1px 0 rgb(255 255 255 / 0.05);
+}
+/* The panel is the moon: its shadow stays tucked beneath it so the corona can shine. */
+html:not([data-fx="off"]) .canvas[data-light] {
+  box-shadow:
+    0 0 0 1px var(--line),
+    calc(var(--sx, 0) * 24px) calc(var(--sy, 0) * 24px + 14px) 60px -34px rgb(0 0 0 / 0.75);
+}
+
+[data-tilt] {
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+[data-magnetic] {
+  transition:
+    translate 260ms cubic-bezier(0.2, 0.9, 0.3, 1.2),
+    color var(--t-fast) var(--ease),
+    background-color var(--t-fast) var(--ease),
+    box-shadow var(--t-fast) var(--ease),
+    transform 180ms var(--ease),
+    filter var(--t-fast) var(--ease);
+}
+
+/* ── Light beams that orbit the edges of live things ─────────────────────── */
+
+html:not([data-fx="off"]) .sb-item-bg::after,
+html:not([data-fx="off"]) .pill-btn.is-live::after,
+html:not([data-fx="off"]) .todo-add:focus-within::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: conic-gradient(from var(--beam), transparent 0deg 270deg, color-mix(in oklch, var(--accent) 60%, transparent) 320deg, #fff 350deg, transparent 360deg);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: beam-orbit 4.2s linear infinite;
+  opacity: 0.85;
+}
+html:not([data-fx="off"]) .pill-btn.is-live::after {
+  background: conic-gradient(from var(--beam), transparent 0deg 260deg, color-mix(in oklch, var(--live) 60%, transparent) 320deg, #fff 350deg, transparent 360deg);
+  animation-duration: 2.6s;
+}
+.pill-btn.is-live,
+.todo-add {
+  position: relative;
+}
+@keyframes beam-orbit {
+  to {
+    --beam: 360deg;
+  }
+}
+
+/* ── Notes arriving ──────────────────────────────────────────────────────── */
+
+.note-wrap {
+  position: relative;
+}
+/* New note: the page develops like an exposure as the diamond ring flashes. */
+html:not([data-fx="off"]) .note-wrap.enter-dawn {
+  animation: develop 1100ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+html:not([data-fx="off"]) .note-wrap.enter-dawn::before {
+  content: "";
+  position: absolute;
+  inset: -10% 0 auto;
+  height: 38%;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent, color-mix(in oklch, var(--accent) 22%, transparent) 45%, rgb(255 255 255 / 0.16) 50%, transparent);
+  filter: blur(8px);
+  animation: develop-sweep 1100ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+@keyframes develop {
+  0% {
+    opacity: 0;
+    filter: brightness(2.4) blur(12px);
+    transform: scale(0.985) translateY(10px);
+  }
+  45% {
+    opacity: 1;
+    filter: brightness(1.35) blur(2px);
+  }
+  100% {
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+}
+@keyframes develop-sweep {
+  from {
+    transform: translateY(-40%);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(330%);
+    opacity: 0;
+  }
+}
+/* Switching notes: a lens pulling focus, with a breath of chromatic split. */
+html:not([data-fx="off"]) .note-wrap.enter-focus {
+  animation: focus-pull 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes focus-pull {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.995);
+    filter: blur(9px) brightness(1.5) drop-shadow(3px 0 0 rgb(255 70 120 / 0.45)) drop-shadow(-3px 0 0 rgb(70 200 255 / 0.45));
+  }
+  60% {
+    opacity: 1;
+    filter: blur(0.5px) brightness(1.05) drop-shadow(0.6px 0 0 rgb(255 70 120 / 0.2)) drop-shadow(-0.6px 0 0 rgb(70 200 255 / 0.2));
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+html[data-fx="off"] .note-wrap.enter-dawn,
+html[data-fx="off"] .note-wrap.enter-focus,
+.note-wrap.enter-plain {
+  animation: plain-in 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes plain-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+    filter: blur(6px);
+  }
+}
+
+/* ── Ghosts: things leaving after the app has moved on ───────────────────── */
+
+.fx-dissolve {
+  -webkit-mask-image: linear-gradient(90deg, transparent calc(var(--sweep) - 14%), #000 var(--sweep));
+  mask-image: linear-gradient(90deg, transparent calc(var(--sweep) - 14%), #000 var(--sweep));
+}
+.fx-dissolve::after {
+  content: "";
+  position: absolute;
+  top: 10%;
+  bottom: 10%;
+  left: calc(var(--sweep) - 7%);
+  width: 2px;
+  border-radius: 2px;
+  background: #fff;
+  box-shadow:
+    0 0 10px var(--accent),
+    0 0 22px var(--accent);
+  opacity: 0.9;
+}
+
+.fx-wipe {
+  overflow: hidden;
+}
+.fx-wipe-page {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--canvas);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+.fx-moon {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 42% 40%, #0c0c10, #030304 72%);
+  box-shadow:
+    0 0 0 1.5px color-mix(in oklch, var(--accent) 60%, white),
+    0 0 18px 2px color-mix(in oklch, var(--accent) 90%, white),
+    0 0 70px 18px color-mix(in oklch, var(--accent) 50%, transparent),
+    0 0 180px 50px color-mix(in oklch, var(--accent) 18%, transparent),
+    inset 0 0 60px rgb(0 0 0 / 0.95);
+}
+
+/* ── The light caret ─────────────────────────────────────────────────────── */
+
+.prose.has-light-caret {
+  caret-color: transparent;
+}
+.light-caret {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 4;
+  width: 2px;
+  border-radius: 2px;
+  pointer-events: none;
+  background: linear-gradient(180deg, #fff, color-mix(in oklch, var(--accent) 80%, white));
+  box-shadow:
+    0 0 6px var(--accent),
+    0 0 16px color-mix(in oklch, var(--accent) 70%, transparent);
+  opacity: 0;
+  transition:
+    transform 110ms cubic-bezier(0.2, 0.9, 0.25, 1),
+    height 110ms var(--ease),
+    opacity 160ms var(--ease);
+}
+.light-caret.is-on {
+  opacity: 1;
+}
+.light-caret.is-on.is-idle {
+  animation: caret-breathe 1.15s ease-in-out 0.45s infinite;
+}
+.light-caret::before {
+  /* the warm smear of light trailing behind as you type */
+  content: "";
+  position: absolute;
+  right: 1px;
+  top: 15%;
+  bottom: 15%;
+  width: var(--heat-w, 0px);
+  border-radius: 99px;
+  background: linear-gradient(90deg, transparent, color-mix(in oklch, var(--accent) 38%, transparent));
+  filter: blur(3px);
+  opacity: var(--heat, 0);
+  transition:
+    width 240ms var(--ease),
+    opacity 420ms var(--ease);
+}
+@keyframes caret-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.18;
+    box-shadow: none;
+  }
+}
+
+/* ── Rail clock ──────────────────────────────────────────────────────────── */
+
+.rail-clock {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1px;
+  font-size: 11px;
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+.rail-clock .colon {
+  color: var(--fg-5);
+  animation: colon-blink 2s steps(1) infinite;
+}
+@keyframes colon-blink {
+  50% {
+    color: var(--fg-3);
+  }
+}
+
+/* ── Today: the countdown's eclipse wears a turning corona ───────────────── */
+
+.cd.is-today .cd-eclipse-wrap::before {
+  content: "";
+  position: absolute;
+  inset: -9px;
+  border-radius: 50%;
+  background: repeating-conic-gradient(from 0deg, color-mix(in oklch, var(--accent) 55%, transparent) 0deg 3deg, transparent 3deg 14deg);
+  -webkit-mask: radial-gradient(circle, transparent 42%, #000 46%, transparent 72%);
+  mask: radial-gradient(circle, transparent 42%, #000 46%, transparent 72%);
+  animation: corona-turn 14s linear infinite;
+  filter: blur(0.6px);
+}
+.cd-eclipse-wrap {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+@keyframes corona-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Wordmark: light glances across it now and then ──────────────────────── */
+
+html:not([data-fx="off"]) .wordmark {
+  background: linear-gradient(100deg, var(--fg-1) 40%, color-mix(in oklch, var(--accent) 60%, white) 50%, var(--fg-1) 60%);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: glance 9s ease-in-out 2s infinite;
+}
+@keyframes glance {
+  0%,
+  70% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: 0% 0;
+  }
+}
+
+/* ── Accent change: the new color floods out from where you clicked ──────── */
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+html.vt-accent {
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fx-dissolve,
+  .note-wrap {
+    animation: none !important;
+  }
+}
+
+/* Side columns are smoked-glass windows onto the sky: tinted for legibility, but clear
+   enough that the stars, nebula and corona streamers read crisply through them. */
+html[data-fx="cosmic"] .sidebar-inner,
+html[data-fx="cosmic"] .rail-inner,
+html[data-fx="subtle"] .sidebar-inner,
+html[data-fx="subtle"] .rail-inner {
+  background: linear-gradient(180deg, rgb(6 6 9 / 0.5), rgb(5 5 8 / 0.4));
+  -webkit-backdrop-filter: blur(1.5px) saturate(1.25);
+  backdrop-filter: blur(1.5px) saturate(1.25);
+}
+/* Small print gets a touch brighter so it holds up over the streamers behind the glass. */
+html[data-fx="cosmic"] :is(.sidebar-inner, .rail-inner) :is(.label, .rail-full, .cd-date, .sb-item-time),
+html[data-fx="subtle"] :is(.sidebar-inner, .rail-inner) :is(.label, .rail-full, .cd-date, .sb-item-time) {
+  color: var(--fg-3);
+}
+html[data-fx="cosmic"] .sidebar-inner .sb-item:is(.is-active, :hover) .sb-item-time,
+html[data-fx="subtle"] .sidebar-inner .sb-item:is(.is-active, :hover) .sb-item-time {
+  color: var(--fg-2);
+}
+html[data-fx="cosmic"] .app:not(.is-mobile) .sidebar-inner,
+html[data-fx="subtle"] .app:not(.is-mobile) .sidebar-inner {
+  margin: 8px 0 8px 8px;
+  height: calc(100% - 16px);
+  width: calc(var(--sidebar-w) - 16px);
+  border-radius: 16px;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.04);
+}
+html[data-fx="cosmic"] .app:not(.is-mobile) .rail-inner,
+html[data-fx="subtle"] .app:not(.is-mobile) .rail-inner {
+  margin: 8px 8px 8px 8px;
+  height: calc(100% - 16px);
+  width: calc(var(--rail-w) - 16px);
+  border-radius: 16px;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.04);
+}
+html[data-fx="cosmic"] .app.has-sidebar .canvas,
+html[data-fx="subtle"] .app.has-sidebar .canvas {
+  margin-left: 6px;
+}
+html[data-fx="cosmic"] .app.has-rail .canvas,
+html[data-fx="subtle"] .app.has-rail .canvas {
+  margin-right: 6px;
+}
+
+/* The Completed toggle catches the light streak when a to-do lands. */
+.todo-done-toggle.pulse,
+.widget-head .label.pulse {
+  animation: catch-light 700ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes catch-light {
+  0% {
+    color: #fff;
+    text-shadow:
+      0 0 10px var(--accent),
+      0 0 22px var(--accent);
+  }
+  100% {
+    text-shadow: none;
+  }
+}
+
+.rail-full {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.rail-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--fg-5);
+  align-self: center;
+}
+.rail-clock-period {
+  color: var(--fg-4);
+}
+.sb-search {
+  position: relative;
+}
+.primary-btn,
+.sb-fab {
+  isolation: isolate;
+}
+
+/* ── Intro: a total eclipse ──────────────────────────────────────────────── */
+
+html.intro-on .app > *,
+html.intro-on .app .sidebar-inner,
+html.intro-on .app .rail-inner {
+  animation-play-state: paused !important;
+}
+.intro {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: radial-gradient(60% 60% at 50% 45%, #07070b, #020203 70%);
+  transition: opacity 850ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.intro.is-out {
+  opacity: 0;
+  pointer-events: none;
+}
+.intro-stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: -4vh;
+  transition:
+    transform 950ms cubic-bezier(0.55, 0, 0.2, 1),
+    filter 950ms cubic-bezier(0.55, 0, 0.2, 1);
+}
+.intro.is-out .intro-stage {
+  transform: scale(2.8);
+  filter: blur(12px) brightness(2);
+}
+.intro-sun {
+  position: relative;
+  z-index: 2;
+  width: 200px;
+  height: 200px;
+  filter: drop-shadow(0 0 46px color-mix(in oklch, var(--accent) 45%, transparent));
+  animation: sun-rise 1100ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes sun-rise {
+  from {
+    opacity: 0;
+    transform: scale(0.55);
+    filter: blur(14px);
+  }
+}
+.intro-corona {
+  position: absolute;
+  top: 100px;
+  left: 50%;
+  z-index: 1;
+  width: 820px;
+  height: 820px;
+  margin: -410px 0 0 -410px;
+  border-radius: 50%;
+  background: repeating-conic-gradient(from 0deg, color-mix(in oklch, var(--accent) 55%, transparent) 0deg 1.1deg, transparent 1.1deg 4.2deg);
+  -webkit-mask: radial-gradient(circle, transparent 13%, #000 14.5%, rgb(0 0 0 / 0.5) 26%, transparent 50%);
+  mask: radial-gradient(circle, transparent 13%, #000 14.5%, rgb(0 0 0 / 0.5) 26%, transparent 50%);
+  filter: blur(1.4px);
+  opacity: 0;
+  scale: 0.5;
+  transition:
+    opacity 700ms ease,
+    scale 1800ms cubic-bezier(0.16, 1, 0.3, 1);
+  animation: spin-rotate 70s linear infinite;
+}
+.intro-corona.second {
+  background: repeating-conic-gradient(from 2deg, rgb(255 255 255 / 0.55) 0deg 0.5deg, transparent 0.5deg 6.5deg);
+  animation-duration: 46s;
+  animation-direction: reverse;
+}
+.intro.is-total .intro-corona,
+.intro.is-out .intro-corona {
+  opacity: 1;
+  scale: 1;
+}
+@keyframes spin-rotate {
+  to {
+    rotate: 360deg;
+  }
+}
+.intro-diamond {
+  position: absolute;
+  z-index: 3;
+  left: calc(50% + 46px);
+  top: 64px;
+  width: 10px;
+  height: 10px;
+  margin: -5px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow:
+    0 0 18px 6px #fff,
+    0 0 60px 22px color-mix(in oklch, var(--accent) 80%, white);
+  opacity: 0;
+}
+.intro-diamond::before,
+.intro-diamond::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  background: linear-gradient(90deg, transparent, #fff, transparent);
+  transform: translate(-50%, -50%);
+}
+.intro-diamond::before {
+  width: 520px;
+  height: 2px;
+}
+.intro-diamond::after {
+  width: 2px;
+  height: 140px;
+  background: linear-gradient(180deg, transparent, #fff, transparent);
+}
+.intro.is-total .intro-diamond {
+  animation: diamond 1300ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes diamond {
+  0% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  12% {
+    opacity: 1;
+    transform: scale(1.25);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+}
+.intro-word {
+  position: relative;
+  z-index: 2;
+  margin-top: 58px;
+  font-size: 68px;
+  font-style: italic;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--fg-1);
+}
+.intro-word span {
+  display: inline-block;
+  animation: letter-in 1000ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes letter-in {
+  from {
+    opacity: 0;
+    filter: blur(14px);
+    transform: translateY(12px) scale(0.96);
+  }
+}
+.intro-tag {
+  position: relative;
+  z-index: 2;
+  margin-top: 18px;
+  font-size: 11px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+  animation: fade-in 900ms ease 2s both;
+}
+.intro-skip {
+  position: absolute;
+  bottom: max(28px, env(safe-area-inset-bottom));
+  left: 50%;
+  translate: -50% 0;
+  font-size: 10.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--fg-5);
+  animation: fade-in 800ms ease 1s both;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@media (max-width: 600px) {
+  .intro-stage {
+    scale: 0.72;
+  }
+}
+
+/* ── The friend's view: decrypting ───────────────────────────────────────── */
+
+@property --scan {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 108%;
+}
+html:not([data-fx="off"]) .viewer-note.decrypt {
+  animation: scan-down 1700ms cubic-bezier(0.45, 0, 0.25, 1) 350ms both;
+}
+html:not([data-fx="off"]) .viewer-note.decrypt .decrypt-body {
+  -webkit-mask-image: linear-gradient(180deg, #000 calc(var(--scan) - 7%), rgb(0 0 0 / 0.15) var(--scan), transparent calc(var(--scan) + 4%));
+  mask-image: linear-gradient(180deg, #000 calc(var(--scan) - 7%), rgb(0 0 0 / 0.15) var(--scan), transparent calc(var(--scan) + 4%));
+}
+.decrypt-scan {
+  position: absolute;
+  left: -6%;
+  right: -6%;
+  top: var(--scan);
+  height: 2px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, color-mix(in oklch, var(--accent) 80%, white) 20%, #fff 50%, color-mix(in oklch, var(--accent) 80%, white) 80%, transparent);
+  box-shadow:
+    0 0 14px var(--accent),
+    0 0 40px color-mix(in oklch, var(--accent) 60%, transparent);
+  opacity: 0;
+  animation: scan-line 1700ms cubic-bezier(0.45, 0, 0.25, 1) 350ms both;
+}
+@keyframes scan-down {
+  from {
+    --scan: 0%;
+  }
+  to {
+    --scan: 108%;
+  }
+}
+@keyframes scan-line {
+  0% {
+    opacity: 0;
+  }
+  8%,
+  88% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+html[data-fx="cosmic"] .viewer-from,
+html[data-fx="subtle"] .viewer-from {
+  color: var(--fg-3);
+}
+html[data-fx="cosmic"] .viewer-bar {
+  background: linear-gradient(180deg, rgb(6 6 7 / 0.55), rgb(6 6 7 / 0.25));
+}
+html[data-fx="cosmic"] .viewer-cd,
+html[data-fx="cosmic"] .viewer-todos {
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  background-color: rgb(8 9 12 / 0.45);
+}
+
+/* Give the moon hanging over the friend's view room to breathe, like a hero banner:
+   the note starts just clear of its lowest point (0.36 r below the top of the page).
+   A soft veil of shadow sits behind the words so they stay easy to read over the nebula. */
+html[data-fx="cosmic"] .viewer-main,
+html[data-fx="subtle"] .viewer-main {
+  padding-top: max(7vh, calc(0.36 * max(46vw, 380px) - 14px));
+  background: radial-gradient(closest-side, rgb(3 3 6 / 0.42), rgb(3 3 6 / 0.26) 62%, transparent);
+}

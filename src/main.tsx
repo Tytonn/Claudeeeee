@@ -14,12 +14,16 @@ import "./styles/editor.css";
 import "./styles/widgets.css";
 import "./styles/overlays.css";
 import "./styles/viewer.css";
+import "./styles/fx.css";
 
 import { useApp } from "./store/app";
 import { loadAll, startPersistence, storageOk } from "./store/persist";
 import { toast } from "./store/toasts";
 import { startShareSync } from "./store/shareSync";
-import { applyTheme } from "./lib/theme";
+import { ACCENTS, applyTheme } from "./lib/theme";
+import type { Settings } from "./lib/types";
+import { fx } from "./fx/engine";
+import { startPointerLight } from "./fx/dom";
 import { setSoundEnabled } from "./lib/sound";
 import { App } from "./App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -29,13 +33,23 @@ async function boot() {
   useApp.getState().hydrate(data);
 
   const { settings } = useApp.getState();
+  const syncFx = (s: Settings) => {
+    fx.setLevel(s.effects);
+    const accent = ACCENTS[s.accent] ?? ACCENTS.iris;
+    fx.setAccent(accent.color, accent.nebula);
+  };
   applyTheme(settings);
   setSoundEnabled(settings.sounds);
+  syncFx(settings);
+  fx.init();
+  startPointerLight();
+  if (import.meta.env.DEV) (window as unknown as { __fx: typeof fx }).__fx = fx;
   useApp.subscribe(
     (s) => s.settings,
     (s) => {
       applyTheme(s);
       setSoundEnabled(s.sounds);
+      syncFx(s);
     },
   );
 

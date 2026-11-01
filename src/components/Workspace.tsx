@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { RotateCcw, SquarePen, Trash2 } from "lucide-react";
 import type { Editor } from "@tiptap/core";
@@ -22,6 +22,8 @@ import { ShortcutsModal } from "./overlays/Shortcuts";
 import { Toasts } from "./overlays/Toasts";
 import { Eclipse } from "./ui/Eclipse";
 import { ErrorBoundary } from "./ErrorBoundary";
+import { fx } from "../fx/engine";
+import { peekEntrance, resetEntrance } from "../fx/intent";
 import { Kbd } from "./ui/Kbd";
 
 function useGlobalShortcuts() {
@@ -99,24 +101,30 @@ function useGlobalShortcuts() {
   }, []);
 }
 
-/** Dim the chrome while typing; bring it back the moment the mouse moves. */
+/**
+ * While you write, the chrome dims (if enabled) and the sky holds its breath;
+ * both come back the moment the mouse moves.
+ */
 function useTypingFade(enabled: boolean) {
   useEffect(() => {
     const root = document.documentElement;
-    if (!enabled) {
-      delete root.dataset.typing;
-      return;
-    }
+    if (!enabled) delete root.dataset.typing;
     let x = -1;
     let y = -1;
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const t = e.target as HTMLElement | null;
       if (!t?.closest?.(".note")) return;
-      if (e.key.length === 1 || e.key === "Backspace" || e.key === "Enter") root.dataset.typing = "1";
+      if (e.key.length === 1 || e.key === "Backspace" || e.key === "Enter") {
+        fx.setCalm(true);
+        if (enabled) root.dataset.typing = "1";
+      }
     };
     const onMove = (e: PointerEvent) => {
-      if (x >= 0 && Math.abs(e.clientX - x) + Math.abs(e.clientY - y) > 6) delete root.dataset.typing;
+      if (x >= 0 && Math.abs(e.clientX - x) + Math.abs(e.clientY - y) > 6) {
+        delete root.dataset.typing;
+        fx.setCalm(false);
+      }
       x = e.clientX;
       y = e.clientY;
     };
@@ -240,6 +248,17 @@ export function Workspace() {
   const mobilePane = useApp((s) => s.ui.mobile);
   const isMobile = useIsMobile();
   const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
+  const panelRef = useRef<HTMLElement>(null);
+
+  // The editor panel is the moon; the corona pours out from behind it.
+  useEffect(() => {
+    fx.setPanel(panelRef.current);
+    return () => fx.setPanel(null);
+  }, []);
+
+  // How this note arrives: a dawn for new notes, a focus pull when switching.
+  const entrance = useMemo(() => peekEntrance(), [activeId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => resetEntrance(), [activeId]);
 
   useGlobalShortcuts();
   useTypingFade(settings.fadeWhileTyping && !isMobile);
@@ -264,22 +283,16 @@ export function Workspace() {
         data-pane={isMobile ? mobilePane : undefined}
       >
         <Sidebar />
-        <main className="canvas">
+        <main className="canvas" ref={panelRef} data-light>
           <div className="canvas-glow" aria-hidden />
           <TopBar />
           <div className="canvas-scroll" ref={setScroller}>
             {view === "trash" ? (
               <TrashView />
             ) : activeId ? (
-              // Keyed (no exit animation): the next note mounts instantly and fades in,
-              // so the caret is ready the moment you switch or create a note.
-              <motion.div
-                key={activeId}
-                className="note-wrap"
-                initial={{ opacity: 0, y: 8, filter: "blur(6px)" }}
-                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                transition={{ duration: 0.38, ease: [0.16, 1, 0.3, 1] }}
-              >
+              // Keyed (no exit animation): the next note mounts instantly — so the caret is
+              // ready at once — and arrives with its entrance (dawn / focus pull / plain).
+              <div key={activeId} className={`note-wrap enter-${entrance}`}>
                 <ErrorBoundary
                   fallback={
                     <div className="note-broken">
@@ -293,7 +306,7 @@ export function Workspace() {
                 >
                   <NoteEditor noteId={activeId} scroller={scroller} />
                 </ErrorBoundary>
-              </motion.div>
+              </div>
             ) : (
               <EmptyState />
             )}
