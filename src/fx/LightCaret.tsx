@@ -67,7 +67,7 @@ function inkFor(editor: Editor, tr: Transaction) {
 
 /**
  * A caret made of light: glides between positions, breathes when idle, glows hotter
- * the faster you write, and sheds sparks — rising as you type, falling as you erase.
+ * the faster you write, and leaves a streak of light when it jumps somewhere new.
  */
 export function LightCaret({ editor, container }: { editor: Editor | null; container: HTMLElement | null }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -109,8 +109,8 @@ export function LightCaret({ editor, container }: { editor: Editor | null; conta
       window.clearTimeout(idleTimer);
       idleTimer = window.setTimeout(() => el.classList.add("is-idle"), 520);
       const at = { x: c.left, y: c.top + h / 2 };
-      if (pending) fx.spark(at.x + 1, at.y, pending);
-      else if (last && Math.hypot(at.x - last.x, at.y - last.y) > 90) fx.trail(last, at, undefined, { quiet: true, dur: 260 });
+      // Moves caused by typing (like wrapping to a new line) don't count as jumps.
+      if (!pending && last && Math.hypot(at.x - last.x, at.y - last.y) > 90) fx.trail(last, at, undefined, { quiet: true, dur: 260 });
       pending = null;
       last = at;
     };

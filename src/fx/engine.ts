@@ -132,7 +132,6 @@ class FxEngine {
   private inkBudget = 0;
   private overDirty = false;
   private sprites = new Map<string, HTMLCanvasElement>();
-  private sparkBudget = 0;
   /** Adaptive quality: the sky's render scale drops on slow machines, recovers on fast ones. */
   private skyScale = 1;
   private frameMs = 16;
@@ -337,7 +336,6 @@ class FxEngine {
     this.flare *= Math.exp(-dt * 1.8);
     this.diamond.v *= Math.exp(-dt * 3.2);
     this.dim += (this.dimTarget - this.dim) * Math.min(1, dt * 5);
-    this.sparkBudget = Math.min(40, this.sparkBudget + dt * 60);
     this.inkBudget = Math.min(24, this.inkBudget + dt * 40);
     this.trackPanel();
 
@@ -1181,29 +1179,6 @@ class FxEngine {
       quiet: o.quiet,
     });
     this.overDirty = true;
-  }
-
-  /** Light that comes off the caret as you write. */
-  spark(x: number, y: number, kind: "type" | "erase" = "type") {
-    if (!this.active || this.sparkBudget < 1) return;
-    this.sparkBudget -= 1;
-    const n = this.full ? (kind === "type" ? 3 : 2) : 1;
-    for (let i = 0; i < n; i++) {
-      const life = rand(0.45, 0.85);
-      this.add({
-        x: x + rand(-2, 2),
-        y: y + rand(-3, 3),
-        vx: rand(-26, 26),
-        vy: kind === "type" ? -rand(30, 85) : rand(10, 50),
-        ay: kind === "type" ? -12 : 90,
-        drag: 0.95,
-        life,
-        max: life,
-        size: rand(0.9, 1.8),
-        color: kind === "type" ? (Math.random() < 0.6 ? this.accentHot : WHITE) : [150, 150, 165],
-        kind: kind === "type" ? 1 : 2,
-      });
-    }
   }
 
   /** A letter you just wrote, landing white-hot and cooling to ink — or one you erased, falling as ash. */

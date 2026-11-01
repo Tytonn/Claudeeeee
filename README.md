@@ -12,7 +12,7 @@
 - A living sky behind everything (WebGL): a drifting nebula with glowing filaments and dark dust lanes, three depths of twinkling stars that shift with your cursor, and shooting stars — now and then a fireball or a little meteor shower.
 - The editor is the moon in a total eclipse. A solar corona pours out from behind it in long, flowing streamers, swings toward your cursor, and throws off coronal loops. The side panels are smoked glass, so you see the sky through them.
 - Your cursor is a light source: panels catch a rim of light where it passes, countdown cards tilt toward it and cast shadows away from it.
-- Writing: a caret made of light, letters that land white-hot and cool to ink, erased letters that fall away as ash, sparks, and a sunburst every 100 words. While you type, the sky calms down so it never gets in the way.
+- Writing: a caret made of light, letters that land white-hot and cool to ink, erased letters that fall away as ash, and a sunburst every 100 words. While you type, the sky calms down so it never gets in the way.
 - **New note:** the diamond ring — a blinding flash on the moon's rim, lens flare, a shockwave through the sky.
 - **Delete the open note:** the moon slides across and swallows it. Anything else you delete dissolves into embers.
 - **Check off a to-do:** a sunburst, then it burns away and its light streaks into *Completed*.
