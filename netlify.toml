@@ -9,10 +9,11 @@
 [build.environment]
   NODE_VERSION = "22"
 
-# Shared links (/s/<id>) are rendered by the single-page app.
+# Shared links (/s/<id>) are rendered by the same app, from a page whose
+# link-preview tags say "shared with you".
 [[redirects]]
   from = "/s/*"
-  to = "/index.html"
+  to = "/share.html"
   status = 200
 
 [[headers]]

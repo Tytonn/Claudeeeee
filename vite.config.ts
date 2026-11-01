@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import netlify from "@netlify/vite-plugin";
@@ -14,7 +15,7 @@ function devShareRoutes(): Plugin {
     apply: "serve",
     configureServer(server) {
       server.middlewares.use((req, _res, next) => {
-        if (req.url && /^\/s\/[A-Za-z0-9]{8,32}\/?(\?.*)?$/.test(req.url)) req.url = "/index.html";
+        if (req.url && /^\/s\/[A-Za-z0-9]{8,32}\/?(\?.*)?$/.test(req.url)) req.url = "/share.html";
         next();
       });
     },
@@ -53,5 +54,13 @@ export default defineConfig({
   build: {
     target: "es2022",
     chunkSizeWarningLimit: 1400,
+    rolldownOptions: {
+      // Same app, two doors: share links get their own page so chat apps show a
+      // "shared with you" preview, while the homepage keeps the generic one.
+      input: {
+        main: fileURLToPath(new URL("./index.html", import.meta.url)),
+        share: fileURLToPath(new URL("./share.html", import.meta.url)),
+      },
+    },
   },
 });
