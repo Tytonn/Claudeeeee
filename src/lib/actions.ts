@@ -4,7 +4,7 @@ import { docToMarkdown, displayTitle, slugify } from "./text";
 import { play } from "./sound";
 import { FLUSH_EVENT } from "../components/editor/NoteEditor";
 import { fx } from "../fx/engine";
-import { dissolve, eclipseWipe } from "../fx/dom";
+import { dissolve, eclipseWipe, rainWash } from "../fx/dom";
 import { setEntrance } from "../fx/intent";
 
 export const NEW_COUNTDOWN_EVENT = "umbra:new-countdown";
@@ -32,8 +32,8 @@ export function trashNote(id: string) {
   if (!note) return;
   const wasBlank = !note.title.trim() && !note.text.trim();
   if (fx.active && s.ui.activeId === id && s.ui.view === "notes") {
-    // The umbra passes over the page and swallows it.
-    eclipseWipe(document.querySelector<HTMLElement>(".canvas .note"), document.querySelector<HTMLElement>("main.canvas"));
+    // The umbra passes over the page and swallows it — or, in the rain, it's washed away.
+    (fx.rain ? rainWash : eclipseWipe)(document.querySelector<HTMLElement>(".canvas .note"), document.querySelector<HTMLElement>("main.canvas"));
     setEntrance("none");
   } else if (fx.active) {
     dissolve(document.querySelector<HTMLElement>(`[data-note-id="${id}"]`));

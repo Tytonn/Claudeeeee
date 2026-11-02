@@ -22,11 +22,12 @@ import { loadAll, startPersistence, storageOk } from "./store/persist";
 import { toast } from "./store/toasts";
 import { startShareSync } from "./store/shareSync";
 import { startSync, syncNow } from "./account/sync";
-import { ACCENTS, applyTheme } from "./lib/theme";
+import { ACCENTS, RAIN_AMOUNT, applyTheme } from "./lib/theme";
 import type { Settings } from "./lib/types";
 import { fx } from "./fx/engine";
 import { startPointerLight } from "./fx/dom";
-import { setSoundEnabled } from "./lib/sound";
+import { setSoundEnabled, setSoundTheme } from "./lib/sound";
+import { setRainSound, thunder } from "./lib/ambience";
 import { App } from "./App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
@@ -35,15 +36,22 @@ async function boot() {
   useApp.getState().hydrate(data);
 
   const { settings } = useApp.getState();
-  const syncFx = (s: Settings) => {
+  const syncFx = (s: Settings, first = false) => {
     fx.setLevel(s.effects);
     const accent = ACCENTS[s.accent] ?? ACCENTS.iris;
     fx.setAccent(accent.color, accent.nebula);
+    const amount = RAIN_AMOUNT[s.rainAmount] ?? 0.5;
+    fx.setRain({ lightning: s.lightning !== false, city: s.cityLights !== false, amount });
+    fx.setScene(s.scene === "rain" ? "rain" : "eclipse", first);
+    const raining = fx.rain && s.effects !== "off";
+    setSoundTheme(raining ? "rain" : "eclipse");
+    setRainSound({ on: raining && s.rainSound === true, amount, volume: typeof s.rainVolume === "number" ? s.rainVolume : 0.6 });
   };
   applyTheme(settings);
   setSoundEnabled(settings.sounds);
-  syncFx(settings);
+  syncFx(settings, true);
   fx.init();
+  fx.onThunder(thunder);
   startPointerLight();
   if (import.meta.env.DEV) Object.assign(window as object, { __fx: fx, __app: useApp, __syncNow: syncNow });
   useApp.subscribe(

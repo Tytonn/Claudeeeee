@@ -7,7 +7,7 @@ import { BOARD, shareUrl, stopShare } from "../../store/shareSync";
 import { exportAll, importBackup } from "../../store/persist";
 import { toast } from "../../store/toasts";
 import { ACCENTS, FONTS } from "../../lib/theme";
-import type { AccentId, BackdropId, EffectsId, FontId, SizeId } from "../../lib/types";
+import type { AccentId, BackdropId, EffectsId, FontId, RainAmountId, SceneId, SizeId } from "../../lib/types";
 import { fx } from "../../fx/engine";
 import { oklchToRgb, to255 } from "../../fx/color";
 import { displayTitle } from "../../lib/text";
@@ -19,6 +19,7 @@ import { useAccount } from "../../account/account";
 import { Switch } from "../ui/Switch";
 import { Segmented } from "../ui/Segmented";
 import { IconButton } from "../ui/IconButton";
+import { Eclipse } from "../ui/Eclipse";
 
 function Row({ label, desc, children, htmlFor }: { label: string; desc?: ReactNode; children: ReactNode; htmlFor?: string }) {
   return (
@@ -70,6 +71,113 @@ function pickAccent(id: AccentId, e: React.MouseEvent) {
     })
     .catch(() => {});
   t.finished.finally(() => root.classList.remove("vt-accent"));
+}
+
+type ViewTransitionStart = (cb: () => void) => { ready: Promise<void>; finished: Promise<void> };
+
+/** Where the falling sheet of rain has got to: its lower edge, with drips running ahead. */
+const DRIPS = Array.from({ length: 29 }, (_, i) => (i % 2 ? 0.25 + Math.random() * 0.75 : Math.random() * 0.25));
+function curtain(k: number) {
+  const pts = ["0% -20%", "100% -20%"];
+  for (let i = DRIPS.length - 1; i >= 0; i--) pts.push(`${((i / (DRIPS.length - 1)) * 100).toFixed(2)}% ${(k * 100 + DRIPS[i] * 16 - 8).toFixed(2)}%`);
+  return `polygon(${pts.join(", ")})`;
+}
+
+/**
+ * Changing the scene. Rain comes down over everything like a sheet of water running down
+ * the window; the eclipse opens out from where you clicked, like the accent does.
+ */
+function pickScene(id: SceneId, e: React.MouseEvent) {
+  const s = useApp.getState();
+  if (s.settings.scene === id) return;
+  const set = () => s.setSettings({ scene: id });
+  const start = (document as Document & { startViewTransition?: ViewTransitionStart }).startViewTransition;
+  if (!start || !fx.active) {
+    set();
+    return;
+  }
+  const root = document.documentElement;
+  root.classList.add("vt-accent");
+  const x = e.clientX;
+  const y = e.clientY;
+  const t = start.call(document, () => {
+    flushSync(set);
+    fx.renderNow();
+  });
+  t.ready
+    .then(() => {
+      if (fx.rain) {
+        root.animate(
+          { clipPath: [curtain(-0.18), curtain(0.5), curtain(1.2)] },
+          { duration: 1300, easing: "cubic-bezier(0.5, 0, 0.3, 1)", pseudoElement: "::view-transition-new(root)" },
+        );
+      } else {
+        const radius = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+        root.animate(
+          { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${radius}px at ${x}px ${y}px)`] },
+          { duration: 900, easing: "cubic-bezier(0.22, 0.9, 0.25, 1)", pseudoElement: "::view-transition-new(root)" },
+        );
+        fx.ring(x, y, 8, 140, { dur: 800 });
+      }
+    })
+    .catch(() => {});
+  t.finished.finally(() => root.classList.remove("vt-accent"));
+}
+
+const SCENES: { id: SceneId; name: string; sub: string }[] = [
+  { id: "eclipse", name: "Eclipse", sub: "A living corona in deep space" },
+  { id: "rain", name: "Rain", sub: "A city at night, through a wet window" },
+];
+
+function ScenePicker() {
+  const scene = useApp((s) => s.settings.scene);
+  return (
+    <div className="scenes" role="radiogroup" aria-label="Scene">
+      {SCENES.map((sc) => {
+        const on = (scene === "rain" ? "rain" : "eclipse") === sc.id;
+        return (
+          <button key={sc.id} type="button" role="radio" aria-checked={on} className={`scene-card is-${sc.id} ${on ? "is-on" : ""}`} onClick={(e) => pickScene(sc.id, e)}>
+            <span className="scene-art" aria-hidden>
+              {sc.id === "eclipse" ? (
+                <Eclipse progress={1} size={34} />
+              ) : (
+                <>
+                  <span className="scene-rain" />
+                  <span className="scene-drop a" />
+                  <span className="scene-drop b" />
+                  <span className="scene-drop c" />
+                </>
+              )}
+            </span>
+            <span className="scene-text">
+              <span className="scene-name">{sc.name}</span>
+              <span className="scene-sub">{sc.sub}</span>
+            </span>
+            {on && <motion.span layoutId="scene-ring" className="scene-ring" transition={spring} />}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function RainVolume() {
+  const volume = useApp((s) => s.settings.rainVolume);
+  const setSettings = useApp((s) => s.setSettings);
+  const v = typeof volume === "number" ? volume : 0.6;
+  return (
+    <input
+      type="range"
+      className="range"
+      min={0.05}
+      max={1}
+      step={0.05}
+      value={v}
+      aria-label="Rain volume"
+      style={{ "--v": `${v * 100}%` } as React.CSSProperties}
+      onChange={(e) => setSettings({ rainVolume: Number(e.target.value) })}
+    />
+  );
 }
 
 function Swatches() {
@@ -243,6 +351,44 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
 
       <div className="settings-scroll">
         <Section title="Appearance">
+          {settings.effects !== "off" && (
+            <div className="set-row column">
+              <div className="set-row-text">
+                <span className="set-row-label">Scene</span>
+                <div className="set-row-desc">What's out there, behind the glass.</div>
+              </div>
+              <ScenePicker />
+            </div>
+          )}
+          {settings.effects !== "off" && settings.scene === "rain" && (
+            <>
+              <Row label="Lightning" desc="A storm rolls through now and then — never while you're typing.">
+                <Switch checked={settings.lightning} onChange={(v) => setSettings({ lightning: v })} label="Lightning" />
+              </Row>
+              <Row label="City lights" desc="The blurred lights of the city behind the glass.">
+                <Switch checked={settings.cityLights} onChange={(v) => setSettings({ cityLights: v })} label="City lights" />
+              </Row>
+              <Row label="How hard it rains">
+                <Segmented<RainAmountId>
+                  label="How hard it rains"
+                  size="sm"
+                  value={settings.rainAmount}
+                  options={[
+                    { value: "drizzle", label: "Drizzle" },
+                    { value: "rain", label: "Rain" },
+                    { value: "downpour", label: "Downpour" },
+                  ]}
+                  onChange={(rainAmount) => setSettings({ rainAmount })}
+                />
+              </Row>
+              <Row label="Rain sound" desc="Soft rain on the window, and thunder after the lightning. Just on this device.">
+                <div className="set-inline">
+                  {settings.rainSound && <RainVolume />}
+                  <Switch checked={settings.rainSound} onChange={(v) => setSettings({ rainSound: v })} label="Rain sound" />
+                </div>
+              </Row>
+            </>
+          )}
           <Row label="Accent" desc="Tints the caret, checkmarks and the glow.">
             <Swatches />
           </Row>
@@ -265,7 +411,7 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
               onChange={(size) => setSettings({ size })}
             />
           </Row>
-          <Row label="Effects" desc="The living sky, solar flares, light trails and embers. Calm it down any time.">
+          <Row label="Effects" desc={settings.scene === "rain" ? "The rain, the lightning, splashes and drips. Calm it down any time." : "The living sky, solar flares, light trails and embers. Calm it down any time."}>
             <Segmented<EffectsId>
               label="Effects"
               size="sm"

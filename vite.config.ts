@@ -53,7 +53,7 @@ export default defineConfig({
   plugins: [react(), devShareRoutes(), netlify(), devCsp()],
   build: {
     target: "es2022",
-    chunkSizeWarningLimit: 1400,
+    chunkSizeWarningLimit: 1500,
     rolldownOptions: {
       // Same app, two doors: share links get their own page so chat apps show a
       // "shared with you" preview, while the homepage keeps the generic one.

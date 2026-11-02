@@ -102,7 +102,7 @@ export function dissolve(el: HTMLElement | null) {
   const r = el.getBoundingClientRect();
   if (!r.width || !r.height) return;
   const holder = document.createElement("div");
-  holder.className = "fx-ghost fx-dissolve";
+  holder.className = `fx-ghost fx-dissolve${fx.rain ? " is-rain" : ""}`;
   Object.assign(holder.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
   const clone = ghostOf(el);
   Object.assign(clone.style, { margin: "0", width: "100%", height: "100%", transform: "none", translate: "none" });
@@ -174,6 +174,87 @@ export function eclipseWipe(noteEl: HTMLElement | null, panelEl: HTMLElement | n
     else {
       fx.setDim(0);
       fx.flash(pr.left + 4, pr.top + cy, 140, { alpha: 0.4 });
+      stage.remove();
+    }
+  };
+  requestAnimationFrame(step);
+}
+
+/**
+ * Deleting a note, in the rain: water sheets down the page from the top and washes the
+ * words away with it — running ahead in drips, the last of it sliding and blurring as it goes.
+ */
+export function rainWash(noteEl: HTMLElement | null, panelEl: HTMLElement | null) {
+  if (!noteEl || !panelEl || !fx.active) return;
+  const pr = panelEl.getBoundingClientRect();
+  const nr = noteEl.getBoundingClientRect();
+  if (!pr.width) return;
+
+  const stage = document.createElement("div");
+  stage.className = "fx-ghost fx-wash";
+  Object.assign(stage.style, {
+    left: `${pr.left}px`,
+    top: `${pr.top}px`,
+    width: `${pr.width}px`,
+    height: `${pr.height}px`,
+    borderRadius: getComputedStyle(panelEl).borderTopLeftRadius,
+  });
+  const page = document.createElement("div");
+  page.className = "fx-wash-page";
+  const clone = ghostOf(noteEl);
+  Object.assign(clone.style, { position: "absolute", left: `${nr.left - pr.left}px`, top: `${nr.top - pr.top}px`, width: `${nr.width}px`, margin: "0" });
+  page.appendChild(clone);
+  stage.append(page);
+  document.body.appendChild(stage);
+
+  const W = pr.width;
+  const H = pr.height;
+  const cols = Math.max(12, Math.round(W / 34));
+  // Some runs of water race ahead of the rest.
+  const lead = Array.from({ length: cols }, () => (Math.random() < 0.45 ? Math.random() : Math.random() * 0.2));
+  const wob = Array.from({ length: cols }, () => Math.random() * Math.PI * 2);
+  const dur = fx.full ? 1250 : 760;
+  const t0 = fx.now();
+  play("eclipse");
+  fx.setDim(0.3);
+  let lastDrip = 0;
+
+  const step = () => {
+    const k = Math.min(1, (fx.now() - t0) / dur);
+    const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+    const front = -H * 0.25 + H * 1.5 * e;
+    const pts: string[] = [];
+    for (let i = 0; i <= cols; i++) {
+      const x = (i / cols) * W;
+      const c = Math.min(cols - 1, i);
+      const reach = lead[c] * H * 0.28 * Math.min(1, e * 2.2) + Math.sin(wob[c] + k * 6) * 3;
+      // each run is a rounded finger: shallow at its edges, deepest in the middle
+      pts.push(`${x.toFixed(1)}px ${(front - 4).toFixed(1)}px`);
+      if (i < cols) {
+        const mx = x + W / cols / 2;
+        pts.push(`${(mx - W / cols / 4).toFixed(1)}px ${(front + reach * 0.75).toFixed(1)}px`);
+        pts.push(`${mx.toFixed(1)}px ${(front + reach).toFixed(1)}px`);
+        pts.push(`${(mx + W / cols / 4).toFixed(1)}px ${(front + reach * 0.75).toFixed(1)}px`);
+      }
+    }
+    pts.push(`${W}px ${H + 40}px`, `0px ${H + 40}px`);
+    const clip = `polygon(${pts.join(", ")})`;
+    page.style.clipPath = clip;
+    page.style.setProperty("-webkit-clip-path", clip);
+    // what's left gets pushed down a little and starts to run
+    page.style.transform = `translateY(${(e * 18).toFixed(1)}px)`;
+    page.style.filter = `blur(${(e * 1.6).toFixed(2)}px)`;
+    // drops shaken loose along the front
+    if (k < 0.92 && fx.now() - lastDrip > 45) {
+      lastDrip = fx.now();
+      const c = (Math.random() * cols) | 0;
+      const x = ((c + 0.5) / cols) * W;
+      const y = front + lead[c] * H * 0.28 * Math.min(1, e * 2.2);
+      if (y > 0 && y < H) fx.burst(pr.left + x, pr.top + y, { count: 3, speed: 50, size: 1.2, life: 0.6, angle: Math.PI / 2, spread: 0.9 });
+    }
+    if (k < 1) requestAnimationFrame(step);
+    else {
+      fx.setDim(0);
       stage.remove();
     }
   };

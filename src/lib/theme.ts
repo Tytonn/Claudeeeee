@@ -1,4 +1,4 @@
-import type { AccentId, FontId, Settings, SizeId } from "./types";
+import type { AccentId, FontId, RainAmountId, Settings, SizeId } from "./types";
 
 /** `nebula` is a second hue the sky blends with the accent, so space never looks flat. */
 export const ACCENTS: Record<AccentId, { name: string; color: string; nebula: string }> = {
@@ -10,6 +10,9 @@ export const ACCENTS: Record<AccentId, { name: string; color: string; nebula: st
   ember: { name: "Ember", color: "oklch(0.76 0.145 46)", nebula: "oklch(0.5 0.17 355)" },
   rose: { name: "Rose", color: "oklch(0.79 0.115 356)", nebula: "oklch(0.5 0.15 300)" },
 };
+
+/** How hard it rains, as the engine and the sound understand it. */
+export const RAIN_AMOUNT: Record<RainAmountId, number> = { drizzle: 0.15, rain: 0.5, downpour: 0.95 };
 
 export const FONTS: Record<FontId, { name: string; stack: string }> = {
   sans: { name: "Sans", stack: `"Geist Variable", "Geist", ui-sans-serif, system-ui, sans-serif` },

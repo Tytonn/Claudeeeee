@@ -1,14 +1,25 @@
 /**
- * Tiny synthesized UI sounds (Web Audio, no assets). Soft, glassy, short.
+ * Tiny synthesized UI sounds (Web Audio, no assets). Soft, glassy, short — and in the
+ * rain scene, made of water: drips, bubbles, washes.
  */
 export type SoundName = "tick" | "untick" | "pop" | "drop" | "chime" | "done" | "dawn" | "eclipse" | "transmit";
 
 let ctx: AudioContext | null = null;
 let out: GainNode | null = null;
 let enabled = true;
+let theme: "eclipse" | "rain" = "eclipse";
 
 export function setSoundEnabled(value: boolean) {
   enabled = value;
+}
+
+export function setSoundTheme(value: "eclipse" | "rain") {
+  theme = value;
+}
+
+/** The shared audio context (made on first use; the browser keeps it paused until you interact). */
+export function audioContext(): AudioContext | null {
+  return audio();
 }
 
 function audio(): AudioContext | null {
@@ -94,10 +105,83 @@ function swell({ at = 0, dur = 0.6, from = 400, to = 3000, gain = 0.03, q = 0.9,
   src.stop(t0 + dur + 0.05);
 }
 
+/** A drop of water: a little bubble ringing, its pitch leaping up as it closes. */
+function plink(f0: number, { at = 0, gain = 0.035, up = 1.9, dur = 0.12 } = {}) {
+  const c = ctx!;
+  const t0 = c.currentTime + at;
+  const osc = c.createOscillator();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(f0, t0);
+  osc.frequency.exponentialRampToValueAtTime(f0 * up, t0 + dur * 0.42);
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(gain, t0 + 0.003);
+  g.gain.exponentialRampToValueAtTime(gain * 0.35, t0 + dur * 0.4);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  osc.connect(g).connect(out!);
+  osc.start(t0);
+  osc.stop(t0 + dur + 0.03);
+}
+
+const jitter = (f: number) => f * (0.96 + Math.random() * 0.08);
+
+function playRain(name: SoundName) {
+  switch (name) {
+    case "tick":
+      click({ gain: 0.012, freq: 5200, dur: 0.008 });
+      plink(jitter(1050), { gain: 0.05, up: 2.1, dur: 0.11 });
+      plink(jitter(1560), { at: 0.075, gain: 0.026, up: 1.8, dur: 0.1 });
+      break;
+    case "untick":
+      plink(jitter(720), { gain: 0.034, up: 1.7, dur: 0.1 });
+      break;
+    case "pop":
+      plink(jitter(380), { gain: 0.05, up: 2.6, dur: 0.17 });
+      break;
+    case "drop":
+      click({ gain: 0.012, freq: 1100, dur: 0.03 });
+      plink(jitter(640), { gain: 0.036, up: 0.55, dur: 0.15 });
+      break;
+    case "chime":
+      [1318.5, 1568, 1975.5].forEach((f, i) => plink(f, { at: i * 0.07, gain: 0.03, up: 1.25, dur: 0.32 }));
+      tone(2637, { at: 0.2, dur: 0.6, gain: 0.006, attack: 0.04 });
+      break;
+    case "done":
+      [987.8, 1174.7, 1318.5, 1568, 1975.5].forEach((f, i) => plink(f, { at: i * 0.075, gain: 0.034, up: 1.5, dur: 0.16 }));
+      tone(1975.5, { at: 0.38, dur: 0.9, gain: 0.01, attack: 0.05 });
+      tone(2637, { at: 0.42, dur: 0.8, gain: 0.006, attack: 0.06 });
+      break;
+    case "dawn":
+      // a roll of distant thunder, and the first drops
+      swell({ dur: 1.6, from: 320, to: 90, gain: 0.07, type: "lowpass", q: 0.4 });
+      plink(jitter(1180), { at: 0.12, gain: 0.03, up: 2, dur: 0.12 });
+      plink(jitter(1640), { at: 0.3, gain: 0.02, up: 1.8, dur: 0.1 });
+      break;
+    case "eclipse":
+      // washed away: water rushing down, then a last drip
+      swell({ dur: 1.15, from: 3600, to: 240, gain: 0.05, q: 0.6 });
+      swell({ at: 0.08, dur: 0.9, from: 900, to: 140, gain: 0.035, type: "lowpass", q: 0.4 });
+      plink(jitter(860), { at: 1.02, gain: 0.03, up: 2, dur: 0.12 });
+      break;
+    case "transmit":
+      swell({ dur: 0.7, from: 700, to: 5200, gain: 0.022 });
+      [880, 1174.7, 1568, 2093].forEach((f, i) => plink(f, { at: i * 0.055, gain: 0.026, up: 1.7, dur: 0.11 }));
+      break;
+  }
+}
+
 export function play(name: SoundName) {
   if (!enabled) return;
   const c = audio();
   if (!c) return;
+  if (theme === "rain") {
+    try {
+      playRain(name);
+    } catch {
+      /* audio is best-effort */
+    }
+    return;
+  }
   try {
     switch (name) {
       case "tick":

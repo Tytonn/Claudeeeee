@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { motion } from "motion/react";
 import {
+  Building2,
   CalendarPlus,
+  CloudLightning,
+  CloudRain,
+  Moon,
   CornerDownLeft,
   Download,
   FileText,
@@ -21,12 +25,13 @@ import {
   Type,
   Volume2,
   VolumeX,
+  Waves,
 } from "lucide-react";
 import { sortedNotes, useApp } from "../../store/app";
 import { displayTitle, fuzzyScore, snippet } from "../../lib/text";
 import { shortStamp } from "../../lib/dates";
 import { ACCENTS, ALT, FONTS, MOD, SHIFT } from "../../lib/theme";
-import type { AccentId, BackdropId, FontId } from "../../lib/types";
+import type { AccentId, BackdropId, FontId, RainAmountId } from "../../lib/types";
 import { NEW_COUNTDOWN_EVENT, flushEditor, newNote, openShare } from "../../lib/actions";
 import { exportAll } from "../../store/persist";
 import { download } from "../../lib/actions";
@@ -174,6 +179,47 @@ function useItems(query: string): Item[] {
       })),
       ...(settings.effects !== "off"
         ? [
+            settings.scene === "rain"
+              ? { id: "scene", group: "Appearance", label: "Back to the eclipse", icon: <Moon size={15} strokeWidth={1.6} />, keywords: "scene theme space stars sky background eclipse", run: () => s.setSettings({ scene: "eclipse" }) }
+              : { id: "scene", group: "Appearance", label: "Make it rain", icon: <CloudRain size={15} strokeWidth={1.6} />, keywords: "scene theme rain storm city night window background", run: () => s.setSettings({ scene: "rain" }) },
+            ...(settings.scene === "rain"
+              ? [
+                  {
+                    id: "lightning",
+                    group: "Appearance",
+                    label: settings.lightning ? "Turn lightning off" : "Turn lightning on",
+                    icon: <CloudLightning size={15} strokeWidth={1.6} />,
+                    keywords: "storm thunder flash rain",
+                    run: () => s.setSettings({ lightning: !settings.lightning }),
+                  },
+                  {
+                    id: "city",
+                    group: "Appearance",
+                    label: settings.cityLights ? "Turn the city lights off" : "Turn the city lights on",
+                    icon: <Building2 size={15} strokeWidth={1.6} />,
+                    keywords: "bokeh city lights rain blur",
+                    run: () => s.setSettings({ cityLights: !settings.cityLights }),
+                  },
+                  {
+                    id: "rain-sound",
+                    group: "Appearance",
+                    label: settings.rainSound ? "Turn the rain sound off" : "Turn the rain sound on",
+                    icon: <Waves size={15} strokeWidth={1.6} />,
+                    keywords: "ambient noise audio rain thunder relax",
+                    run: () => s.setSettings({ rainSound: !settings.rainSound }),
+                  },
+                  ...(["drizzle", "rain", "downpour"] as RainAmountId[]).map((id) => ({
+                    id: `rain-${id}`,
+                    group: "Appearance",
+                    label: `Rain: ${id[0].toUpperCase()}${id.slice(1)}`,
+                    icon: <CloudRain size={15} strokeWidth={1.6} />,
+                    keywords: "rain amount heavy light storm",
+                    hidden: true,
+                    meta: settings.rainAmount === id ? "current" : undefined,
+                    run: () => s.setSettings({ rainAmount: id }),
+                  })),
+                ]
+              : []),
             {
               id: "sky",
               group: "Appearance",

@@ -854,3 +854,156 @@ html:is([data-backdrop="clear"], [data-backdrop="crystal"]):is([data-fx="cosmic"
   text-shadow: none;
   filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.85)) drop-shadow(0 0 8px rgb(0 0 0 / 0.35));
 }
+
+/* ── Rain ────────────────────────────────────────────────────────────────────
+   When lightning strikes, the room lights up for an instant (the engine drives it). */
+.fx-room {
+  position: fixed;
+  inset: 0;
+  z-index: 945;
+  pointer-events: none;
+  background: radial-gradient(120% 90% at 50% 0%, rgb(214 224 255), rgb(170 184 228));
+  opacity: 0;
+}
+
+/* Deleting a note in the rain: the page is washed away from the top. */
+.fx-wash {
+  overflow: hidden;
+}
+.fx-wash-page {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--canvas);
+  will-change: clip-path, transform, filter;
+}
+/* Over open glass, the old page is a fogged sheet: the next one shows through, blurred, as it washes off. */
+html[data-backdrop="clear"] .fx-wash-page,
+html[data-backdrop="crystal"] .fx-wash-page {
+  background: rgb(6 7 10 / 0.62);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+/* Dissolving in the rain runs top to bottom, behind a line of water instead of fire. */
+.fx-dissolve.is-rain {
+  -webkit-mask-image: linear-gradient(180deg, transparent calc(var(--sweep) - 14%), #000 var(--sweep));
+  mask-image: linear-gradient(180deg, transparent calc(var(--sweep) - 14%), #000 var(--sweep));
+}
+.fx-dissolve.is-rain::after {
+  top: calc(var(--sweep) - 7%);
+  bottom: auto;
+  left: 4%;
+  right: 4%;
+  width: auto;
+  height: 1.5px;
+  background: linear-gradient(90deg, transparent, rgb(214 232 255 / 0.95), transparent);
+  box-shadow:
+    0 0 8px rgb(170 205 255 / 0.8),
+    0 2px 14px color-mix(in oklch, var(--accent) 50%, transparent);
+}
+
+/* Intro, in the rain: the dark lifts onto fogged, rain-streaked glass, and the name is
+   written into the fog — then a few drips run off the letters. */
+@property --ink {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 0%;
+}
+.intro.rain {
+  background: radial-gradient(70% 70% at 50% 45%, rgb(10 12 18 / 0.55), rgb(4 5 8 / 0.82));
+  -webkit-backdrop-filter: blur(14px) saturate(1.15);
+  backdrop-filter: blur(14px) saturate(1.15);
+}
+.intro.rain::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: #030406;
+  animation: veil-lift 1.7s cubic-bezier(0.4, 0, 0.2, 1) 0.15s both;
+}
+@keyframes veil-lift {
+  to {
+    opacity: 0;
+  }
+}
+.intro.rain .intro-stage {
+  margin-top: -2vh;
+}
+.intro.rain .intro-word {
+  margin-top: 0;
+  font-size: 84px;
+  color: rgb(226 234 255 / 0.94);
+  text-shadow:
+    0 0 24px rgb(150 180 255 / 0.35),
+    0 0 2px rgb(255 255 255 / 0.4);
+  -webkit-mask-image: linear-gradient(100deg, #000 calc(var(--ink) - 10%), transparent var(--ink));
+  mask-image: linear-gradient(100deg, #000 calc(var(--ink) - 10%), transparent var(--ink));
+  animation: write-in 1.25s cubic-bezier(0.55, 0.1, 0.35, 1) 0.6s both;
+}
+@keyframes write-in {
+  from {
+    --ink: 0%;
+  }
+  to {
+    --ink: 115%;
+  }
+}
+.intro-written {
+  position: relative;
+  z-index: 2;
+}
+.intro-written .intro-drip {
+  position: absolute;
+  top: 80%;
+  width: 3px;
+  height: 0;
+  margin-left: -1.5px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, rgb(226 234 255 / 0), rgb(226 234 255 / 0.8));
+  box-shadow: 0 2px 6px rgb(160 190 255 / 0.4);
+  animation: drip-run 1.3s cubic-bezier(0.6, 0, 0.4, 1) both;
+}
+/* the bead of water at the end of each run */
+.intro-written .intro-drip::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -3px;
+  width: 7px;
+  height: 8px;
+  margin-left: -3.5px;
+  border-radius: 50% 50% 50% 50% / 42% 42% 58% 58%;
+  background: radial-gradient(circle at 38% 34%, #fff 0 14%, rgb(214 228 255 / 0.85) 34%, rgb(150 180 240 / 0.5) 80%);
+  box-shadow: 0 0 10px rgb(170 200 255 / 0.55);
+}
+@keyframes drip-run {
+  0% {
+    height: 0;
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  55% {
+    height: 20px;
+    transform: none;
+  }
+  100% {
+    height: 28px;
+    transform: translateY(34px);
+    opacity: 0;
+  }
+}
+.intro.rain .intro-tag {
+  animation-delay: 1.6s;
+}
+.intro.rain.is-out .intro-stage {
+  transform: scale(1.18);
+  filter: blur(10px);
+}
+
+/* No moon hangs over a friend's page in the rain, so the note sits higher. */
+html[data-scene="rain"]:is([data-fx="cosmic"], [data-fx="subtle"]) .viewer-main {
+  padding-top: max(7vh, 56px);
+}

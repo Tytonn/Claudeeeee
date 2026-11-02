@@ -1,11 +1,12 @@
 import { mixRgb, oklchToRgb, to255, type RGB } from "./color";
-import { Sky } from "./sky";
+import { Sky, type SceneId } from "./sky";
 
 /**
  * umbra's light engine. One animation loop drives three layers:
- *  - the sky (WebGL): nebula dust, stars, and the solar corona around the editor panel
+ *  - the sky (WebGL): nebula dust, stars, and the solar corona around the editor panel —
+ *    or, in the rain scene, a night city seen through a wet window, with lightning
  *  - dust (2D, behind the UI): motes drifting through the corona light
- *  - overlay (2D, above the UI): sunbursts, flares, embers, light trails
+ *  - overlay (2D, above the UI): sunbursts, flares, embers, light trails — splashes and drips in the rain
  * Everything is in CSS pixels; effects are fire-and-forget.
  */
 
@@ -56,14 +57,19 @@ type Meteor = Timed & { x: number; y: number; vx: number; vy: number; size: numb
 /** The glowing wake a bright meteor leaves, slowly twisting in the upper-air wind. */
 type Wake = Timed & { x0: number; y0: number; x1: number; y1: number; bend: number; width: number; color: C255 };
 type Frag = { x: number; y: number; vx: number; vy: number; life: number; max: number; size: number; color: C255 };
-/** A letter as it lands (white-hot, cooling to ink) or leaves (falling away as ash). */
-type Glyph = Timed & { ch: string; x: number; y: number; font: string; ash: boolean; vx: number; spin: number };
+/** A letter as it lands (white-hot, cooling to ink) or leaves (falling away as ash — or, in the rain, running off like a drip). */
+type Glyph = Timed & { ch: string; x: number; y: number; font: string; ash: boolean; vx: number; spin: number; drip?: boolean };
+/** A lightning strike: a few flickers of light, maybe with a bolt you can see. */
+type Strike = { t0: number; pulses: { at: number; amp: number; tau: number }[]; x: number; seed: number; bolt: boolean };
+export type RainOptions = { lightning: boolean; city: boolean; amount: number };
+export type Thunder = { delay: number; power: number };
 
 const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 const clamp01 = (t: number) => Math.min(1, Math.max(0, t));
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 const WHITE: C255 = [255, 255, 255];
+const WATER: C255 = [196, 222, 255];
 
 class FxEngine {
   level: FxLevel = "cosmic";
@@ -138,6 +144,21 @@ class FxEngine {
   private slowFor = 0;
   private fastFor = 0;
 
+  /** Which sky: the eclipse, or rain on the window. */
+  scene: SceneId = "eclipse";
+  private rainOpts: RainOptions = { lightning: true, city: true, amount: 0.5 };
+  private wet = 1;
+  private sceneFade = 1;
+  private cityK = 1;
+  private amountK = 0.5;
+  private strikes: Strike[] = [];
+  private nextStrike = 9000;
+  private roomFlash = 0;
+  private thunderFns = new Set<(t: Thunder) => void>();
+  private dustClear = false;
+  /** A veil of light over everything, for the instant lightning lights up the room. */
+  private room: HTMLDivElement | null = null;
+
   // ── lifecycle ────────────────────────────────────────────────────────────
 
   init() {
@@ -149,6 +170,9 @@ class FxEngine {
     this.skyCanvas = this.makeCanvas("fx-sky");
     this.sky = Sky.create(this.skyCanvas);
     if (!this.sky) this.skyCanvas.style.display = "none";
+    // Rain needs a little more of the GPU; if this device can't draw it, stay with the eclipse.
+    if (this.scene === "rain" && this.sky && !this.sky.rainReady()) this.scene = "eclipse";
+    document.documentElement.dataset.scene = this.scene;
     this.dustCanvas = this.makeCanvas("fx-dust");
     this.dctx = this.dustCanvas.getContext("2d");
     this.overCanvas = this.makeCanvas("fx-over");
@@ -156,6 +180,11 @@ class FxEngine {
     document.body.prepend(this.dustCanvas);
     document.body.prepend(this.skyCanvas);
     document.body.append(this.overCanvas);
+    this.room = document.createElement("div");
+    this.room.className = "fx-room";
+    this.room.setAttribute("aria-hidden", "true");
+    this.room.style.display = "none";
+    document.body.append(this.room);
 
     this.resize();
     addEventListener("resize", () => this.resize());
@@ -198,7 +227,63 @@ class FxEngine {
   }
 
   private get baseSkyScale() {
+    // The rain's glass is drawn at CSS resolution at most: drops are smooth, and it's a heavier scene.
+    if (this.scene === "rain") return this.small ? 0.5 : Math.min(devicePixelRatio || 1, 1) * (this.effective === "subtle" ? 0.7 : 1);
     return this.small ? 0.55 : Math.min(devicePixelRatio || 1, 1.25) * (this.effective === "subtle" ? 0.6 : 1);
+  }
+
+  get rain() {
+    return this.scene === "rain";
+  }
+
+  /** Switches the sky. The rain sets in gradually; `instant` skips that (e.g. at startup). */
+  setScene(scene: SceneId, instant = false) {
+    if (scene === this.scene) return;
+    if (scene === "rain" && this.sky && !this.sky.rainReady()) scene = "eclipse";
+    this.scene = scene;
+    document.documentElement.dataset.scene = scene;
+    if (scene === "rain") {
+      this.wet = instant ? 1 : 0.15;
+      this.sceneFade = instant ? 1 : 0.6;
+      this.cmes = [];
+      this.meteors = [];
+      this.wakes = [];
+      this.frags = [];
+      this.nextStrike = this.clock + rand(4000, 9000);
+      this.dustClear = true;
+    } else {
+      this.strikes = [];
+      this.flashNow = 0;
+      this.setRoomFlash(0);
+    }
+    if (this.started) this.sky?.resize(this.W, this.H, this.baseSkyScale * this.skyScale);
+  }
+
+  setRain(o: Partial<RainOptions>) {
+    this.rainOpts = { ...this.rainOpts, ...o };
+    if (!this.started) {
+      this.cityK = this.rainOpts.city ? 1 : 0;
+      this.amountK = this.rainOpts.amount;
+    }
+    if (!this.lightningOn) this.strikes = this.strikes.filter((s) => this.clock - s.t0 < 900);
+  }
+
+  /** Whether lightning may flash at all (never with reduced motion — it's a flashing light). */
+  get lightningOn() {
+    return this.rain && this.rainOpts.lightning && !this.reduced && this.effective !== "off";
+  }
+
+  /** Hears every strike, with how long the thunder takes to arrive. */
+  onThunder(fn: (t: Thunder) => void) {
+    this.thunderFns.add(fn);
+    return () => this.thunderFns.delete(fn);
+  }
+
+  /** Renders the sky right now (so a view transition can capture the new scene). */
+  renderNow() {
+    if (!this.started || !this.sky) return;
+    this.lastSky = -1e9;
+    this.renderSky(this.clock);
   }
 
   /** Watches real frame times; trades sky resolution for smoothness when needed. */
@@ -263,6 +348,9 @@ class FxEngine {
   }
 
   private clearAll() {
+    this.strikes = [];
+    this.flashNow = 0;
+    this.setRoomFlash(0);
     this.glyphs = [];
     this.meteors = [];
     this.wakes = [];
@@ -326,7 +414,8 @@ class FxEngine {
     const idle = now - this.lastInput > 25000;
     const energyTo = this.calm ? 0.2 : idle ? 1.4 : 1;
     this.energy += (energyTo - this.energy) * Math.min(1, dt * (this.calm ? 1.2 : idle ? 0.35 : 3));
-    this.time += dt * (0.25 + 0.75 * this.energy) * (lvl === "subtle" ? 0.35 : 1);
+    // The eclipse slows and holds its breath while you write; rain just keeps falling.
+    this.time += dt * (this.rain ? 1 : (0.25 + 0.75 * this.energy) * (lvl === "subtle" ? 0.35 : 1));
     this.smouse.x += (this.mouse.x - this.smouse.x) * Math.min(1, dt * 4);
     this.smouse.y += (this.mouse.y - this.smouse.y) * Math.min(1, dt * 4);
     for (let i = 0; i < 3; i++) {
@@ -338,23 +427,17 @@ class FxEngine {
     this.dim += (this.dimTarget - this.dim) * Math.min(1, dt * 5);
     this.inkBudget = Math.min(24, this.inkBudget + dt * 40);
     this.trackPanel();
+    if (this.rain) this.stepRain(now, dt, idle);
 
     // Sky: full rate when lively, ~30fps when calm.
-    if (this.sky && (now - this.lastSky > (this.energy < 0.4 ? 32 : 0) || this.flare > 0.02 || this.shocks.length)) {
-      this.lastSky = now;
-      this.shocks = this.shocks.filter((s) => now - s.t0 < s.dur);
-      this.sky.render({
-        time: this.time,
-        mouse: this.smouse,
-        panel: this.panel,
-        a: this.a,
-        b: this.b,
-        energy: this.energy,
-        flare: Math.min(1, this.flare),
-        dim: this.dim,
-        ring: this.diamond,
-        shocks: this.shocks.slice(-3).map((s) => ({ x: s.x, y: s.y, age: (now - s.t0) / s.dur, strength: s.strength })),
-      });
+    if (this.sky && (now - this.lastSky > (this.energy < 0.4 ? 32 : 0) || this.flare > 0.02 || this.shocks.length || this.flashNow > 0.004)) {
+      this.renderSky(now);
+    }
+
+    if (this.rain) {
+      this.drawDust(dt);
+      this.drawOverlay(now, dt);
+      return;
     }
 
     if (lvl === "cosmic" && !this.calm && this.panelEl && now > this.nextCme) {
@@ -377,6 +460,108 @@ class FxEngine {
     this.drawDust(dt);
     this.drawOverlay(now, dt);
   };
+
+  private renderSky(now: number) {
+    if (!this.sky) return;
+    this.lastSky = now;
+    this.shocks = this.shocks.filter((s) => now - s.t0 < s.dur);
+    const bolt = this.strikes[this.strikes.length - 1];
+    this.sky.render({
+      scene: this.scene,
+      time: this.time,
+      mouse: this.smouse,
+      panel: this.panel,
+      a: this.a,
+      b: this.b,
+      energy: this.energy,
+      flare: Math.min(1, this.flare),
+      dim: this.dim,
+      ring: this.diamond,
+      shocks: this.shocks.slice(-3).map((s) => ({ x: s.x, y: s.y, age: (now - s.t0) / s.dur, strength: s.strength })),
+      rain: {
+        flash: this.flashNow,
+        boltX: bolt ? bolt.x : 0,
+        boltSeed: bolt ? bolt.seed : 0,
+        bolt: bolt?.bolt ? Math.min(1, this.flashNow * 2.2) : 0,
+        amount: this.amountK,
+        wet: this.wet,
+        fog: 0.5 + this.amountK * 0.32,
+        city: this.cityK,
+        wind: 0.13 + 0.05 * Math.sin(this.time * 0.07) + 0.035 * Math.sin(this.time * 0.23 + 1),
+        fade: this.sceneFade,
+      },
+    });
+  }
+
+  // ── rain: the weather ────────────────────────────────────────────────────
+
+  /** Lightning brightness this frame. */
+  private flashNow = 0;
+
+  private stepRain(now: number, dt: number, idle: boolean) {
+    this.wet += (1 - this.wet) * Math.min(1, dt * 0.32);
+    this.sceneFade += (1 - this.sceneFade) * Math.min(1, dt * 1.6);
+    this.cityK += ((this.rainOpts.city ? 1 : 0) - this.cityK) * Math.min(1, dt * 1.4);
+    this.amountK += (this.rainOpts.amount - this.amountK) * Math.min(1, dt * 0.8);
+
+    // Now and then, lightning — but never while you're writing.
+    if (this.lightningOn && !this.calm && !document.hidden && now > this.nextStrike) {
+      const bolt = Math.random() < 0.38;
+      this.strike({ bolt, power: bolt ? rand(0.6, 0.95) : rand(0.25, 0.45) });
+      this.nextStrike = now + rand(11000, 34000) * (idle ? 0.6 : 1) * (1.25 - this.amountK * 0.5);
+    }
+
+    let f = 0;
+    this.strikes = this.strikes.filter((s) => {
+      const t = now - s.t0;
+      let v = 0;
+      let alive = false;
+      for (const p of s.pulses) {
+        const d = t - p.at;
+        if (d < 0) {
+          alive = true;
+          continue;
+        }
+        const e = d < 28 ? d / 28 : Math.exp(-(d - 28) / p.tau);
+        if (e > 0.002) alive = true;
+        v += p.amp * e;
+      }
+      f = Math.max(f, v);
+      return alive;
+    });
+    this.flashNow = f;
+    // The room lights up too, just a little.
+    this.setRoomFlash(Math.min(1, f));
+  }
+
+  private setRoomFlash(v: number) {
+    const q = Math.round(v * 200) / 200;
+    if (q === this.roomFlash || !this.room) return;
+    this.roomFlash = q;
+    this.room.style.display = q > 0 ? "" : "none";
+    this.room.style.opacity = (q * 0.075).toFixed(4);
+  }
+
+  /**
+   * A lightning strike. Distant ones are a flicker in the clouds; nearer ones show the bolt
+   * itself, then the thunder follows (as long as it takes to roll in).
+   * Flickers are kept slow and few (never more than three in a second).
+   */
+  strike(o: { bolt?: boolean; power?: number; x?: number; near?: boolean } = {}) {
+    if (!this.lightningOn) return false;
+    const power = o.power ?? 0.8;
+    const bolt = o.bolt ?? true;
+    const aspect = this.W / Math.max(1, this.H);
+    const x = o.x !== undefined ? o.x / Math.max(1, this.H) : rand(0.12, 0.88) * aspect;
+    const pulses = [{ at: 0, amp: power * rand(0.45, 0.7), tau: 90 }];
+    pulses.push({ at: rand(170, 260), amp: power, tau: bolt ? 150 : 210 });
+    if (Math.random() < 0.6) pulses.push({ at: rand(520, 700), amp: power * rand(0.3, 0.55), tau: 260 });
+    this.strikes.push({ t0: this.clock, pulses, x, seed: Math.random() * 100, bolt });
+    if (this.strikes.length > 3) this.strikes.shift();
+    const delay = o.near ? rand(0.12, 0.45) : bolt ? rand(1, 3) : rand(3, 7);
+    for (const fn of this.thunderFns) fn({ delay, power: o.near ? 1 : power });
+    return true;
+  }
 
   private spawnCme() {
     const p = this.panel;
@@ -479,6 +664,11 @@ class FxEngine {
   private drawDust(dt: number) {
     const ctx = this.dctx;
     if (!ctx) return;
+    if (this.rain) {
+      if (this.dustClear) ctx.clearRect(0, 0, this.W, this.H);
+      this.dustClear = false;
+      return;
+    }
     ctx.clearRect(0, 0, this.W, this.H);
     ctx.globalCompositeOperation = "lighter";
     const tint = to255(mixRgb(this.a, [1, 1, 1], 0.55));
@@ -518,7 +708,7 @@ class FxEngine {
 
   /** Spawns one meteor, mostly where it can be seen: through the side glass or around the panel. */
   meteor(o: { fireball?: boolean } = {}) {
-    if (!this.full) return;
+    if (!this.full || this.rain) return;
     const p = this.panel;
     const left = Math.max(0, p.x);
     const right = Math.max(0, this.W - (p.x + p.w));
@@ -675,6 +865,34 @@ class FxEngine {
       grad.addColorStop(1, `rgba(${key},0)`);
       g.fillStyle = grad;
       g.fillRect(0, 0, 64, 64);
+      this.sprites.set(key, s);
+    }
+    return s;
+  }
+
+  /** A drop of water catching the light: a bright glint up top, a thin lit rim, dark inside. */
+  private dropSprite(c: C255): HTMLCanvasElement {
+    const key = `drop:${c.join(",")}`;
+    let s = this.sprites.get(key);
+    if (!s) {
+      s = document.createElement("canvas");
+      s.width = s.height = 64;
+      const g = s.getContext("2d")!;
+      const halo = g.createRadialGradient(32, 32, 8, 32, 32, 32);
+      halo.addColorStop(0, `rgba(${c.join(",")},0.22)`);
+      halo.addColorStop(1, `rgba(${c.join(",")},0)`);
+      g.fillStyle = halo;
+      g.fillRect(0, 0, 64, 64);
+      g.lineWidth = 2.2;
+      g.strokeStyle = `rgba(${c.join(",")},0.75)`;
+      g.beginPath();
+      g.arc(32, 32, 11, 0, Math.PI * 2);
+      g.stroke();
+      const glint = g.createRadialGradient(27, 26, 0, 27, 26, 7);
+      glint.addColorStop(0, "rgba(255,255,255,1)");
+      glint.addColorStop(1, "rgba(255,255,255,0)");
+      g.fillStyle = glint;
+      g.fillRect(16, 15, 22, 22);
       this.sprites.set(key, s);
     }
     return s;
@@ -902,7 +1120,19 @@ class FxEngine {
         if (k >= 1) return false;
         if (k < 0) return true;
         ctx.font = g.font;
-        if (g.ash) {
+        if (g.drip) {
+          // In the rain, an erased letter runs off the page like a drip of ink.
+          const t = (k * g.dur) / 1000;
+          const a = Math.pow(1 - k, 1.4) * 0.8;
+          ctx.save();
+          ctx.translate(g.x, g.y + 150 * t * t + 6 * t);
+          ctx.scale(1 - k * 0.25, 1 + k * 1.1);
+          ctx.shadowColor = `rgba(${acc},${a * 0.5})`;
+          ctx.shadowBlur = 6;
+          ctx.fillStyle = `rgba(${WATER.join(",")},${a})`;
+          ctx.fillText(g.ch, 0, 0);
+          ctx.restore();
+        } else if (g.ash) {
           const t = (k * g.dur) / 1000;
           const a = Math.pow(1 - k, 1.5) * 0.75;
           ctx.save();
@@ -965,7 +1195,7 @@ class FxEngine {
       } else {
         const s = p.size * 3.2;
         ctx.globalAlpha = Math.min(1, a);
-        ctx.drawImage(this.sprite(p.color), p.x - s, p.y - s, s * 2, s * 2);
+        ctx.drawImage(this.rain ? this.dropSprite(p.color) : this.sprite(p.color), p.x - s, p.y - s, s * 2, s * 2);
         ctx.globalAlpha = 1;
       }
       next.push(p);
@@ -1016,7 +1246,9 @@ class FxEngine {
     if (!this.active) return;
     const scale = this.full ? 1 : 0.4;
     const count = Math.round((o.count ?? 24) * scale);
-    const colors = o.colors ?? [this.accent, this.accentHot, WHITE];
+    // In the rain, every burst is a splash: droplets that arc and fall.
+    const wet = this.rain;
+    const colors = o.colors ?? (wet ? [WATER, WHITE, this.accentHot] : [this.accent, this.accentHot, WHITE]);
     const spread = o.spread ?? Math.PI * 2;
     const base = o.angle ?? 0;
     for (let i = 0; i < count; i++) {
@@ -1029,8 +1261,8 @@ class FxEngine {
         y,
         vx: Math.cos(an) * sp,
         vy: Math.sin(an) * sp,
-        ay: o.gravity ?? 0,
-        drag: spark ? 0.93 : 0.95,
+        ay: o.gravity ?? (wet ? 820 : 0),
+        drag: wet ? 0.975 : spark ? 0.93 : 0.95,
         life,
         max: life,
         size: (o.size ?? 2) * rand(0.6, 1.2) * (spark ? 0.7 : 1),
@@ -1070,6 +1302,10 @@ class FxEngine {
   /** New note: the diamond ring — the instant sunlight bursts from behind the moon. */
   diamondRing() {
     if (!this.active) return;
+    if (this.rain) {
+      this.thunderclap();
+      return;
+    }
     const p = this.panel;
     let x = p.x + p.w * rand(0.62, 0.86);
     let y = p.y + 1;
@@ -1111,9 +1347,40 @@ class FxEngine {
     this.overDirty = true;
   }
 
-  /** Checking off a to-do: a tiny sunburst. */
+  /**
+   * New note, in the rain: lightning, close — the bolt, the flash, the room lit up for an
+   * instant, the glass shivering. Without lightning, a big drop hits the glass instead.
+   */
+  private thunderclap() {
+    const p = this.panel;
+    const x = p.circle ? p.x + p.w / 2 : p.x + p.w * rand(0.55, 0.9);
+    const y = p.circle ? Math.min(this.H * 0.4, Math.max(40, p.y + p.h)) : Math.max(30, p.y + 1);
+    if (this.strike({ bolt: true, power: 1, x: x + rand(-80, 80), near: true })) {
+      this.shockwave(x, y, 0.9, 1800);
+      if (this.full) this.burst(x, y, { count: 26, speed: 260, size: 1.6, life: 1, angle: -Math.PI / 2, spread: Math.PI * 0.9 });
+      return;
+    }
+    this.splash(x, y, 1.6);
+  }
+
+  /** A drop hits: rings spread, a crown of droplets leaps up and falls back, and the glass ripples. */
+  splash(x: number, y: number, size = 1) {
+    if (!this.active) return;
+    this.ring(x, y, 4 * size, 30 * size, { dur: 620, width: 1.3, color: WATER, alpha: 0.8 });
+    this.ring(x, y, 3 * size, 52 * size, { dur: 900, delay: 110, width: 1, color: WATER, alpha: 0.42 });
+    if (this.full) this.ring(x, y, 2 * size, 76 * size, { dur: 1150, delay: 230, width: 0.8, color: this.accentHot, alpha: 0.22 });
+    this.flash(x, y, 40 * size, { dur: 360, alpha: 0.38, color: WATER });
+    this.shockwave(x, y, 0.35 * size, 1300);
+    this.burst(x, y, { count: Math.round(16 * size), speed: 175 * Math.sqrt(size), size: 1.5, life: 0.8, angle: -Math.PI / 2, spread: Math.PI * 0.85, sparks: 0.35 });
+  }
+
+  /** Checking off a to-do: a tiny sunburst — a splash, in the rain. */
   sunburst(x: number, y: number) {
     if (!this.active) return;
+    if (this.rain) {
+      this.splash(x, y);
+      return;
+    }
     const now = this.clock;
     this.rays.push({ x, y, n: 12, r0: 11, len: this.full ? 26 : 16, color: this.accentHot, spin: 0.35, width: 1.5, t0: now, dur: 520 });
     this.ring(x, y, 9, 34, { dur: 520, width: 1.4 });
@@ -1121,9 +1388,14 @@ class FxEngine {
     this.burst(x, y, { count: 18, speed: 150, size: 1.7, life: 0.65, sparks: 0.5 });
   }
 
-  /** A soft flourish of light (sharing, saving a copy). */
+  /** A soft flourish of light (sharing, saving a copy). In a storm, it calls down the lightning. */
   beam(x: number, y: number) {
     if (!this.active) return;
+    if (this.rain) {
+      this.strike({ bolt: true, power: 0.85, x: x + rand(-140, 140), near: true });
+      this.splash(x, y, 1.3);
+      return;
+    }
     const now = this.clock;
     this.beams.push({ x, y, t0: now, dur: 1100, color: this.accentHot });
     this.ring(x, y, 6, 70, { dur: 700 });
@@ -1147,9 +1419,15 @@ class FxEngine {
     }
   }
 
-  /** Solar prominence: an arc of light erupting from a small eclipse. */
+  /** Solar prominence: an arc of light erupting from a small eclipse. (In the rain: a drop and its rings.) */
   prominence(x: number, y: number, r: number) {
     if (!this.full) return;
+    if (this.rain) {
+      this.ring(x, y, r * 0.8, r * 2.6, { dur: 950, color: WATER, width: 1, alpha: 0.6 });
+      this.ring(x, y, r * 0.6, r * 3.6, { dur: 1250, delay: 160, color: WATER, width: 0.8, alpha: 0.3 });
+      this.burst(x, y - r * 0.5, { count: 7, speed: 85, size: 1.1, life: 0.7, angle: -Math.PI / 2, spread: 1.4 });
+      return;
+    }
     const angle = rand(0, Math.PI * 2);
     this.loops.push({ x, y, r, angle, spread: rand(0.25, 0.5), height: rand(8, 18), color: this.accentHot, t0: this.clock, dur: 1500 });
     this.burst(x + Math.cos(angle) * r, y + Math.sin(angle) * r, { count: 8, speed: 60, size: 1.2, life: 0.9, spread: 1.2, angle });
@@ -1185,7 +1463,7 @@ class FxEngine {
   ink(ch: string, x: number, baseline: number, font: string, ash = false) {
     if (!this.full || this.inkBudget < 1 || !ch.trim()) return;
     this.inkBudget -= 1;
-    this.glyphs.push({ ch, x, y: baseline, font, ash, vx: rand(-14, 14), spin: rand(-0.5, 0.5), t0: this.clock, dur: ash ? 900 : 650 });
+    this.glyphs.push({ ch, x, y: baseline, font, ash, drip: ash && this.rain, vx: rand(-14, 14), spin: rand(-0.5, 0.5), t0: this.clock, dur: ash ? 900 : 650 });
     this.overDirty = true;
   }
 
@@ -1194,7 +1472,30 @@ class FxEngine {
     if (!this.active) return;
     const area = rect.width * rect.height;
     const n = Math.min(this.full ? 220 : 50, Math.round((area / 30) * (o.density ?? 1) * (this.full ? 1 : 0.3)));
-    const colors = o.colors ?? [this.accentHot, this.accent, [235, 225, 255]];
+    const colors = o.colors ?? (this.rain ? [WATER, WHITE, this.accentHot] : [this.accentHot, this.accent, [235, 225, 255]]);
+    if (this.rain) {
+      // In the rain it doesn't burn away — it's washed down, top to bottom, in drops.
+      for (let i = 0; i < n; i++) {
+        const fy = Math.random();
+        const life = rand(0.5, 1);
+        this.add({
+          x: rect.left + Math.random() * rect.width,
+          y: rect.top + rect.height * fy,
+          vx: rand(-10, 10),
+          vy: rand(10, 70),
+          ay: 620,
+          drag: 0.985,
+          life,
+          max: life,
+          delay: fy * (o.sweep ?? 0.45),
+          size: rand(0.6, 1.3),
+          alpha: rand(0.5, 0.9),
+          color: colors[(Math.random() * colors.length) | 0],
+          kind: Math.random() < 0.3 ? 0 : 1,
+        });
+      }
+      return;
+    }
     for (let i = 0; i < n; i++) {
       const fx = Math.random();
       const life = rand(0.55, 1.15);

@@ -39,6 +39,9 @@ export type SizeId = "s" | "m" | "l";
 export type EffectsId = "cosmic" | "subtle" | "off";
 /** How much of the sky shows through the panels. */
 export type BackdropId = "dark" | "glass" | "clear" | "crystal";
+/** What's behind the glass: the eclipse, or a night city in the rain. */
+export type SceneId = "eclipse" | "rain";
+export type RainAmountId = "drizzle" | "rain" | "downpour";
 
 export type Settings = {
   accent: AccentId;
@@ -52,6 +55,16 @@ export type Settings = {
   backdrop: BackdropId;
   /** Custom color for your writing (hex), or "" for the default. */
   ink: string;
+  scene: SceneId;
+  /** Rain: lightning now and then. */
+  lightning: boolean;
+  /** Rain: the blurred lights of the city behind the glass. */
+  cityLights: boolean;
+  rainAmount: RainAmountId;
+  /** Rain: the sound of it (off by default; this device only). */
+  rainSound: boolean;
+  /** 0..1 */
+  rainVolume: number;
   name: string;
   sidebar: boolean;
   rail: boolean;

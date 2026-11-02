@@ -22,6 +22,18 @@
 - **Settings → Background:** *Dark* (smoked glass), *Glass* (more sky), *Clear* (the sky almost fully, with a soft shade behind your words) or *Crystal* (no glass at all — just outlines over the open sky, with a crisp little drop shadow behind every word). Also in the command palette: *Show more of the sky*.
 - **Settings → Text color:** six soft inks, or pick any color you like (very dark picks get lifted so they stay readable).
 
+**Rain** *(Settings → Scene → Rain; the eclipse stays the default)*
+- A night city seen through a rain-streaked window, all drawn live on the GPU — no images or video. The city is out of focus, the way it is when your eyes are on the glass: bokeh from windows, streetlamps, neon signs (one in your accent color), traffic sliding along a wet street with its reflections smeared down the road, blinking warning lights on the towers, mist, and rain falling through the lamplight.
+- On the glass: beads of rain that land and slowly shrink away, and drops that gather, break free and run down in fits and starts — leaving a clear, glistening trail dotted with tiny beads. Every drop is a little lens: it shows the city upside down, small and sharp, with dark edges. The rest of the pane is fogged.
+- Your cursor is a warm light held near the glass: drops glint as it passes and the fog glows around it.
+- **Lightning** *(toggle)*: now and then a storm flickers in the clouds or a bolt comes down behind the skyline; every drop on the glass lights up and the room brightens for an instant. Never while you're typing, never more than three flickers a second, and never with reduced motion.
+- **City lights** *(toggle)*: the city fades out, leaving just the rain and the dark.
+- **How hard it rains:** *Drizzle* (clear glass, a few beads), *Rain*, or *Downpour* (fogged up, drops running everywhere).
+- **Rain sound** *(off by default, just on the device you turn it on)*: soft rain on the window — the wash of it, the patter on the glass and the sill, now and then a fat drop close by — and thunder rolling in a few seconds after the lightning you see. It's synthesized from noise (no recordings), has its own volume slider, and fades out whenever the tab is hidden.
+- Everything else goes wet too: a new note brings the lightning close; checking a to-do is a splash (ripples, a crown of droplets); erased letters run off the page like drips; deleting a note washes it away from the top; other things you delete are rinsed off in drops; sharing calls down a bolt; the intro writes *umbra* into the fogged glass; and the little sounds become drips and bubbles.
+- It switches over with a sheet of rain running down the screen. Command palette: *Make it rain*, *Back to the eclipse*, and toggles for lightning, city lights and sound.
+- Like the eclipse, it pauses completely when the tab is hidden, drops to ~30 fps while you type, and lowers its resolution on its own if a device struggles.
+
 **Notes**
 - A calm rich-text editor: type <kbd>/</kbd> for blocks (headings, lists, checklists, quotes, code, dividers, today's date), select text for a formatting bubble, or just write Markdown (`#`, `-`, `[]`, `>`, ```` ``` ````, `==highlight==`).
 - Code blocks with syntax highlighting, smart quotes and dashes, links (<kbd>Ctrl/⌘</kbd>+click to open).
@@ -137,7 +149,7 @@ npm run typecheck
 - **Name:** the wordmark is plain text — search for `umbra` in `index.html`, `src/`, and `public/manifest.webmanifest`.
 - **Default accent / settings:** `DEFAULT_SETTINGS` in [`src/store/app.ts`](src/store/app.ts); the palette lives in [`src/lib/theme.ts`](src/lib/theme.ts).
 - **Design tokens** (colors, type, radii, motion): the top of [`src/styles/base.css`](src/styles/base.css).
-- **The sky and effects:** the WebGL sky (nebula, stars, corona) is one shader in [`src/fx/shaders.ts`](src/fx/shaders.ts); everything else (meteors, flares, particles, trails) is in [`src/fx/engine.ts`](src/fx/engine.ts). Each accent's nebula color is in [`src/lib/theme.ts`](src/lib/theme.ts).
+- **The sky and effects:** the WebGL sky (nebula, stars, corona) is one shader in [`src/fx/shaders.ts`](src/fx/shaders.ts); the rain is two passes in [`src/fx/rain.ts`](src/fx/rain.ts) (the city into a mipmapped texture, then the glass); everything else (meteors, flares, lightning timing, splashes, particles, trails) is in [`src/fx/engine.ts`](src/fx/engine.ts). The rain sound is [`src/lib/ambience.ts`](src/lib/ambience.ts). Each accent's nebula color is in [`src/lib/theme.ts`](src/lib/theme.ts).
 
 ## Project layout
 
@@ -154,12 +166,12 @@ src/
     widgets/                   to-dos, countdowns, date picker
     overlays/                  command palette, settings, share sheet, toasts
     ui/                        primitives (tooltip, popover, menu, switch, eclipse…)
-  fx/                          the light engine: WebGL sky, effects overlay, intro, light caret
+  fx/                          the light engine: WebGL sky (eclipse + rain), effects overlay, intro, light caret
   collab/                      live co-editing: sync engine, owner sessions, title binding
   account/                     accounts, the sign-in eclipse, cross-device sync
   share/ShareView.tsx          what your friend sees
   store/                       state, IndexedDB persistence, live share sync
-  lib/                         crypto, dates, markdown export, sounds, theme
+  lib/                         crypto, dates, markdown export, sounds, rain ambience, theme
   styles/                      design system + component styles
 ```
 

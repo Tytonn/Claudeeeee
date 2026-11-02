@@ -18,7 +18,7 @@ import { dataKey, onAccountChange, sessionExpired, useAccount, type AccountUser 
  * normal cross-tab updates).
  */
 
-const SYNCED_SETTINGS = ["name", "accent", "font", "size", "todos", "countdowns", "sounds", "fadeWhileTyping", "ink"] as const;
+const SYNCED_SETTINGS = ["name", "accent", "font", "size", "todos", "countdowns", "sounds", "fadeWhileTyping", "ink", "scene", "lightning", "cityLights", "rainAmount"] as const;
 type SyncedSettings = Pick<Settings, (typeof SYNCED_SETTINGS)[number]>;
 
 type Meta = { v: 1; seq: number; revs: Record<string, number>; dirty: Record<string, number>; merged: boolean };
