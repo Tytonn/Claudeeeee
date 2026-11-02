@@ -7,7 +7,7 @@ import { BOARD, shareUrl, stopShare } from "../../store/shareSync";
 import { exportAll, importBackup } from "../../store/persist";
 import { toast } from "../../store/toasts";
 import { ACCENTS, FONTS } from "../../lib/theme";
-import type { AccentId, EffectsId, FontId, SizeId } from "../../lib/types";
+import type { AccentId, BackdropId, EffectsId, FontId, SizeId } from "../../lib/types";
 import { fx } from "../../fx/engine";
 import { oklchToRgb, to255 } from "../../fx/color";
 import { displayTitle } from "../../lib/text";
@@ -211,6 +211,21 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
               onChange={(effects) => setSettings({ effects })}
             />
           </Row>
+          {settings.effects !== "off" && (
+            <Row label="Background" desc="How much of the sky shows through. Your words always stay readable.">
+              <Segmented<BackdropId>
+                label="Background"
+                size="sm"
+                value={settings.backdrop}
+                options={[
+                  { value: "dark", label: "Dark" },
+                  { value: "glass", label: "Glass" },
+                  { value: "clear", label: "Clear" },
+                ]}
+                onChange={(backdrop) => setSettings({ backdrop })}
+              />
+            </Row>
+          )}
           <Row label="Fade while typing" desc="Everything except your words quietly dims as you write.">
             <Switch checked={settings.fadeWhileTyping} onChange={(v) => setSettings({ fadeWhileTyping: v })} label="Fade while typing" />
           </Row>

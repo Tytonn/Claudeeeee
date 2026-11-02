@@ -750,3 +750,59 @@ html[data-fx="subtle"] .viewer-main {
   padding-top: max(7vh, calc(0.36 * max(46vw, 380px) - 14px));
   background: radial-gradient(closest-side, rgb(3 3 6 / 0.42), rgb(3 3 6 / 0.26) 62%, transparent);
 }
+
+/* ── Background: how much of the sky shows through ─────────────────────────
+   Dark (default) is the smoked glass above. Glass lets the sky in; Clear shows it
+   almost completely — a soft column of shade sits behind the words, text gets a
+   faint halo, and quiet grays brighten, so everything stays easy to read. */
+
+html[data-backdrop="glass"]:is([data-fx="cosmic"], [data-fx="subtle"]) .canvas {
+  background: rgb(8 9 12 / 0.5);
+  -webkit-backdrop-filter: blur(9px) saturate(1.35);
+  backdrop-filter: blur(9px) saturate(1.35);
+}
+html[data-backdrop="glass"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(.sidebar-inner, .rail-inner) {
+  background: linear-gradient(180deg, rgb(6 6 9 / 0.34), rgb(5 5 8 / 0.26));
+}
+
+html[data-backdrop="clear"]:is([data-fx="cosmic"], [data-fx="subtle"]) {
+  --fg-3: #9a9aa5;
+  --fg-4: #7c7c87;
+  --fg-5: #5c5c66;
+  --line: rgb(255 255 255 / 0.1);
+}
+html[data-backdrop="clear"]:is([data-fx="cosmic"], [data-fx="subtle"]) .canvas {
+  background:
+    linear-gradient(90deg, transparent 2%, rgb(3 4 7 / 0.3) 20%, rgb(3 4 7 / 0.4) 50%, rgb(3 4 7 / 0.3) 80%, transparent 98%),
+    rgb(5 6 9 / 0.12);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+html[data-backdrop="clear"]:is([data-fx="cosmic"], [data-fx="subtle"]) .canvas[data-light] {
+  box-shadow: 0 0 0 1px var(--line);
+}
+html[data-backdrop="clear"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(.sidebar-inner, .rail-inner) {
+  background: rgb(4 4 7 / 0.16);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+html[data-backdrop="clear"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(.canvas, .sidebar-inner, .rail-inner, .viewer-main) {
+  text-shadow:
+    0 1px 2px rgb(0 0 0 / 0.65),
+    0 0 14px rgb(0 0 0 / 0.55);
+}
+/* Cards and fields keep a little body of their own over the open sky. */
+html[data-backdrop="clear"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(.cd-card, .todo-add, .sb-search) {
+  background-color: rgb(8 9 12 / 0.42);
+}
+html[data-backdrop="clear"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(.prose pre, .prose code) {
+  text-shadow: none;
+}
+
+/* The friend's page follows their own choice too. */
+html[data-backdrop="glass"]:is([data-fx="cosmic"], [data-fx="subtle"]) .viewer-main {
+  background: radial-gradient(closest-side, rgb(3 3 6 / 0.3), rgb(3 3 6 / 0.16) 62%, transparent);
+}
+html[data-backdrop="clear"]:is([data-fx="cosmic"], [data-fx="subtle"]) .viewer-main {
+  background: radial-gradient(closest-side, rgb(3 3 6 / 0.22), rgb(3 3 6 / 0.1) 62%, transparent);
+}

@@ -24,6 +24,9 @@ import { Checkbox } from "../components/ui/Checkbox";
 import { Modal } from "../components/ui/Modal";
 import { Toasts } from "../components/overlays/Toasts";
 import { ErrorBoundary } from "../components/ErrorBoundary";
+import { Presence } from "../components/Presence";
+import { readDoc } from "../collab/convert";
+import { LiveNote, useGuestSession, useSessionVersion } from "./LiveNote";
 
 type Phase = "loading" | "ready" | "missing-key" | "not-found" | "removed" | "bad-key" | "error";
 
@@ -208,6 +211,15 @@ export function ShareView({ id, keyRaw }: { id: string; keyRaw: string }) {
   const loaded = useRef(false);
   const [firstReveal] = useState(() => fx.active);
   const titleRef = useRef<HTMLElement>(null);
+  // A co-editable note: join its live doc (and edit it, if the owner allows).
+  const live = phase === "ready" && payload?.note?.collab === true;
+  const session = useGuestSession(id, keyRaw, live);
+  useSessionVersion(session);
+  const [liveTitle, setLiveTitle] = useState("");
+  const sessionStatus = session?.status;
+  useEffect(() => {
+    if (sessionStatus === "gone") setPhase("removed");
+  }, [sessionStatus]);
 
   // A vast moon hangs above the page; its corona arcs across the top of the sky.
   useEffect(() => {
@@ -300,12 +312,12 @@ export function ShareView({ id, keyRaw }: { id: string; keyRaw: string }) {
   }, [id, keyRaw]);
 
   useEffect(() => {
-    const t = payload?.note?.title?.trim();
+    const t = (live ? liveTitle : payload?.note?.title)?.trim();
     document.title = t ? `${t} · umbra` : payload ? "Shared with you · umbra" : "umbra";
     return () => {
       document.title = "umbra";
     };
-  }, [payload]);
+  }, [payload, live, liveTitle]);
 
   const cds = useSortedCountdowns(payload?.countdowns, now);
   const todos = payload?.todos ?? [];
@@ -325,8 +337,10 @@ export function ShareView({ id, keyRaw }: { id: string; keyRaw: string }) {
           <span className="flex" />
           {phase === "ready" && (
             <>
-              <span className={`viewer-live mono ${visible ? "" : "is-paused"}`} title="Updates appear here automatically">
-                <span className="live-dot" /> {visible ? "Live" : "Paused"}
+              {session && <Presence session={session} withNames />}
+              {session?.synced && !session.canWrite && <span className="viewer-chip mono">View only</span>}
+              <span className={`viewer-live mono ${visible ? "" : "is-paused"} ${session?.status === "offline" ? "is-offline" : ""}`} title="Updates appear here automatically">
+                <span className="live-dot" /> {!visible ? "Paused" : session?.status === "offline" ? "Reconnecting" : session?.canWrite ? "Live · editing" : "Live"}
               </span>
               {ownAnchor ? (
                 <button
@@ -381,7 +395,26 @@ export function ShareView({ id, keyRaw }: { id: string; keyRaw: string }) {
 
                 {heroOnly && <HeroCountdown c={cds[0].c} now={now} />}
 
-                {payload.note && (
+                {payload.note && live && (
+                  <article className={`viewer-note ${firstReveal ? "decrypt" : ""}`} ref={titleRef}>
+                    <div className="decrypt-body">
+                      {session?.synced ? (
+                        <ErrorBoundary fallback={<div className="doc-error">This note couldn't be displayed.</div>}>
+                          <LiveNote session={session} onTitle={setLiveTitle} />
+                        </ErrorBoundary>
+                      ) : session?.status === "missing" ? (
+                        <div className="viewer-waiting mono">This note isn't live yet — ask them to open umbra for a moment, then refresh.</div>
+                      ) : (
+                        <div className="viewer-waiting mono">
+                          <span className="spinner" /> Joining…
+                        </div>
+                      )}
+                    </div>
+                    {firstReveal && <div className="decrypt-scan" aria-hidden />}
+                  </article>
+                )}
+
+                {payload.note && !live && (
                   <article className={`viewer-note ${firstReveal ? "decrypt" : ""}`} ref={titleRef}>
                     {pulse > 0 && (
                       <motion.div key={pulse} className="viewer-pulse" aria-hidden initial={{ opacity: 1 }} animate={{ opacity: 0 }} transition={{ duration: 1.6, ease: "easeOut" }} />
@@ -474,7 +507,13 @@ export function ShareView({ id, keyRaw }: { id: string; keyRaw: string }) {
           </button>
         </footer>
 
-        {payload && <ImportDialog payload={payload} open={importOpen} onClose={() => setImportOpen(false)} />}
+        {payload && (
+          <ImportDialog
+            payload={importOpen && live && session?.synced ? { ...payload, note: { ...readDoc(session.doc), updatedAt: Date.now() } } : payload}
+            open={importOpen}
+            onClose={() => setImportOpen(false)}
+          />
+        )}
         <Toasts />
       </div>
     </MotionConfig>

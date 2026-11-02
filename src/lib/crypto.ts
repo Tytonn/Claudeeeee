@@ -30,10 +30,47 @@ export function newShareKey(): string {
   return toB64Url(randomBytes(16));
 }
 
-async function importKey(raw: string): Promise<CryptoKey> {
-  const bytes = fromB64Url(raw);
-  if (bytes.length !== 16 && bytes.length !== 32) throw new Error("bad_key");
-  return crypto.subtle.importKey("raw", bytes, "AES-GCM", false, ["encrypt", "decrypt"]);
+const keyCache = new Map<string, Promise<CryptoKey>>();
+
+function importKey(raw: string): Promise<CryptoKey> {
+  let key = keyCache.get(raw);
+  if (!key) {
+    key = (async () => {
+      const bytes = fromB64Url(raw);
+      if (bytes.length !== 16 && bytes.length !== 32) throw new Error("bad_key");
+      return crypto.subtle.importKey("raw", bytes, "AES-GCM", false, ["encrypt", "decrypt"]);
+    })();
+    key.catch(() => keyCache.delete(raw));
+    keyCache.set(raw, key);
+  }
+  return key;
+}
+
+/** Encrypts raw bytes (live-doc updates) — no JSON, no compression. */
+export async function sealBytes(keyRaw: string, bytes: Uint8Array): Promise<{ iv: string; data: string }> {
+  const key = await importKey(keyRaw);
+  const iv = randomBytes(12);
+  const cipher = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, bytes as Uint8Array<ArrayBuffer>);
+  return { iv: toB64Url(iv), data: toB64Url(new Uint8Array(cipher)) };
+}
+
+export async function openBytes(keyRaw: string, envelope: { iv: string; data: string }): Promise<Uint8Array> {
+  const key = await importKey(keyRaw);
+  const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: fromB64Url(envelope.iv) }, key, fromB64Url(envelope.data));
+  return new Uint8Array(plain);
+}
+
+export async function sha256B64(input: string): Promise<string> {
+  return toB64Url(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input))));
+}
+
+/**
+ * The token that lets someone write to a shared note's live doc. It's derived from the
+ * link's key, so anyone holding the whole link can edit, while the server — which never
+ * sees the key — can only check it against a hash.
+ */
+export function writeTokenFor(keyRaw: string): Promise<string> {
+  return sha256B64(`umbra:write:v1:${keyRaw}`);
 }
 
 const FLAG_RAW = 0;

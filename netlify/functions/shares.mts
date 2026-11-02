@@ -8,7 +8,9 @@
  *   POST   /api/shares        create   → { id, token, rev }
  *   GET    /api/shares/:id    read     → { v, iv, data, rev, updatedAt }   (ETag / 304 aware)
  *   PUT    /api/shares/:id    update   (Authorization: Bearer <token>)
- *   DELETE /api/shares/:id    revoke   (Authorization: Bearer <token>)
+ *   DELETE /api/shares/:id    revoke   (Authorization: Bearer <token>) — also deletes its live doc
+ *
+ * The live, co-editable document for a shared note lives next to it: see collab.mts.
  */
 import { getStore } from "@netlify/blobs";
 import type { Config, Context } from "@netlify/functions";
@@ -172,6 +174,9 @@ export default async (req: Request, context: Context): Promise<Response> => {
         if (!record) return new Response(null, { status: 204 });
         await authorize(req, record);
         await store.delete(id);
+        // The live document (and its history) goes with it.
+        const { blobs } = await store.list({ prefix: `doc/${id}/` });
+        for (let i = 0; i < blobs.length; i += 32) await Promise.all(blobs.slice(i, i + 32).map((b) => store.delete(b.key)));
         return new Response(null, { status: 204 });
       }
 

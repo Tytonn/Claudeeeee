@@ -15,6 +15,7 @@ import "./styles/widgets.css";
 import "./styles/overlays.css";
 import "./styles/viewer.css";
 import "./styles/fx.css";
+import "./styles/collab.css";
 
 import { useApp } from "./store/app";
 import { loadAll, startPersistence, storageOk } from "./store/persist";
@@ -43,7 +44,7 @@ async function boot() {
   syncFx(settings);
   fx.init();
   startPointerLight();
-  if (import.meta.env.DEV) (window as unknown as { __fx: typeof fx }).__fx = fx;
+  if (import.meta.env.DEV) Object.assign(window as object, { __fx: fx, __app: useApp });
   useApp.subscribe(
     (s) => s.settings,
     (s) => {

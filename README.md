@@ -19,6 +19,7 @@
 - **Share:** a beam of light goes up and the link decodes itself out of cipher glyphs. Your friend's page opens under a vast eclipsed moon; the note decrypts with a scanning line, the diamond ring flashes, and the corona flares whenever you edit.
 - Plus: a short eclipse intro once per visit, a light trail when you switch notes, the new accent color flooding the screen from the swatch you clicked, a live clock, and a sky that slowly wakes up if you leave it alone.
 - **Settings → Effects:** *Cosmic* (everything), *Subtle* (a calm sky and small flourishes) or *Off*. If your system asks for reduced motion, umbra uses *Subtle* automatically.
+- **Settings → Background:** *Dark* (smoked glass), *Glass* (more sky) or *Clear* (the sky almost fully, with a soft shade behind your words so they stay readable). Also in the command palette: *Show more of the sky*.
 
 **Notes**
 - A calm rich-text editor: type <kbd>/</kbd> for blocks (headings, lists, checklists, quotes, code, dividers, today's date), select text for a formatting bubble, or just write Markdown (`#`, `-`, `[]`, `>`, ```` ``` ````, `==highlight==`).
@@ -35,11 +36,12 @@
 - Birthdays and anniversaries repeat yearly automatically (and show which one it is — *58th*).
 - Under 24 hours it ticks live. Each countdown has a tiny eclipse: the moon slides across the sun as the day approaches, and on the day it's total.
 
-**Sharing**
+**Sharing & writing together**
 - Hit **Share** on a note to make a live link — optionally including your to-do list and countdowns. Or share just your lists from the side panel.
-- Links are **end-to-end encrypted**: the key lives in the part of the link after `#`, which browsers never send to servers. Netlify only ever stores scrambled data.
-- It's live: your friend sees your edits a few seconds after you make them. Stop sharing any time and the link dies instantly.
-- Friends can **Save a copy** into their own umbra.
+- **Write together, like Google Docs.** With *Friends can edit* on (the default), whoever has the link can edit the note with you at the same time. You see each other's cursors with names, who's here, and each other's words arrive within about a second. Typing in the same sentence at once merges cleanly (it's a CRDT, via Yjs). Turn *Friends can edit* off to make the link view-only — it still updates live.
+- Links are **end-to-end encrypted**: the key lives in the part of the link after `#`, which browsers never send to servers. Netlify only ever stores scrambled data — including every live edit.
+- Stop sharing any time and the link dies instantly (the live copy on the server is deleted; your note keeps every word).
+- Friends can **Save a copy** into their own umbra. To-do lists and countdowns in a link are view-only.
 
 **Everything else**
 - Command palette (<kbd>Ctrl/⌘ K</kbd>) for searching notes and running any command.
@@ -110,6 +112,10 @@ npm run typecheck
 
 ## How sharing works (for the curious)
 
+**Live notes (co-editing).** Each shared note becomes a [Yjs](https://yjs.dev) document. Every change anyone makes is a tiny update, encrypted in the browser with the link's key and appended to a log in Netlify Blobs by [`netlify/functions/collab.mts`](netlify/functions/collab.mts); everyone pulls what's new and merges it. The log is folded into an encrypted snapshot every ~120 changes so joining stays quick. Anyone holding the whole link can write (the server checks a token derived from the key, never the key itself); the owner can switch that off. Netlify has no websockets, so it polls — about twice a second while you're both in the note, every few seconds when you're alone, once a minute for shared notes you don't have open, and not at all in a background tab. Two people using it for a while each day stays comfortably inside Netlify's free plan.
+
+**The link itself.**
+
 1. Your browser builds the shared content (note + optional lists), gzips it, and encrypts it with a fresh random **AES-GCM** key.
 2. It sends only the ciphertext to `POST /api/shares` ([`netlify/functions/shares.mts`](netlify/functions/shares.mts)), which stores it in a Netlify Blobs store with strong consistency and returns a short id plus a secret **edit token** (kept only as a hash on the server).
 3. The link is `https://your-site/s/<id>#<key>`. Everything after `#` stays in the browser.
@@ -129,6 +135,7 @@ npm run typecheck
 
 ```
 netlify/functions/shares.mts   share API (Netlify Functions + Blobs)
+netlify/functions/collab.mts   live co-editing log for shared notes
 src/
   components/                  app shell, sidebar, top bar, side panel
     editor/                    TipTap editor, slash menu, formatting bubble
@@ -136,10 +143,11 @@ src/
     overlays/                  command palette, settings, share sheet, toasts
     ui/                        primitives (tooltip, popover, menu, switch, eclipse…)
   fx/                          the light engine: WebGL sky, effects overlay, intro, light caret
+  collab/                      live co-editing: sync engine, owner sessions, title binding
   share/ShareView.tsx          what your friend sees
   store/                       state, IndexedDB persistence, live share sync
   lib/                         crypto, dates, markdown export, sounds, theme
   styles/                      design system + component styles
 ```
 
-Built with React, TipTap, Motion, Zustand, Floating UI, chrono-node, WebGL and Canvas, and the Geist + Instrument Serif + Newsreader typefaces.
+Built with React, TipTap, Yjs, Motion, Zustand, Floating UI, chrono-node, WebGL and Canvas, and the Geist + Instrument Serif + Newsreader typefaces.

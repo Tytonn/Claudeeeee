@@ -15,6 +15,7 @@ import {
   Search,
   Settings2,
   Share,
+  Sparkles,
   SquarePen,
   Trash2,
   Type,
@@ -25,7 +26,7 @@ import { sortedNotes, useApp } from "../../store/app";
 import { displayTitle, fuzzyScore, snippet } from "../../lib/text";
 import { shortStamp } from "../../lib/dates";
 import { ACCENTS, ALT, FONTS, MOD, SHIFT } from "../../lib/theme";
-import type { AccentId, FontId } from "../../lib/types";
+import type { AccentId, BackdropId, FontId } from "../../lib/types";
 import { NEW_COUNTDOWN_EVENT, flushEditor, newNote, openShare } from "../../lib/actions";
 import { exportAll } from "../../store/persist";
 import { download } from "../../lib/actions";
@@ -171,6 +172,28 @@ function useItems(query: string): Item[] {
         meta: settings.accent === id ? "current" : undefined,
         run: () => s.setSettings({ accent: id }),
       })),
+      ...(settings.effects !== "off"
+        ? [
+            {
+              id: "sky",
+              group: "Appearance",
+              label: settings.backdrop === "clear" ? "Darker background" : "Show more of the sky",
+              icon: <Sparkles size={15} strokeWidth={1.6} />,
+              keywords: "background clear glass dark transparent see through sky stars",
+              run: () => s.setSettings({ backdrop: settings.backdrop === "clear" ? "dark" : "clear" }),
+            },
+            ...(["dark", "glass", "clear"] as BackdropId[]).map((id) => ({
+              id: `backdrop-${id}`,
+              group: "Appearance",
+              label: `Background: ${id[0].toUpperCase()}${id.slice(1)}`,
+              icon: <Sparkles size={15} strokeWidth={1.6} />,
+              keywords: "background clear glass dark transparent sky",
+              hidden: true,
+              meta: settings.backdrop === id ? "current" : undefined,
+              run: () => s.setSettings({ backdrop: id }),
+            })),
+          ]
+        : []),
       ...(Object.keys(FONTS) as FontId[]).map((id) => ({
         id: `font-${id}`,
         group: "Appearance",

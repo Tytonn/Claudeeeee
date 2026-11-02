@@ -29,7 +29,10 @@ export function buildPayload(
   if (anchor !== BOARD) {
     const note = s.notes[anchor];
     if (!note || note.deletedAt) return null;
-    payload.note = { title: note.title, doc: note.doc, text: note.text, updatedAt: note.updatedAt };
+    // A co-edited note lives in its live doc; the envelope just says where to look.
+    payload.note = s.shares[anchor]?.collab
+      ? { title: "", doc: null, text: "", updatedAt: 0, collab: true }
+      : { title: note.title, doc: note.doc, text: note.text, updatedAt: note.updatedAt };
   }
   if (includes.includeTodos) payload.todos = s.todos.map((t) => ({ text: t.text, done: t.done }));
   if (includes.includeCountdowns) {
@@ -41,7 +44,10 @@ export function buildPayload(
 
 const hashOf = (p: SharePayload) => fingerprint({ ...p, sharedAt: 0 });
 
-export async function startShare(anchor: string, includes: Pick<ShareRecord, "includeTodos" | "includeCountdowns">): Promise<ShareRecord> {
+export async function startShare(
+  anchor: string,
+  includes: Pick<ShareRecord, "includeTodos" | "includeCountdowns"> & { editable?: boolean },
+): Promise<ShareRecord> {
   const payload = buildPayload(anchor, includes);
   if (!payload) throw new Error("Nothing to share yet.");
   const key = newShareKey();
@@ -65,6 +71,7 @@ export async function startShare(anchor: string, includes: Pick<ShareRecord, "in
     pushedAt: Date.now(),
     hash: hashOf(payload),
     rev: created.rev,
+    editable: anchor === BOARD ? undefined : includes.editable !== false,
   };
   useApp.getState().putShare(record);
   return record;
@@ -198,7 +205,8 @@ export function startShareSync() {
         (r.includeTodos && s.todos !== prev.todos) ||
         (r.includeCountdowns && s.countdowns !== prev.countdowns) ||
         before.includeTodos !== r.includeTodos ||
-        before.includeCountdowns !== r.includeCountdowns;
+        before.includeCountdowns !== r.includeCountdowns ||
+        before.collab !== r.collab; // the note moved into its live doc: tell viewers where to look
       if (relevant) schedule(anchor);
     }
     // A shared note was deleted for good → revoke its link.

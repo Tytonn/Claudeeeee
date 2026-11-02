@@ -14,6 +14,7 @@ export const DEFAULT_SETTINGS: Settings = {
   sounds: true,
   fadeWhileTyping: true,
   effects: "cosmic",
+  backdrop: "dark",
   name: "",
   sidebar: true,
   rail: true,

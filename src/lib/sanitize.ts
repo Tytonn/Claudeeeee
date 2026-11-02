@@ -71,6 +71,8 @@ export function normalizeShareRecord(raw: unknown): ShareRecord | null {
     pushedAt: num(raw.pushedAt),
     hash: typeof raw.hash === "string" ? raw.hash : undefined,
     rev: typeof raw.rev === "number" ? raw.rev : undefined,
+    collab: raw.collab === true ? true : undefined,
+    editable: raw.editable === false ? false : undefined,
   };
 }
 
@@ -86,6 +88,7 @@ export function sanitizePayload(raw: unknown): SharePayload | null {
   if (isObj(raw.note)) {
     const n = raw.note;
     out.note = { title: str(n.title, 1000), doc: isDoc(n.doc) ? n.doc : null, text: str(n.text), updatedAt: num(n.updatedAt) };
+    if (n.collab === true) out.note.collab = true;
   }
   if (Array.isArray(raw.todos)) {
     out.todos = raw.todos

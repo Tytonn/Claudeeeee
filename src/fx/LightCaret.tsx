@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { Editor } from "@tiptap/core";
 import type { Transaction } from "@tiptap/pm/state";
+import { isChangeOrigin } from "@tiptap/extension-collaboration";
 import { fx } from "./engine";
 
 let probe: CanvasRenderingContext2D | null = null;
@@ -16,7 +17,7 @@ function metrics(font: string, ch: string) {
  * Letters you write land white-hot and cool to ink; letters you erase fall away as ash.
  * Drawn on the effects overlay, exactly over the real glyphs, so the text itself is untouched.
  */
-function inkFor(editor: Editor, tr: Transaction) {
+function inkFor(editor: Editor, tr: Transaction, maxAdded = 4) {
   const view = editor.view;
   const fontAt = (pos: number) => {
     let el: Element = view.dom;
@@ -38,7 +39,7 @@ function inkFor(editor: Editor, tr: Transaction) {
       const added = to - from;
       const removed = oldEnd - oldStart;
       try {
-        if (added > 0 && added <= 4 && removed === 0) {
+        if (added > 0 && added <= maxAdded && removed === 0) {
           for (let pos = from; pos < to; pos++) {
             const ch = tr.doc.textBetween(pos, pos + 1);
             if (!ch.trim()) continue;
@@ -118,6 +119,12 @@ export function LightCaret({ editor, container }: { editor: Editor | null; conta
       if (!raf) raf = requestAnimationFrame(place);
     };
     const onTransaction = ({ transaction }: { transaction: Transaction }) => {
+      // Someone else's words arriving in a shared note: they land glowing too.
+      if (transaction.docChanged && isChangeOrigin(transaction)) {
+        if (fx.full && !document.hidden) inkFor(editor, transaction, 40);
+        schedule();
+        return;
+      }
       if (transaction.docChanged) {
         if (fx.full && editor.isFocused && !editor.view.composing) inkFor(editor, transaction);
         pending = transaction.doc.content.size >= transaction.before.content.size ? "type" : "erase";

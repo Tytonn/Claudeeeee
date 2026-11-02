@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Check, Copy, FileText, Hourglass, ListChecks, Lock, Send } from "lucide-react";
+import { Check, Copy, FileText, Hourglass, ListChecks, Lock, PenLine, Send } from "lucide-react";
 import type { VirtualElement } from "@floating-ui/react-dom";
 import { useApp } from "../../store/app";
 import { BOARD, shareUrl, startShare, stopShare, useShareStatus, verifyShare } from "../../store/shareSync";
@@ -12,6 +12,8 @@ import { Popover } from "../ui/Popover";
 import { Switch } from "../ui/Switch";
 import { fx } from "../../fx/engine";
 import { useScramble } from "../../fx/useScramble";
+import { setEditable, useCollabSession } from "../../collab/manager";
+import { Presence } from "../Presence";
 
 function explain(err: unknown): string {
   if (err instanceof ApiError) {
@@ -50,6 +52,8 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
   const [copied, setCopied] = useState(false);
   const [name, setName] = useState(settings.name);
   const [justCreated, setJustCreated] = useState(false);
+  const [canEdit, setCanEdit] = useState(true);
+  const session = useCollabSession(isBoard ? null : anchor);
 
   useEffect(() => {
     if (!open) return;
@@ -59,6 +63,7 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
     setCopied(false);
     setName(settings.name);
     setJustCreated(false);
+    setCanEdit(record ? record.editable !== false : true);
     // Make sure a live link really still works, rather than trusting what we remember.
     if (!record) return;
     let current = true;
@@ -95,6 +100,11 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
     if (record) patchShare(anchor, which === "todos" ? { includeTodos: value } : { includeCountdowns: value });
   };
 
+  const toggleEdit = (value: boolean) => {
+    setCanEdit(value);
+    if (record) void setEditable(anchor, value);
+  };
+
   const commitName = () => {
     if (name.trim() !== settings.name) setSettings({ name: name.trim().slice(0, 40) });
   };
@@ -104,7 +114,7 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
     setBusy("create");
     setError(null);
     try {
-      const r = await startShare(anchor, { includeTodos: todos, includeCountdowns: cds });
+      const r = await startShare(anchor, { includeTodos: todos, includeCountdowns: cds, editable: canEdit });
       // Send it up: a beam of light rises from the button.
       if (fx.active && anchorEl && "getBoundingClientRect" in anchorEl) {
         const b = anchorEl.getBoundingClientRect();
@@ -165,6 +175,20 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
               <Check size={15} strokeWidth={2} className="share-row-check" />
             </div>
           )}
+          {!isBoard && note && (
+            <div className="share-row" onClick={() => toggleEdit(!canEdit)}>
+              <span className="share-row-icon">
+                <PenLine size={15} strokeWidth={1.7} />
+              </span>
+              <span className="share-row-text">
+                <span className="share-row-title">Friends can edit</span>
+                <span className="share-row-sub">{canEdit ? "Write together, live — you'll see each other's cursors" : "View only — they still see your edits live"}</span>
+              </span>
+              <span onClick={(e) => e.stopPropagation()}>
+                <Switch checked={canEdit} onChange={(v) => toggleEdit(v)} label="Friends can edit" />
+              </span>
+            </div>
+          )}
           {settings.todos && (
             <div className="share-row" onClick={() => setInclude("todos", !todos)}>
               <span className="share-row-icon">
@@ -213,8 +237,15 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
                 </button>
               </div>
               <div className={`share-state ${status ?? "idle"}`}>
-                <span className={`live-dot ${status === "syncing" ? "is-syncing" : ""} ${status === "error" ? "is-error" : ""}`} />
-                {status === "error" ? "Can't reach the server — retrying" : status === "syncing" ? "Syncing your latest edits…" : "Live — they'll see your edits as you make them"}
+                <span className={`live-dot ${status === "syncing" ? "is-syncing" : ""} ${status === "error" || session?.status === "offline" ? "is-error" : ""}`} />
+                {status === "error" || session?.status === "offline"
+                  ? "Can't reach the server — retrying"
+                  : status === "syncing"
+                    ? "Syncing your latest edits…"
+                    : session && canEdit
+                      ? "Live — you're writing this together"
+                      : "Live — they'll see your edits as you make them"}
+                {session && <Presence session={session} withNames />}
               </div>
               <div className="share-actions">
                 {typeof navigator.share === "function" && (

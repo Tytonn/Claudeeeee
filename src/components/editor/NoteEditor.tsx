@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { useApp } from "../../store/app";
@@ -11,6 +11,10 @@ import { BubbleBar } from "./BubbleBar";
 import { SlashMenu } from "./SlashMenu";
 import { wordCount } from "../../lib/text";
 import { formatDate } from "../../lib/dates";
+import { useCollabSession, userFor } from "../../collab/manager";
+import { useYText } from "../../collab/useYText";
+import { TITLE } from "../../collab/fields";
+import { Presence } from "../Presence";
 
 const supportsFieldSizing = typeof CSS !== "undefined" && CSS.supports?.("field-sizing", "content");
 
@@ -34,6 +38,10 @@ export function NoteEditor({ noteId, scroller }: Props) {
   // The doc object this editor last loaded or produced. Title edits keep the same
   // reference, so only genuinely new documents (another tab, an import) differ.
   const lastDoc = useRef(note?.doc ?? null);
+  // Shared for co-editing? Then the words live in a live doc that both of you edit.
+  const session = useCollabSession(noteId);
+  const ytitle = useMemo(() => session?.doc.getText(TITLE) ?? null, [session]);
+  const [liveTitle, setLiveTitle] = useYText(ytitle, titleRef);
 
   const focusTitleEnd = useCallback(() => {
     const el = titleRef.current;
@@ -60,8 +68,12 @@ export function NoteEditor({ noteId, scroller }: Props) {
 
   const editor = useEditor(
     {
-      extensions: buildExtensions({ onExitTop: focusTitleEnd }),
-      content: safeDoc(note?.doc, note?.text ?? "") ?? "",
+      extensions: buildExtensions({
+        onExitTop: focusTitleEnd,
+        collab: session ? { doc: session.doc, awareness: session.awareness, user: userFor(useApp.getState().settings) } : undefined,
+      }),
+      // A live doc brings its own content.
+      content: session ? undefined : (safeDoc(note?.doc, note?.text ?? "") ?? ""),
       immediatelyRender: true,
       shouldRerenderOnTransaction: false,
       editorProps: {
@@ -78,14 +90,22 @@ export function NoteEditor({ noteId, scroller }: Props) {
         },
       },
       onUpdate: ({ editor: ed }) => {
+        if (session) return; // the live doc's session keeps the note up to date
         pending.current = ed;
         window.clearTimeout(saveTimer.current);
         saveTimer.current = window.setTimeout(flush, 320);
       },
       onBlur: () => flush(),
     },
-    [noteId],
+    [noteId, session],
   );
+
+  // While this note is open, the live doc syncs quickly and shows you as "here".
+  useEffect(() => {
+    if (!session) return;
+    session.bind();
+    return () => session.unbind();
+  }, [session]);
 
   // Flush on unmount / page hide / explicit request.
   useEffect(() => {
@@ -119,9 +139,10 @@ export function NoteEditor({ noteId, scroller }: Props) {
   useEffect(() => {
     if (!editor || doc === lastDoc.current) return;
     lastDoc.current = doc;
+    if (session) return; // the live doc is the source of truth; never overwrite it
     if (editor.isFocused || pending.current) return;
     editor.commands.setContent(safeDoc(doc, useApp.getState().notes[noteId]?.text ?? "") ?? "", { emitUpdate: false });
-  }, [editor, doc, noteId]);
+  }, [editor, doc, noteId, session]);
 
   // Auto-grow the title where `field-sizing` isn't supported.
   useLayoutEffect(() => {
@@ -130,7 +151,7 @@ export function NoteEditor({ noteId, scroller }: Props) {
     if (!el) return;
     el.style.height = "0px";
     el.style.height = `${el.scrollHeight}px`;
-  }, [note?.title]);
+  }, [note?.title, liveTitle]);
 
   // Ctrl/⌘ K with a selection = edit link (handled by the bubble), so expose the editor.
   useEffect(() => {
@@ -174,11 +195,15 @@ export function NoteEditor({ noteId, scroller }: Props) {
         ref={titleRef}
         className="note-title display"
         rows={1}
-        value={note.title}
+        value={liveTitle ?? note.title}
         placeholder="Untitled"
         aria-label="Title"
         spellCheck
-        onChange={(e) => updateNote(noteId, { title: e.target.value.replace(/[\r\n]+/g, " ") })}
+        onChange={(e) => {
+          const title = e.target.value.replace(/[\r\n]+/g, " ");
+          if (ytitle) setLiveTitle(title);
+          else updateNote(noteId, { title });
+        }}
         onKeyDown={(e) => {
           if (e.nativeEvent.isComposing) return;
           const el = e.currentTarget;
@@ -208,8 +233,9 @@ export function NoteEditor({ noteId, scroller }: Props) {
           <>
             <span className="sep" />
             <span className="note-meta-live">
-              <span className="live-dot" /> Shared
+              <span className="live-dot" /> {session ? "Live" : "Shared"}
             </span>
+            {session && <Presence session={session} />}
           </>
         )}
       </div>

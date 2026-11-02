@@ -37,6 +37,8 @@ export type AccentId = "iris" | "moon" | "sky" | "mint" | "corona" | "ember" | "
 export type FontId = "sans" | "serif" | "mono";
 export type SizeId = "s" | "m" | "l";
 export type EffectsId = "cosmic" | "subtle" | "off";
+/** How much of the sky shows through the panels. */
+export type BackdropId = "dark" | "glass" | "clear";
 
 export type Settings = {
   accent: AccentId;
@@ -47,6 +49,7 @@ export type Settings = {
   sounds: boolean;
   fadeWhileTyping: boolean;
   effects: EffectsId;
+  backdrop: BackdropId;
   name: string;
   sidebar: boolean;
   rail: boolean;
@@ -64,6 +67,10 @@ export type ShareRecord = {
   pushedAt: number;
   hash?: string;
   rev?: number;
+  /** The note lives in a co-editable doc on the server (see collab.mts). */
+  collab?: boolean;
+  /** Friends holding the link may edit (notes only; default true). */
+  editable?: boolean;
 };
 
 /** What the friend receives (inside the encrypted envelope). */
@@ -71,7 +78,8 @@ export type SharePayload = {
   v: 1;
   from?: string;
   sharedAt: number;
-  note?: { title: string; doc: JSONContent | null; text: string; updatedAt: number };
+  /** With `collab`, the note itself is in the live doc rather than in here. */
+  note?: { title: string; doc: JSONContent | null; text: string; updatedAt: number; collab?: boolean };
   todos?: { text: string; done: boolean }[];
   countdowns?: { title: string; date: string; time?: string | null; repeat?: "yearly" | null; createdAt: number }[];
 };

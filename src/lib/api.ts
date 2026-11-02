@@ -64,3 +64,59 @@ export async function fetchShare(id: string, etag?: string | null): Promise<{ sh
   if (status === 304) return null;
   return { share: body!, etag: nextTag };
 }
+
+// ── Live co-editing (see netlify/functions/collab.mts) ─────────────────────
+
+export type Sealed = { iv: string; data: string };
+export type DocEntry = Sealed & { n: number; c: number };
+export type DocCatchUp = {
+  seq: number;
+  upto: number;
+  editable: boolean;
+  snap: (Sealed & { upto: number }) | null;
+  entries: DocEntry[];
+  more: boolean;
+  assigned?: number | null;
+};
+
+const docPath = (id: string) => `/api/shares/${encodeURIComponent(id)}/doc`;
+
+export async function fetchDoc(id: string, since: number): Promise<DocCatchUp> {
+  const { body } = await request<DocCatchUp>(`${docPath(id)}?since=${since}`);
+  return body!;
+}
+
+export async function pushDoc(
+  id: string,
+  token: string,
+  body: { client: number; since: number; entry?: Sealed; snap?: Sealed & { upto: number } },
+  opts: { keepalive?: boolean } = {},
+): Promise<DocCatchUp> {
+  const json = JSON.stringify(body);
+  const { body: res } = await request<DocCatchUp>(docPath(id), {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: json,
+    // keepalive lets a last save finish while the page closes (browsers cap it at 64 KB)
+    keepalive: Boolean(opts.keepalive) && json.length < 60_000,
+  });
+  return res!;
+}
+
+export async function initDoc(id: string, ownerToken: string, body: { writeHash: string; editable: boolean; entry: Sealed; client: number }) {
+  const { body: res } = await request<{ seq: number; upto: number; editable: boolean }>(docPath(id), {
+    method: "PUT",
+    headers: { "content-type": "application/json", authorization: `Bearer ${ownerToken}` },
+    body: JSON.stringify(body),
+  });
+  return res!;
+}
+
+export async function setDocEditable(id: string, ownerToken: string, editable: boolean) {
+  const { body } = await request<{ editable: boolean }>(docPath(id), {
+    method: "PATCH",
+    headers: { "content-type": "application/json", authorization: `Bearer ${ownerToken}` },
+    body: JSON.stringify({ editable }),
+  });
+  return body!;
+}
