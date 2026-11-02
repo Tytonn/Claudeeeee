@@ -63,7 +63,6 @@ type Glyph = Timed & { ch: string; x: number; y: number; font: string; ash: bool
 /** A lightning strike: a few flickers of light, maybe with a bolt you can see. */
 type Strike = { t0: number; pulses: { at: number; amp: number; tau: number }[]; x: number; seed: number; bolt: boolean };
 export type RainOptions = { lightning: boolean; city: boolean; amount: number; blur: number };
-export type Thunder = { delay: number; power: number };
 
 const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -109,6 +108,12 @@ class FxEngine {
   private bTo: RGB = [0.3, 0.35, 0.8];
 
   private calm = false;
+  /** The cursor as a light source (it can be turned off); eased so the change is a soft fade. */
+  cursorLight = true;
+  private cursorK = 1;
+  /** Nothing drawn over the sky (the "Bare" background): the corona no longer outlines the panel. */
+  private open = false;
+  private openK = 0;
   /** When you last touched anything (fx clock). Left alone, the sky slowly wakes up. */
   private lastInput = 0;
   private energy = 1;
@@ -156,7 +161,6 @@ class FxEngine {
   private strikes: Strike[] = [];
   private nextStrike = 9000;
   private roomFlash = 0;
-  private thunderFns = new Set<(t: Thunder) => void>();
   private dustClear = false;
   /** A veil of light over everything, for the instant lightning lights up the room. */
   private room: HTMLDivElement | null = null;
@@ -189,7 +193,20 @@ class FxEngine {
     document.body.append(this.room);
 
     this.resize();
-    addEventListener("resize", () => this.resize());
+    addEventListener("resize", () => {
+      this.resize();
+      this.remeasure();
+    });
+    addEventListener("scroll", this.remeasure, { passive: true });
+    visualViewport?.addEventListener("resize", this.remeasure);
+    visualViewport?.addEventListener("scroll", this.remeasure);
+    // The keyboard takes a moment to slide in or out, and the page can move at either end of that.
+    for (const type of ["focusin", "focusout"] as const)
+      addEventListener(type, () => {
+        this.remeasure();
+        window.setTimeout(this.remeasure, 350);
+        window.setTimeout(this.remeasure, 800);
+      });
     addEventListener(
       "pointermove",
       (e) => {
@@ -223,9 +240,55 @@ class FxEngine {
       if (!c || !ctx) continue;
       c.width = Math.round(this.W * this.dpr);
       c.height = Math.round(this.H * this.dpr);
-      ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     }
+    this.place();
     this.overDirty = true;
+  }
+
+  /**
+   * Where the effect layers really are, in the same coordinates as everything we draw over.
+   * Normally that's (0, 0). But a phone keyboard can scroll the page out from under the fixed
+   * layers — and a letter's glow has to land on the letter, not a status bar's height above it.
+   */
+  private ox = 0;
+  private oy = 0;
+  private originRaf = 0;
+
+  private measureOrigin() {
+    const c = this.overCanvas;
+    if (!c || c.style.display === "none") return;
+    const r = c.getBoundingClientRect();
+    const ox = Math.round(r.left * 4) / 4;
+    const oy = Math.round(r.top * 4) / 4;
+    if (ox === this.ox && oy === this.oy) return;
+    this.ox = ox;
+    this.oy = oy;
+    this.place();
+    this.overDirty = true;
+    this.dustClear = true;
+  }
+
+  private remeasure = () => {
+    if (!this.originRaf)
+      this.originRaf = requestAnimationFrame(() => {
+        this.originRaf = 0;
+        this.measureOrigin();
+      });
+  };
+
+  /** Draw in page coordinates: shift each 2D layer by however far it has been moved. */
+  private place() {
+    for (const ctx of [this.dctx, this.octx]) ctx?.setTransform(this.dpr, 0, 0, this.dpr, -this.ox * this.dpr, -this.oy * this.dpr);
+  }
+
+  /** Clears a whole 2D layer, wherever it has been shifted to. */
+  private wipe(ctx: CanvasRenderingContext2D) {
+    ctx.clearRect(this.ox, this.oy, this.W, this.H);
+  }
+
+  /** The offset of the effect layers from the page (see `measureOrigin`), for things placed over the page by hand. */
+  get origin() {
+    return { x: this.ox, y: this.oy };
   }
 
   private get baseSkyScale() {
@@ -288,12 +351,6 @@ class FxEngine {
   /** Whether lightning may flash at all (never with reduced motion — it's a flashing light). */
   get lightningOn() {
     return this.rain && this.rainOpts.lightning && !this.reduced && this.effective !== "off";
-  }
-
-  /** Hears every strike, with how long the thunder takes to arrive. */
-  onThunder(fn: (t: Thunder) => void) {
-    this.thunderFns.add(fn);
-    return () => this.thunderFns.delete(fn);
   }
 
   /** Fades the sky up from dark — how a scene change looks where view transitions aren't used. */
@@ -390,7 +447,7 @@ class FxEngine {
     this.beams = [];
     this.loops = [];
     this.trails = [];
-    this.octx?.clearRect(0, 0, this.W, this.H);
+    if (this.octx) this.wipe(this.octx);
   }
 
   setAccent(accent: string, secondary: string) {
@@ -417,6 +474,16 @@ class FxEngine {
 
   setCalm(calm: boolean) {
     this.calm = calm;
+  }
+
+  setCursorLight(on: boolean) {
+    this.cursorLight = on;
+    if (!this.started) this.cursorK = on ? 1 : 0;
+  }
+
+  setOpen(open: boolean) {
+    this.open = open;
+    if (!this.started) this.openK = open ? 1 : 0;
   }
 
   // ── main loop ────────────────────────────────────────────────────────────
@@ -451,12 +518,16 @@ class FxEngine {
     this.flare *= Math.exp(-dt * 1.8);
     this.diamond.v *= Math.exp(-dt * 3.2);
     this.dim += (this.dimTarget - this.dim) * Math.min(1, dt * 5);
+    this.cursorK += ((this.cursorLight ? 1 : 0) - this.cursorK) * Math.min(1, dt * 4);
+    this.openK += ((this.open ? 1 : 0) - this.openK) * Math.min(1, dt * 3);
     this.inkBudget = Math.min(24, this.inkBudget + dt * 40);
     this.trackPanel();
     if (this.rain) this.stepRain(now, dt, idle);
 
-    // Sky: full rate when lively, ~30fps when calm.
-    if (this.sky && (now - this.lastSky > (this.energy < 0.4 ? 32 : 0) || this.flare > 0.02 || this.shocks.length || this.flashNow > 0.004)) {
+    // Sky: the eclipse drifts so slowly while you write that ~30fps is plenty then. Rain never
+    // slows down — falling drops stutter visibly at anything less than every frame.
+    const throttle = !this.rain && this.energy < 0.4 ? 32 : 0;
+    if (this.sky && (now - this.lastSky > throttle || this.flare > 0.02 || this.shocks.length || this.flashNow > 0.004)) {
       this.renderSky(now);
     }
 
@@ -466,7 +537,7 @@ class FxEngine {
       return;
     }
 
-    if (lvl === "cosmic" && !this.calm && this.panelEl && now > this.nextCme) {
+    if (lvl === "cosmic" && !this.calm && !this.open && this.panelEl && now > this.nextCme) {
       this.spawnCme();
       this.nextCme = now + rand(7000, 15000) * (idle ? 0.55 : 1);
     }
@@ -492,18 +563,22 @@ class FxEngine {
     this.lastSky = now;
     this.shocks = this.shocks.filter((s) => now - s.t0 < s.dur);
     const bolt = this.strikes[this.strikes.length - 1];
+    // Page coordinates → the sky's own (they differ only while a phone keyboard has moved things).
+    const { ox, oy } = this;
     this.sky.render({
       scene: this.scene,
       time: this.time,
-      mouse: this.smouse,
-      panel: this.panel,
+      mouse: { x: this.smouse.x - ox, y: this.smouse.y - oy },
+      panel: { ...this.panel, x: this.panel.x - ox, y: this.panel.y - oy },
       a: this.a,
       b: this.b,
       energy: this.energy,
       flare: Math.min(1, this.flare),
       dim: this.dim,
-      ring: this.diamond,
-      shocks: this.shocks.slice(-3).map((s) => ({ x: s.x, y: s.y, age: (now - s.t0) / s.dur, strength: s.strength })),
+      ring: { ...this.diamond, x: this.diamond.x - ox, y: this.diamond.y - oy },
+      shocks: this.shocks.slice(-3).map((s) => ({ x: s.x - ox, y: s.y - oy, age: (now - s.t0) / s.dur, strength: s.strength })),
+      cursor: this.cursorK,
+      open: this.openK,
       rain: {
         flash: this.flashNow,
         boltX: bolt ? bolt.x : 0,
@@ -572,10 +647,9 @@ class FxEngine {
 
   /**
    * A lightning strike. Distant ones are a flicker in the clouds; nearer ones show the bolt
-   * itself, then the thunder follows (as long as it takes to roll in).
-   * Flickers are kept slow and few (never more than three in a second).
+   * itself. Flickers are kept slow and few (never more than three in a second).
    */
-  strike(o: { bolt?: boolean; power?: number; x?: number; near?: boolean } = {}) {
+  strike(o: { bolt?: boolean; power?: number; x?: number } = {}) {
     if (!this.lightningOn) return false;
     const power = o.power ?? 0.8;
     const bolt = o.bolt ?? true;
@@ -586,8 +660,6 @@ class FxEngine {
     if (Math.random() < 0.6) pulses.push({ at: rand(520, 700), amp: power * rand(0.3, 0.55), tau: 260 });
     this.strikes.push({ t0: this.clock, pulses, x, seed: Math.random() * 100, bolt });
     if (this.strikes.length > 3) this.strikes.shift();
-    const delay = o.near ? rand(0.12, 0.45) : bolt ? rand(1, 3) : rand(3, 7);
-    for (const fn of this.thunderFns) fn({ delay, power: o.near ? 1 : power });
     return true;
   }
 
@@ -693,11 +765,11 @@ class FxEngine {
     const ctx = this.dctx;
     if (!ctx) return;
     if (this.rain) {
-      if (this.dustClear) ctx.clearRect(0, 0, this.W, this.H);
+      if (this.dustClear) this.wipe(ctx);
       this.dustClear = false;
       return;
     }
-    ctx.clearRect(0, 0, this.W, this.H);
+    this.wipe(ctx);
     ctx.globalCompositeOperation = "lighter";
     const tint = to255(mixRgb(this.a, [1, 1, 1], 0.55));
     const sprite = this.sprite(tint);
@@ -716,7 +788,7 @@ class FxEngine {
       const dx = Math.max(p.x - x, 0, x - (p.x + p.w));
       const dy = Math.max(p.y - y, 0, y - (p.y + p.h));
       const inside = dx === 0 && dy === 0 && !p.circle;
-      if (inside) continue;
+      if (inside && !this.open) continue;
       const edge = Math.hypot(dx, dy);
       const lit = Math.exp(-edge / 140) * (1 + this.flare * 2);
       const tw = 0.55 + 0.45 * Math.sin(m.phase * 2.1);
@@ -947,7 +1019,7 @@ class FxEngine {
       this.glyphs.length;
     if (!busy && !this.overDirty) return;
     this.overDirty = Boolean(busy);
-    ctx.clearRect(0, 0, this.W, this.H);
+    this.wipe(ctx);
     if (!busy) return;
     ctx.globalCompositeOperation = "lighter";
 
@@ -1229,6 +1301,18 @@ class FxEngine {
       next.push(p);
     }
     this.particles = next;
+
+    // Nothing stops at a hard line along the top of the screen: the topmost strip fades out,
+    // so light arriving from up there (the diamond ring, a beam) seems to pour in from beyond it.
+    const fade = 34;
+    const top = ctx.createLinearGradient(0, this.oy, 0, this.oy + fade);
+    top.addColorStop(0, "rgba(0,0,0,1)");
+    top.addColorStop(0.3, "rgba(0,0,0,0.62)");
+    top.addColorStop(0.65, "rgba(0,0,0,0.2)");
+    top.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.fillStyle = top;
+    ctx.fillRect(this.ox, this.oy, this.W, fade);
     ctx.globalCompositeOperation = "source-over";
   }
 
@@ -1349,9 +1433,10 @@ class FxEngine {
       return;
     }
     const now = this.clock;
-    this.flash(x, y, Math.max(this.W, this.H) * 0.55, { dur: 900, alpha: 0.32, color: this.accent });
-    this.flash(x, y, 120, { dur: 500, alpha: 0.9, color: WHITE });
-    this.streaks.push({ x, y, w: this.W * 0.42, t0: now, dur: 900, color: this.accentHot, alpha: 0.85 });
+    // The wash of light falls down into the page from the rim, rather than sitting on the edge.
+    this.flash(x, y + Math.min(this.H * 0.08, 70), Math.max(this.W, this.H) * 0.55, { dur: 900, alpha: 0.3, color: this.accent });
+    this.flash(x, y, 84, { dur: 500, alpha: 0.85, color: WHITE });
+    this.streaks.push({ x, y: y + 2, w: this.W * 0.42, t0: now, dur: 900, color: this.accentHot, alpha: 0.85 });
     // Ghost reflections march across the "lens" through the screen center.
     const cx = this.W / 2;
     const cy = this.H / 2;
@@ -1377,7 +1462,7 @@ class FxEngine {
     const p = this.panel;
     const x = p.circle ? p.x + p.w / 2 : p.x + p.w * rand(0.55, 0.9);
     const y = p.circle ? Math.min(this.H * 0.4, Math.max(40, p.y + p.h)) : Math.max(30, p.y + 1);
-    if (this.strike({ bolt: true, power: 1, x: x + rand(-80, 80), near: true })) {
+    if (this.strike({ bolt: true, power: 1, x: x + rand(-80, 80) })) {
       this.shockwave(x, y, 0.9, 1800);
       if (this.full) this.burst(x, y, { count: 26, speed: 260, size: 1.6, life: 1, angle: -Math.PI / 2, spread: Math.PI * 0.9 });
       return;
@@ -1414,7 +1499,7 @@ class FxEngine {
   beam(x: number, y: number) {
     if (!this.active) return;
     if (this.rain) {
-      this.strike({ bolt: true, power: 0.85, x: x + rand(-140, 140), near: true });
+      this.strike({ bolt: true, power: 0.85, x: x + rand(-140, 140) });
       this.splash(x, y, 1.3);
       return;
     }
@@ -1539,12 +1624,12 @@ class FxEngine {
     }
   }
 
-  /** Dust pulled along the rim of the passing moon. */
-  rimDust(x: number, y: number, r: number, dir: number) {
+  /** Dust pulled along the rim of the passing moon (optionally just one stretch of it, in radians). */
+  rimDust(x: number, y: number, r: number, dir: number, from = 0, to = Math.PI * 2) {
     if (!this.active) return;
-    const count = this.full ? 5 : 1;
+    const count = this.full ? 3 : 1;
     for (let i = 0; i < count; i++) {
-      const an = rand(0, Math.PI * 2);
+      const an = rand(from, to);
       const px = x + Math.cos(an) * r;
       const py = y + Math.sin(an) * r;
       const life = rand(0.5, 1);

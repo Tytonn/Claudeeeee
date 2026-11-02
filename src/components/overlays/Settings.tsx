@@ -136,25 +136,6 @@ function RainBlur() {
   );
 }
 
-function RainVolume() {
-  const volume = useApp((s) => s.settings.rainVolume);
-  const setSettings = useApp((s) => s.setSettings);
-  const v = typeof volume === "number" ? volume : 0.6;
-  return (
-    <input
-      type="range"
-      className="range"
-      min={0.05}
-      max={1}
-      step={0.05}
-      value={v}
-      aria-label="Rain volume"
-      style={{ "--v": `${v * 100}%` } as React.CSSProperties}
-      onChange={(e) => setSettings({ rainVolume: Number(e.target.value) })}
-    />
-  );
-}
-
 function Swatches() {
   const accent = useApp((s) => s.settings.accent);
   const scene = useApp((s) => s.settings.scene);
@@ -176,48 +157,6 @@ function Swatches() {
           <span className="swatch-core" />
         </button>
       ))}
-    </div>
-  );
-}
-
-/** A few soft, readable inks — plus any color you like. */
-const INKS: { id: string; name: string; color: string }[] = [
-  { id: "", name: "Default", color: "#f3f3f5" },
-  { id: "#f4ecdf", name: "Paper", color: "#f4ecdf" },
-  { id: "#dbe4ff", name: "Moonlight", color: "#dbe4ff" },
-  { id: "#cff3e3", name: "Mint", color: "#cff3e3" },
-  { id: "#ffd8e5", name: "Blossom", color: "#ffd8e5" },
-  { id: "#ffe1b3", name: "Amber", color: "#ffe1b3" },
-];
-
-function InkPicker() {
-  const ink = useApp((s) => s.settings.ink);
-  const scene = useApp((s) => s.settings.scene);
-  const setSettings = useApp((s) => s.setSettings);
-  const custom = Boolean(ink) && !INKS.some((i) => i.id === ink);
-  return (
-    <div className="swatches" role="radiogroup" aria-label="Text color">
-      {INKS.map((i) => (
-        <button
-          key={i.name}
-          type="button"
-          role="radio"
-          aria-checked={ink === i.id}
-          aria-label={i.name}
-          title={i.name}
-          className="swatch"
-          style={{ "--sw": i.color } as React.CSSProperties}
-          onClick={() => setSettings({ ink: i.id })}
-        >
-          {ink === i.id && <motion.span layoutId={`ink-ring-${scene}`} className="swatch-ring" transition={spring} />}
-          <span className="swatch-core" />
-        </button>
-      ))}
-      <label className={`swatch swatch-custom ${custom ? "is-set" : ""}`} title="Pick any color" style={{ "--sw": custom ? ink : "#f3f3f5" } as React.CSSProperties}>
-        {custom && <motion.span layoutId={`ink-ring-${scene}`} className="swatch-ring" transition={spring} />}
-        <span className="swatch-core" />
-        <input type="color" aria-label="Custom text color" value={/^#[0-9a-f]{6}$/i.test(ink) ? ink : "#f3f3f5"} onChange={(e) => setSettings({ ink: e.target.value })} />
-      </label>
     </div>
   );
 }
@@ -301,11 +240,14 @@ function LiveLinks() {
   );
 }
 
+/** Only devices with a pointer that hovers have a cursor to light things with. */
+const hasCursor = typeof matchMedia !== "undefined" && matchMedia("(hover: hover) and (pointer: fine)").matches;
+
 function SettingsBody({ onClose }: { onClose: () => void }) {
   const settings = useApp((s) => s.settings);
   const setSettings = useApp((s) => s.setSettings);
   const fileInput = useRef<HTMLInputElement>(null);
-  const [name, setName] = useState(settings.name);
+  const signedIn = useAccount((s) => Boolean(s.user));
 
   const fontOptions = (Object.keys(FONTS) as FontId[]).map((id) => ({
     value: id,
@@ -364,19 +306,10 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
                 <Row label="Blur" desc="How out of focus the city is. The drops on the glass stay sharp.">
                   <RainBlur />
                 </Row>
-                <Row label="Rain sound" desc="Soft rain on the window, and thunder after the lightning. Just on this device.">
-                  <div className="set-inline">
-                    {settings.rainSound && <RainVolume />}
-                    <Switch checked={settings.rainSound} onChange={(v) => setSettings({ rainSound: v })} label="Rain sound" />
-                  </div>
-                </Row>
               </>
             )}
             <Row label="Accent" desc="Tints the caret, checkmarks and the glow.">
               <Swatches />
-            </Row>
-            <Row label="Text color" desc="The color of your writing. Very dark picks get lifted so they stay readable.">
-              <InkPicker />
             </Row>
             <Row label="Writing font">
               <Segmented label="Writing font" value={settings.font} options={fontOptions} onChange={(font) => setSettings({ font })} />
@@ -403,7 +336,7 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
                 size="sm"
                 value={settings.effects}
                 options={[
-                  { value: "cosmic", label: "Cosmic" },
+                  { value: "cosmic", label: "Max" },
                   { value: "subtle", label: "Subtle" },
                   { value: "off", label: "Off" },
                 ]}
@@ -421,9 +354,18 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
                     { value: "glass", label: "Glass" },
                     { value: "clear", label: "Clear" },
                     { value: "crystal", label: "Crystal" },
+                    { value: "bare", label: "Bare" },
                   ]}
                   onChange={(backdrop) => setSettings({ backdrop })}
                 />
+              </Row>
+            )}
+            {settings.effects !== "off" && hasCursor && (
+              <Row
+                label="Cursor light"
+                desc={settings.scene === "rain" ? "Your cursor is a warm light held up to the glass, catching the drops." : "Your cursor is a light: it catches the edges of things and brightens the corona."}
+              >
+                <Switch checked={settings.cursorLight !== false} onChange={(v) => setSettings({ cursorLight: v })} label="Cursor light" />
               </Row>
             )}
             <Row label="Fade while typing" desc="Everything except your words quietly dims as you write.">
@@ -456,6 +398,26 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
                 label="Countdowns"
               />
             </Row>
+            {(settings.todos || settings.countdowns) && (
+              <Row label="Milliseconds" desc="Show fractions of a second on the clock.">
+                <div className="set-inline">
+                  {settings.clockMs && (
+                    <Segmented<"1" | "2" | "3">
+                      label="Digits"
+                      size="sm"
+                      value={String(settings.clockMsDigits ?? 3) as "1" | "2" | "3"}
+                      options={[
+                        { value: "1", label: <span className="mono">.1</span> },
+                        { value: "2", label: <span className="mono">.12</span> },
+                        { value: "3", label: <span className="mono">.123</span> },
+                      ]}
+                      onChange={(d) => setSettings({ clockMsDigits: Number(d) as 1 | 2 | 3 })}
+                    />
+                  )}
+                  <Switch checked={settings.clockMs === true} onChange={(v) => setSettings({ clockMs: v })} label="Milliseconds" />
+                </div>
+              </Row>
+            )}
             <Row label="Sounds" desc="Soft ticks when you check things off.">
               <Switch checked={settings.sounds} onChange={(v) => setSettings({ sounds: v })} label="Sounds" />
             </Row>
@@ -466,18 +428,6 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
           </Section>
 
           <Section title="Sharing">
-            <Row label="Your name" desc="Shown to friends on links you share." htmlFor="set-name">
-              <input
-                id="set-name"
-                className="text-input"
-                value={name}
-                maxLength={40}
-                placeholder="Optional"
-                onChange={(e) => setName(e.target.value)}
-                onBlur={() => setSettings({ name: name.trim() })}
-                onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-              />
-            </Row>
             <div className="set-row column">
               <div className="set-row-text">
                 <span className="set-row-label">Live links</span>
@@ -488,7 +438,14 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
           </Section>
 
           <Section title="Your data">
-            <Row label="Backup" desc="Notes live privately in this browser. Export a backup now and then — or to move to another device.">
+            <Row
+              label="Backup"
+              desc={
+                signedIn
+                  ? "Everything is synced to your account, end-to-end encrypted. Export a file whenever you'd like a copy of your own."
+                  : "Without an account, your notes live only in this browser. Export a backup now and then — or sign in to keep them synced."
+              }
+            >
               <div className="set-btns">
                 <button
                   type="button"

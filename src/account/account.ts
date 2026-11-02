@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { ApiError, apiLogin, apiLogout, apiSignup, setSessionToken } from "../lib/api";
+import { ApiError, apiLogin, apiLogout, apiLogoutToken, apiSignup, setSessionToken } from "../lib/api";
 import { fromB64Url, randomBytes, toB64Url } from "../lib/crypto";
 
 /**
@@ -141,6 +141,25 @@ export async function signIn(rawUsername: string, password: string) {
     throw new Error("Couldn't unlock your account's data on this device.");
   }
   store({ uid: res.uid, username: res.username, token: res.token, dek: toB64Url(dek) });
+}
+
+/**
+ * Checks your account password with the server (used to choose a new hidden-notes PIN when
+ * you've forgotten yours). The server rate-limits wrong guesses, just as it does at sign-in.
+ */
+export async function verifyPassword(password: string): Promise<boolean> {
+  const stored = readStored();
+  if (!stored) return false;
+  const { auth } = await stretch(stored.username, password);
+  try {
+    const res = await apiLogin({ username: stored.username, auth });
+    // That check opened a session of its own; close it again.
+    void apiLogoutToken(res.token).catch(() => {});
+    return true;
+  } catch (err) {
+    if (err instanceof ApiError && err.code === "bad_login") return false;
+    throw err;
+  }
 }
 
 export async function signOut() {

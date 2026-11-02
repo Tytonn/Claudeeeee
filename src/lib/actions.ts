@@ -1,6 +1,7 @@
-import { app, sortedNotes } from "../store/app";
+import { app } from "../store/app";
+import { sidebarSections, visibleOrder } from "./noteList";
 import { toast } from "../store/toasts";
-import { docToMarkdown, displayTitle, slugify } from "./text";
+import { docToMarkdown, displayTitle, isBlank, slugify } from "./text";
 import { play } from "./sound";
 import { FLUSH_EVENT } from "../components/editor/NoteEditor";
 import { fx } from "../fx/engine";
@@ -56,7 +57,7 @@ export function trashNote(id: string) {
   const s = app();
   const note = s.notes[id];
   if (!note) return;
-  const wasBlank = !note.title.trim() && !note.text.trim();
+  const wasBlank = isBlank(note);
   if (fx.active && s.ui.activeId === id && s.ui.view === "notes") {
     // The umbra passes over the page and swallows it — or, in the rain, it's washed away.
     (fx.rain ? rainWash : eclipseWipe)(document.querySelector<HTMLElement>(".canvas .note"), document.querySelector<HTMLElement>("main.canvas"));
@@ -117,9 +118,65 @@ export function downloadMarkdown(id: string) {
   download(`${slugify(displayTitle(note))}.md`, new Blob([md], { type: "text/markdown;charset=utf-8" }));
 }
 
+// ── Groups ────────────────────────────────────────────────────────────────
+
+/** Files a note into a group (or takes it out of one). */
+export function moveNote(noteId: string, groupId: string | null) {
+  const s = app();
+  const note = s.notes[noteId];
+  if (!note || (note.groupId ?? null) === groupId) return;
+  const before = note.groupId ?? null;
+  s.moveToGroup(noteId, groupId);
+  play("pop");
+  const group = groupId ? s.groups.find((g) => g.id === groupId) : null;
+  // The group lights up as the note lands in it.
+  requestAnimationFrame(() => {
+    const head = document.querySelector<HTMLElement>(groupId ? `[data-group-head="${groupId}"]` : ".sb-list");
+    head?.classList.remove("is-landed");
+    void head?.offsetWidth;
+    head?.classList.add("is-landed");
+  });
+  toast(group ? `Moved to ${group.name}${note.pinned ? " (it stays pinned on top)" : ""}` : "Taken out of its group", {
+    action: { label: "Undo", run: () => app().moveToGroup(noteId, before) },
+  });
+}
+
+/** Makes a new group (optionally putting a note straight into it) and starts naming it. */
+export function newGroup(noteId?: string) {
+  const s = app();
+  const id = s.createGroup("New group");
+  if (noteId) s.moveToGroup(noteId, id);
+  if (!s.settings.sidebar) s.setSettings({ sidebar: true });
+  s.setUI({ renaming: id, mobile: "list", view: s.ui.view });
+  play("pop");
+  return id;
+}
+
+export function newNoteInGroup(groupId: string) {
+  const s = app();
+  if (s.groups.find((g) => g.id === groupId)?.collapsed) s.setGroupCollapsed(groupId, false);
+  flushEditor();
+  if (fx.active) {
+    setEntrance("dawn");
+    fx.diamondRing();
+    play("dawn");
+  } else play("pop");
+  return s.createNote({ groupId });
+}
+
+/** Removes a group. Its notes stay — they just aren't filed anywhere any more. */
+export function deleteGroup(groupId: string) {
+  const saved = app().deleteGroup(groupId);
+  if (!saved) return;
+  play("drop");
+  toast(saved.noteIds.length ? `Removed “${saved.group.name}” — its notes are still here` : `Removed “${saved.group.name}”`, {
+    action: { label: "Undo", run: () => app().restoreGroup(saved) },
+  });
+}
+
 export function selectAdjacent(delta: 1 | -1) {
   const s = app();
-  const list = sortedNotes(s.notes);
+  const list = visibleOrder(sidebarSections(s.notes, s.groups, s.ui.unlocked));
   if (!list.length) return;
   const i = list.findIndex((n) => n.id === s.ui.activeId);
   const next = list[Math.min(list.length - 1, Math.max(0, (i < 0 ? 0 : i + delta)))];

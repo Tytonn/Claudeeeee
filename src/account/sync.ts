@@ -1,8 +1,18 @@
 import { useApp, type AppState } from "../store/app";
 import { ApiError, syncPull, syncPush, type SyncItem } from "../lib/api";
 import { open, seal } from "../lib/crypto";
-import { normalizeCountdown, normalizeList, normalizeNote, normalizeSharedLink, normalizeShareRecord, normalizeTodo } from "../lib/sanitize";
-import type { Countdown, Note, Settings, Todo } from "../lib/types";
+import {
+  normalizeCountdown,
+  normalizeGroup,
+  normalizeList,
+  normalizeNote,
+  normalizeSharedLink,
+  normalizeShareRecord,
+  normalizeTodo,
+  normalizeTodoLabels,
+  normalizeVault,
+} from "../lib/sanitize";
+import type { Countdown, Note, NoteGroup, Settings, Todo } from "../lib/types";
 import { dataKey, onAccountChange, sessionExpired, useAccount, type AccountUser } from "./account";
 
 /**
@@ -19,7 +29,6 @@ import { dataKey, onAccountChange, sessionExpired, useAccount, type AccountUser 
  */
 
 const SYNCED_SETTINGS = [
-  "name",
   "accent",
   "font",
   "size",
@@ -27,12 +36,16 @@ const SYNCED_SETTINGS = [
   "countdowns",
   "sounds",
   "fadeWhileTyping",
-  "ink",
   "scene",
   "lightning",
   "cityLights",
   "rainAmount",
   "cityBlur",
+  "cursorLight",
+  "clockMs",
+  "clockMsDigits",
+  "todoGroups",
+  "todoLabels",
 ] as const;
 type SyncedSettings = Pick<Settings, (typeof SYNCED_SETTINGS)[number]>;
 
@@ -90,6 +103,8 @@ function readLocal(key: string, s: AppState = useApp.getState()): unknown {
   if (key.startsWith("shared:")) return s.shared[key.slice(7)];
   if (key === "todos") return s.todos;
   if (key === "countdowns") return s.countdowns;
+  if (key === "groups") return s.groups;
+  if (key === "vault") return s.vault ?? undefined;
   if (key === "settings") return pickSettings(s.settings);
   return undefined;
 }
@@ -107,6 +122,8 @@ function localKeys(s: AppState = useApp.getState()): string[] {
     ...Object.keys(s.shared).map((id) => `shared:${id}`),
     "todos",
     "countdowns",
+    "groups",
+    ...(s.vault ? ["vault"] : []),
     "settings",
   ];
 }
@@ -141,10 +158,13 @@ function apply(changes: Change[]) {
           else delete shared[key.slice(7)];
         } else if (key === "todos" && value) next.todos = normalizeList(value, normalizeTodo);
         else if (key === "countdowns" && value) next.countdowns = normalizeList(value, normalizeCountdown);
+        else if (key === "groups" && value) next.groups = normalizeList(value, normalizeGroup);
+        else if (key === "vault") next.vault = value ? normalizeVault(value) : null;
         else if (key === "settings" && value && typeof value === "object") {
           const incoming = value as Record<string, unknown>;
           const merged = { ...(next.settings ?? s.settings) } as Record<string, unknown>;
           for (const k of SYNCED_SETTINGS) if (k in incoming && typeof incoming[k] === typeof merged[k]) merged[k] = incoming[k];
+          merged.todoLabels = normalizeTodoLabels(merged.todoLabels);
           next.settings = merged as unknown as Settings;
         }
       }
@@ -154,7 +174,7 @@ function apply(changes: Change[]) {
       // If the open note was deleted on another device, open the next one.
       if (next.notes && s.ui.activeId && !next.notes[s.ui.activeId]) {
         const fallback = Object.values(next.notes)
-          .filter((n) => !n.deletedAt)
+          .filter((n) => !n.deletedAt && (s.ui.unlocked || !n.hidden))
           .sort((a, b) => b.updatedAt - a.updatedAt)[0];
         next.ui = { ...s.ui, activeId: fallback?.id ?? null };
       }
@@ -347,6 +367,19 @@ async function absorb(items: SyncItem[], dek: string, firstTime: boolean) {
         meta.dirty.countdowns = Date.now();
         continue;
       }
+      if (item.key === "groups") {
+        const remote = normalizeList(value, normalizeGroup);
+        const ids = new Set(remote.map((g) => g.id));
+        const merged: NoteGroup[] = [...remote, ...(local as NoteGroup[]).filter((g) => !ids.has(g.id))];
+        changes.push({ key: "groups", value: merged });
+        meta.dirty.groups = Date.now();
+        continue;
+      }
+      if (item.key === "vault") {
+        // The account's PIN wins: it's the one your other devices already use.
+        changes.push({ key: "vault", value });
+        continue;
+      }
       if (item.key.startsWith("note:") && (local as Note).updatedAt > ((value as Note).updatedAt ?? 0)) {
         meta.dirty[item.key] = Date.now(); // ours is newer: send it up
         continue;
@@ -401,6 +434,8 @@ function watchStore() {
     diff("shared:", s.shared, prev.shared);
     if (s.todos !== prev.todos) mark("todos");
     if (s.countdowns !== prev.countdowns) mark("countdowns");
+    if (s.groups !== prev.groups) mark("groups");
+    if (s.vault !== prev.vault) mark("vault");
     if (s.settings !== prev.settings && SYNCED_SETTINGS.some((k) => s.settings[k] !== prev.settings[k])) mark("settings");
   });
 }

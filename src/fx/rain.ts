@@ -309,6 +309,7 @@ uniform vec2 uRes;       // buffer px
 uniform float uDpr;      // buffer px per CSS px
 uniform float uTime;
 uniform vec2 uMouse;     // buffer px, y up
+uniform float uCursor;   // the cursor's light, 0..1 (it can be turned off)
 uniform vec4 uFlash;
 uniform float uAmount;
 uniform float uWet;
@@ -541,7 +542,7 @@ void main() {
 
   vec3 lampCol = mix(vec3(1., .86, .7), uA, .3);
   float mnear = 1. / (1. + dot((uMouse - frag) / uDpr, (uMouse - frag) / uDpr) / (300. * 300.));
-  vec3 col = back + (bloom * .55 + vec3(.008, .01, .014) + lampCol * mnear * .12) * rim;
+  vec3 col = back + (bloom * .55 + vec3(.008, .01, .014) + lampCol * mnear * .12 * uCursor) * rim;
   if (D.w > 0.) {
     vec2 n = D.xy;
     float r = D.z;
@@ -558,10 +559,10 @@ void main() {
     vec3 L = vec3((uMouse - frag) / uDpr, 240.);
     vec3 hv = normalize(normalize(L) + vec3(0., 0., 1.));
     float near = 1. / (1. + dot(L.xy, L.xy) / (320. * 320.));
-    float spec = pow(max(dot(N, hv), 0.), 70.) * near * 1.5;
+    float spec = pow(max(dot(N, hv), 0.), 70.) * near * 1.5 * uCursor;
     float amb = pow(max(dot(N, normalize(vec3(-.3, .62, 1.))), 0.), 36.) * (.14 + tiny * .16);
     dc += lampCol * spec + vec3(.75, .82, 1.) * amb;
-    dc += lampCol * near * .05 * (1. - rim);
+    dc += lampCol * near * .05 * (1. - rim) * uCursor;
     // lightning catches the top of every drop
     dc += uFlash.x * vec3(.7, .77, 1.) * (pow(max(N.y, 0.), 2.) * .55 + .06);
     col = mix(col, dc, D.w);
@@ -569,7 +570,7 @@ void main() {
 
   // The cursor's light spills into the fog around it.
   float md = length((uMouse - frag) / uDpr);
-  col += lampCol * exp(-md * md / (280. * 280.)) * .026 * (.35 + fog);
+  col += lampCol * exp(-md * md / (280. * 280.)) * .026 * (.35 + fog) * uCursor;
   col += mix(vec3(.78, .88, 1.), uA, .3) * rl * .1;
   // Lightning: the whole pane lights up for an instant.
   col += uFlash.x * vec3(.045, .05, .066) * (.4 + fog);

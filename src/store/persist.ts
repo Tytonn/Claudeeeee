@@ -1,6 +1,15 @@
 import { createStore, delMany, entries, getMany, set as idbSet, setMany } from "idb-keyval";
-import type { Countdown, Note, Settings, SharedLink, ShareRecord, Todo } from "../lib/types";
-import { normalizeCountdown, normalizeList, normalizeNote, normalizeSharedLink, normalizeShareRecord, normalizeTodo } from "../lib/sanitize";
+import type { Countdown, Note, NoteGroup, Settings, SharedLink, ShareRecord, Todo, Vault } from "../lib/types";
+import {
+  normalizeCountdown,
+  normalizeGroup,
+  normalizeList,
+  normalizeNote,
+  normalizeSharedLink,
+  normalizeShareRecord,
+  normalizeTodo,
+  normalizeVault,
+} from "../lib/sanitize";
 import { safeDoc } from "../components/editor/safeDoc";
 import { DEFAULT_SETTINGS, useApp } from "./app";
 import { seedData } from "./seed";
@@ -15,6 +24,8 @@ const TRASH_TTL = 30 * 86_400_000;
  *   note:<id>        one record per note
  *   share:<anchor>   one record per live link (anchor = note id or "board")
  *   shared:<id>      links other people shared with you
+ *   groups           note groups, in order (array)
+ *   vault            the hidden-notes PIN (a salted hash), if one was set
  *   todos            the to-do list (ordered array)
  *   countdowns       the countdowns (array)
  *   meta             { seeded }
@@ -62,6 +73,8 @@ export async function loadAll() {
   if (!rows) storageOk = false;
 
   const notes: Record<string, Note> = {};
+  let groups: NoteGroup[] = [];
+  let vault: Vault | null = null;
   let todos: Todo[] | null = null;
   let countdowns: Countdown[] | null = null;
   const shares: Record<string, ShareRecord> = {};
@@ -91,7 +104,9 @@ export async function loadAll() {
         const record = normalizeShareRecord(raw);
         if (record && !shares[record.anchor]) shares[record.anchor] = record;
       }
-    } else if (key === "todos") todos = normalizeList(v, normalizeTodo);
+    } else if (key === "groups") groups = normalizeList(v, normalizeGroup);
+    else if (key === "vault") vault = normalizeVault(v);
+    else if (key === "todos") todos = normalizeList(v, normalizeTodo);
     else if (key === "countdowns") countdowns = normalizeList(v, normalizeCountdown);
     else if (key === "meta") seeded = Boolean((v as { seeded?: boolean })?.seeded);
   }
@@ -131,7 +146,7 @@ export async function loadAll() {
     void idbSet("meta", { seeded: true, at: Date.now() }, db).catch(() => {});
   }
 
-  return { notes, todos: todos ?? [], countdowns: countdowns ?? [], shares, shared, settings, activeId: ui.activeId };
+  return { notes, groups, vault, todos: todos ?? [], countdowns: countdowns ?? [], shares, shared, settings, activeId: ui.activeId };
 }
 
 /** Mirrors store changes into IndexedDB (per-record, batched) and keeps other tabs in sync. */
@@ -188,6 +203,16 @@ export function startPersistence() {
     if (s.notes !== prev.notes) diffRecords("note:", s.notes, prev.notes);
     if (s.shares !== prev.shares) diffRecords("share:", s.shares, prev.shares);
     if (s.shared !== prev.shared) diffRecords("shared:", s.shared, prev.shared);
+    if (s.groups !== prev.groups) pending.set("groups", s.groups);
+    if (s.vault !== prev.vault) {
+      if (s.vault) {
+        pending.set("vault", s.vault);
+        deletions.delete("vault");
+      } else {
+        pending.delete("vault");
+        deletions.add("vault");
+      }
+    }
     if (s.todos !== prev.todos) pending.set("todos", s.todos);
     if (s.countdowns !== prev.countdowns) pending.set("countdowns", s.countdowns);
     if (s.settings !== prev.settings) writeLocal(SETTINGS_KEY, s.settings);
@@ -244,7 +269,9 @@ export function startPersistence() {
               const link = value ? normalizeSharedLink(value) : null;
               if (link) shared[id] = link;
               else delete shared[id];
-            } else if (key === "todos" && value) next.todos = normalizeList(value, normalizeTodo);
+            } else if (key === "groups" && value) next.groups = normalizeList(value, normalizeGroup);
+            else if (key === "vault") next.vault = value ? normalizeVault(value) : null;
+            else if (key === "todos" && value) next.todos = normalizeList(value, normalizeTodo);
             else if (key === "countdowns" && value) next.countdowns = normalizeList(value, normalizeCountdown);
           });
           if (notes !== s.notes) next.notes = notes;
@@ -290,6 +317,8 @@ export async function exportAll(): Promise<Blob> {
     version: 1,
     exportedAt: new Date().toISOString(),
     notes: Object.values(s.notes),
+    groups: s.groups,
+    vault: s.vault,
     todos: s.todos,
     countdowns: s.countdowns,
     settings: s.settings,
@@ -298,7 +327,7 @@ export async function exportAll(): Promise<Blob> {
 }
 
 export function importBackup(raw: unknown): { notes: number; todos: number; countdowns: number } {
-  const data = raw as { app?: string; notes?: unknown; todos?: unknown; countdowns?: unknown };
+  const data = raw as { app?: string; notes?: unknown; groups?: unknown; vault?: unknown; todos?: unknown; countdowns?: unknown };
   if (!data || data.app !== "umbra") throw new Error("This doesn't look like an umbra backup.");
   const s = useApp.getState();
   const notes = { ...s.notes };
@@ -315,6 +344,10 @@ export function importBackup(raw: unknown): { notes: number; todos: number; coun
   const newTodos = normalizeList(data.todos, normalizeTodo).filter((t) => !todoIds.has(t.id));
   const cdIds = new Set(s.countdowns.map((c) => c.id));
   const newCds = normalizeList(data.countdowns, normalizeCountdown).filter((c) => !cdIds.has(c.id));
-  useApp.setState({ notes, todos: [...s.todos, ...newTodos], countdowns: [...s.countdowns, ...newCds] });
+  const groupIds = new Set(s.groups.map((g) => g.id));
+  const newGroups = normalizeList(data.groups, normalizeGroup).filter((g) => !groupIds.has(g.id));
+  // Hidden notes come back hidden — with the PIN they were hidden under, unless this device has its own.
+  const vault = s.vault ?? normalizeVault(data.vault);
+  useApp.setState({ notes, groups: [...s.groups, ...newGroups], vault, todos: [...s.todos, ...newTodos], countdowns: [...s.countdowns, ...newCds] });
   return { notes: n, todos: newTodos.length, countdowns: newCds.length };
 }

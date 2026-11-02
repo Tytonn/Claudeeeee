@@ -25,10 +25,11 @@ import { startSync, syncNow } from "./account/sync";
 import { ACCENTS, RAIN_AMOUNT, applyTheme } from "./lib/theme";
 import type { Settings } from "./lib/types";
 import { fx } from "./fx/engine";
-import { startPointerLight } from "./fx/dom";
+import { refreshPointerLight, startPointerLight } from "./fx/dom";
 import { setSoundEnabled, setSoundTheme } from "./lib/sound";
-import { setRainSound, thunder } from "./lib/ambience";
 import { startViewportFit } from "./lib/platform";
+import { startVaultWatch } from "./lib/vault";
+import { startImageSync } from "./lib/images";
 import { App } from "./App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
@@ -49,15 +50,17 @@ async function boot() {
     const blur = typeof s.cityBlur === "number" ? Math.min(1, Math.max(0, s.cityBlur)) : 1;
     fx.setRain({ lightning: s.lightning !== false, city: s.cityLights !== false, amount, blur });
     fx.setScene(s.scene === "rain" ? "rain" : "eclipse", first);
-    const raining = fx.rain && s.effects !== "off";
-    setSoundTheme(raining ? "rain" : "eclipse");
-    setRainSound({ on: raining && s.rainSound === true, amount, volume: typeof s.rainVolume === "number" ? s.rainVolume : 0.6 });
+    setSoundTheme(fx.rain && s.effects !== "off" ? "rain" : "eclipse");
+    fx.setOpen(s.backdrop === "bare");
+    if (fx.cursorLight !== (s.cursorLight !== false)) {
+      fx.setCursorLight(s.cursorLight !== false);
+      refreshPointerLight();
+    }
   };
   applyTheme(settings);
   setSoundEnabled(settings.sounds);
   syncFx(settings, true);
   fx.init();
-  fx.onThunder(thunder);
   startPointerLight();
   if (import.meta.env.DEV) Object.assign(window as object, { __fx: fx, __app: useApp, __syncNow: syncNow });
   useApp.subscribe(
@@ -80,6 +83,8 @@ async function boot() {
   }
   startShareSync();
   startSync();
+  startVaultWatch();
+  startImageSync();
 
   // Give the fonts a beat so the first frame is already in the right type.
   await Promise.race([document.fonts?.ready, new Promise((r) => setTimeout(r, 450))]);

@@ -109,6 +109,11 @@ export class CollabSession {
 
   private key: string;
   private token: string;
+
+  /** What uploading a picture into this note needs (signed in, or this link's token). */
+  get uploadAuth(): { share: string; token: string } {
+    return { share: this.shareId, token: this.token };
+  }
   private opts: Options;
   private upto = 0;
   private outbox: Uint8Array[] = [];

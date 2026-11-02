@@ -8,11 +8,16 @@ import {
   Moon,
   CornerDownLeft,
   Download,
+  EyeOff,
   FileText,
+  FolderPlus,
   Hourglass,
   Keyboard,
   ListChecks,
+  Lock,
+  LockOpen,
   Maximize2,
+  MousePointer2,
   PanelLeft,
   PanelRight,
   Plus,
@@ -25,14 +30,14 @@ import {
   Type,
   Volume2,
   VolumeX,
-  Waves,
 } from "lucide-react";
 import { sortedNotes, useApp } from "../../store/app";
 import { displayTitle, fuzzyScore, snippet } from "../../lib/text";
 import { shortStamp } from "../../lib/dates";
 import { ACCENTS, ALT, FONTS, MOD, SHIFT } from "../../lib/theme";
 import type { AccentId, BackdropId, FontId, RainAmountId } from "../../lib/types";
-import { NEW_COUNTDOWN_EVENT, flushEditor, newNote, openShare } from "../../lib/actions";
+import { NEW_COUNTDOWN_EVENT, flushEditor, newGroup, newNote, openShare } from "../../lib/actions";
+import { lockHidden, openHidden } from "../../lib/vault";
 import { exportAll } from "../../store/persist";
 import { download } from "../../lib/actions";
 import { spring } from "../../lib/motion";
@@ -67,8 +72,17 @@ function Highlight({ text, query }: { text: string; query: string }) {
   );
 }
 
+/** Typing "hidden" (and only that) brings up the way into hidden notes. */
+const asksForHidden = (q: string) => {
+  const t = q.trim().toLowerCase();
+  return t.length >= 6 && ("hidden notes".startsWith(t) || t.startsWith("hidden"));
+};
+
 function useItems(query: string): Item[] {
   const notes = useApp((s) => s.notes);
+  const groups = useApp((s) => s.groups);
+  const unlocked = useApp((s) => s.ui.unlocked);
+  const hasVault = useApp((s) => Boolean(s.vault));
   const settings = useApp((s) => s.settings);
   const activeId = useApp((s) => s.ui.activeId);
   const focus = useApp((s) => s.ui.focus);
@@ -77,7 +91,9 @@ function useItems(query: string): Item[] {
   return useMemo(() => {
     const s = useApp.getState();
     const q = query.trim();
-    const list = sortedNotes(notes);
+    const list = sortedNotes(notes, unlocked);
+    const groupName = (n: (typeof list)[number]) => (n.groupId ? groups.find((g) => g.id === n.groupId)?.name : undefined);
+    const noteIcon = (n: (typeof list)[number]) => (n.hidden ? <EyeOff size={15} strokeWidth={1.6} /> : <FileText size={15} strokeWidth={1.6} />);
 
     let noteItems: Item[];
     if (!q) {
@@ -88,8 +104,8 @@ function useItems(query: string): Item[] {
           id: `note-${n.id}`,
           group: "Recent",
           label: displayTitle(n),
-          meta: shortStamp(n.updatedAt, now),
-          icon: <FileText size={15} strokeWidth={1.6} />,
+          meta: [groupName(n), shortStamp(n.updatedAt, now)].filter(Boolean).join(" · "),
+          icon: noteIcon(n),
           run: () => {
             flushEditor();
             s.selectNote(n.id);
@@ -112,8 +128,8 @@ function useItems(query: string): Item[] {
           group: "Notes",
           label: title,
           sub: inBody ? snippet(n.text, q, 36) : undefined,
-          meta: shortStamp(n.updatedAt, now),
-          icon: <FileText size={15} strokeWidth={1.6} />,
+          meta: [groupName(n), shortStamp(n.updatedAt, now)].filter(Boolean).join(" · "),
+          icon: noteIcon(n),
           run: () => {
             flushEditor();
             s.selectNote(n.id);
@@ -123,9 +139,14 @@ function useItems(query: string): Item[] {
     }
 
     const toggle = (key: "todos" | "countdowns" | "sidebar" | "rail" | "sounds") => () => s.setSettings({ [key]: !s.settings[key] });
+    const seeThrough = settings.backdrop === "clear" || settings.backdrop === "crystal" || settings.backdrop === "bare";
 
     const actions: Item[] = [
       { id: "new", group: "Actions", label: "New note", icon: <SquarePen size={15} strokeWidth={1.6} />, kbd: `${ALT} N`, keywords: "create add write", run: () => newNote() },
+      { id: "new-group", group: "Actions", label: "New group…", icon: <FolderPlus size={15} strokeWidth={1.6} />, keywords: "folder group organize collection", run: () => newGroup() },
+      ...(unlocked
+        ? [{ id: "lock", group: "Actions", label: "Lock hidden notes", icon: <Lock size={15} strokeWidth={1.6} />, keywords: "hidden private vault pin", run: () => lockHidden() }]
+        : []),
       ...(activeId && notes[activeId] && !notes[activeId].deletedAt
         ? [{ id: "share", group: "Actions", label: "Share this note…", icon: <Share size={15} strokeWidth={1.6} />, keywords: "send link friend", run: () => openShare(activeId) }]
         : []),
@@ -201,14 +222,6 @@ function useItems(query: string): Item[] {
                     keywords: "bokeh city lights rain blur",
                     run: () => s.setSettings({ cityLights: !settings.cityLights }),
                   },
-                  {
-                    id: "rain-sound",
-                    group: "Appearance",
-                    label: settings.rainSound ? "Turn the rain sound off" : "Turn the rain sound on",
-                    icon: <Waves size={15} strokeWidth={1.6} />,
-                    keywords: "ambient noise audio rain thunder relax",
-                    run: () => s.setSettings({ rainSound: !settings.rainSound }),
-                  },
                   ...(["drizzle", "rain", "downpour"] as RainAmountId[]).map((id) => ({
                     id: `rain-${id}`,
                     group: "Appearance",
@@ -224,12 +237,20 @@ function useItems(query: string): Item[] {
             {
               id: "sky",
               group: "Appearance",
-              label: settings.backdrop === "clear" || settings.backdrop === "crystal" ? "Darker background" : "Show more of the sky",
+              label: seeThrough ? "Darker background" : "Show more of the sky",
               icon: <Sparkles size={15} strokeWidth={1.6} />,
               keywords: "background clear glass dark transparent see through sky stars",
-              run: () => s.setSettings({ backdrop: settings.backdrop === "clear" || settings.backdrop === "crystal" ? "dark" : "clear" }),
+              run: () => s.setSettings({ backdrop: seeThrough ? "dark" : "clear" }),
             },
-            ...(["dark", "glass", "clear", "crystal"] as BackdropId[]).map((id) => ({
+            {
+              id: "cursor-light",
+              group: "Appearance",
+              label: settings.cursorLight !== false ? "Turn the cursor light off" : "Turn the cursor light on",
+              icon: <MousePointer2 size={15} strokeWidth={1.6} />,
+              keywords: "cursor mouse glow light spotlight",
+              run: () => s.setSettings({ cursorLight: settings.cursorLight === false }),
+            },
+            ...(["dark", "glass", "clear", "crystal", "bare"] as BackdropId[]).map((id) => ({
               id: `backdrop-${id}`,
               group: "Appearance",
               label: `Background: ${id[0].toUpperCase()}${id.slice(1)}`,
@@ -266,9 +287,23 @@ function useItems(query: string): Item[] {
         ? [{ id: "create", group: "Create", label: `New note “${q}”`, icon: <Plus size={15} strokeWidth={1.8} />, run: () => newNote({ title: q }) }]
         : [];
 
-    return [...noteItems, ...matchedActions, ...create];
+    // The way into hidden notes only shows up for someone who types "hidden".
+    const vault: Item[] = asksForHidden(q)
+      ? [
+          {
+            id: "hidden",
+            group: "Private",
+            label: "Hidden notes",
+            sub: unlocked ? "Unlocked — they're in the list" : hasVault ? "Enter your PIN" : "Choose a PIN to start hiding notes",
+            icon: unlocked ? <LockOpen size={15} strokeWidth={1.6} /> : <Lock size={15} strokeWidth={1.6} />,
+            run: () => openHidden(),
+          },
+        ]
+      : [];
+
+    return [...vault, ...noteItems, ...matchedActions, ...(vault.length ? [] : create)];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, notes, settings, activeId, focus]);
+  }, [query, notes, groups, unlocked, hasVault, settings, activeId, focus]);
 }
 
 function PaletteBody({ onClose }: { onClose: () => void }) {

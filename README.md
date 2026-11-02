@@ -11,16 +11,15 @@
 **The light show**
 - A living sky behind everything (WebGL): a drifting nebula with glowing filaments and dark dust lanes, three depths of twinkling stars that shift with your cursor, and shooting stars — now and then a fireball or a little meteor shower.
 - The editor is the moon in a total eclipse. A solar corona pours out from behind it in long, flowing streamers, swings toward your cursor, and throws off coronal loops. The side panels are smoked glass, so you see the sky through them.
-- Your cursor is a light source: panels catch a rim of light where it passes, countdown cards tilt toward it and cast shadows away from it.
+- Your cursor is a light source: panels catch a rim of light where it passes, countdown cards tilt toward it and cast shadows away from it. (**Settings → Cursor light** turns it off, in either scene.)
 - Writing: a caret made of light, letters that land white-hot and cool to ink, erased letters that fall away as ash, and a sunburst every 100 words. While you type, the sky calms down so it never gets in the way.
 - **New note:** the diamond ring — a blinding flash on the moon's rim, lens flare, a shockwave through the sky.
-- **Delete the open note:** the moon slides across and swallows it. Anything else you delete dissolves into embers.
+- **Delete the open note:** the burning edge of the moon sweeps across the page, eating the old words, and the next note comes up out of the shadow behind it. The glass and the sky never change underneath. Anything else you delete dissolves into embers.
 - **Check off a to-do:** a sunburst, then it burns away and its light streaks into *Completed*.
 - **Share:** a beam of light goes up and the link decodes itself out of cipher glyphs. Your friend's page opens under a vast eclipsed moon; the note decrypts with a scanning line, the diamond ring flashes, and the corona flares whenever you edit.
-- Plus: a short eclipse intro once per visit (followed by an invitation to sign in, if you aren't), a light trail when you switch notes, the new accent color flooding the screen from the swatch you clicked, a live clock, and a sky that slowly wakes up if you leave it alone.
-- **Settings → Effects:** *Cosmic* (everything), *Subtle* (a calm sky and small flourishes) or *Off*. If your system asks for reduced motion, umbra uses *Subtle* automatically.
-- **Settings → Background:** *Dark* (smoked glass), *Glass* (more sky), *Clear* (the sky almost fully, with a soft shade behind your words) or *Crystal* (no glass at all — just outlines over the open sky, with a crisp little drop shadow behind every word). Also in the command palette: *Show more of the sky*.
-- **Settings → Text color:** six soft inks, or pick any color you like (very dark picks get lifted so they stay readable).
+- Plus: a short eclipse intro once per visit (followed by an invitation to sign in, if you aren't), a light trail when you switch notes, the new accent color flooding the screen from the swatch you clicked, a live clock (with optional milliseconds), and a sky that slowly wakes up if you leave it alone.
+- **Settings → Effects:** *Max* (everything), *Subtle* (a calm sky and small flourishes) or *Off*. If your system asks for reduced motion, umbra uses *Subtle* automatically.
+- **Settings → Background:** *Dark* (smoked glass), *Glass* (more sky), *Clear* (the sky almost fully, with a soft shade behind your words), *Crystal* (no glass at all — just outlines over the open sky, with a crisp little drop shadow behind every word) or *Bare* (nothing at all: no panels, no outlines, no shade — the sky's light even carries on behind your words instead of stopping at the page's edge). Also in the command palette: *Show more of the sky*.
 
 **Rain** *(Settings → Scene → Rain; the eclipse stays the default)*
 - A night city seen through a rain-streaked window, all drawn live on the GPU — no images or video. The city is out of focus, the way it is when your eyes are on the glass: bokeh from windows, streetlamps, neon signs (one in your accent color), traffic sliding along a wet street with its reflections smeared down the road, blinking warning lights on the towers, mist, and rain falling through the lamplight.
@@ -31,20 +30,23 @@
 - **How hard it rains:** *Drizzle* (clear glass, a few beads), *Rain*, or *Downpour* (misted up, drops running everywhere).
 - **Blur:** how out of focus the city is — from crisp bokeh to a soft, dreamy glow (fully blurred by default). It's real defocus, worked out for every pixel (not a blurred picture), so it stays smooth at any setting; the rain outside softens a little less, and the drops on the glass always stay sharp.
 - Drawn sharp: the glass at up to twice your screen's pixel density, the city at about its full resolution (and only 30 times a second, since it barely moves), the rain as fine anti-aliased streaks.
-- **Rain sound** *(off by default, just on the device you turn it on)*: quiet, close rain, like an ASMR recording — a soft hush built from thousands of tiny drops a second, light patter on the glass, now and then a single drop by your left or right ear (a tick, a tap, a plip into a puddle), and low thunder rolling in a few seconds after the lightning you see. It's all synthesized at full fidelity (no recordings), has its own volume slider, and fades out whenever the tab is hidden.
 - Everything else goes wet too: a new note brings the lightning close; checking a to-do is a splash (ripples, a crown of droplets); erased letters run off the page like drips; deleting a note washes it away from the top; other things you delete are rinsed off in drops; sharing calls down a bolt; the intro writes *umbra* into the fogged glass; and the little sounds become drips and bubbles.
-- It switches over with a sheet of rain running down the screen. Command palette: *Make it rain*, *Back to the eclipse*, and toggles for lightning, city lights and sound.
-- Like the eclipse, it pauses completely when the tab is hidden, drops to ~30 fps while you type, and lowers its resolution on its own if a device struggles.
+- It switches over with a sheet of rain running down the screen. Command palette: *Make it rain*, *Back to the eclipse*, and toggles for lightning and city lights.
+- Like the eclipse, it pauses completely when the tab is hidden and lowers its resolution on its own if a device struggles — but it keeps falling at full frame rate while you type.
 
 **Notes**
 - A calm rich-text editor: type <kbd>/</kbd> for blocks (headings, lists, checklists, quotes, code, dividers, today's date), select text for a formatting bubble, or just write Markdown (`#`, `-`, `[]`, `>`, ```` ``` ````, `==highlight==`).
 - Code blocks with syntax highlighting, smart quotes and dashes, links (<kbd>Ctrl/⌘</kbd>+click to open).
+- **Pictures:** paste or drop one in, or type <kbd>/</kbd> → *Image* (on a phone, that opens your photos and camera). A blurry stand-in holds its exact space at once, then the picture develops in over it. Double-click (or the corner button) to see it full-screen. Pictures are shrunk to a sharp ~2200px and re-encoded in your browser before they go anywhere.
+- **Groups:** file notes into groups (folders) — drag a note onto one, or use *Move to group* in its menu. Groups fold up, rename in place, and sync with your account.
+- **Hidden notes:** *Hide note* takes a note out of your list, search and trash. To see hidden notes again, search for **hidden** and enter your 4-digit PIN; they show up in their own section until you lock them (or after a minute away from the app). Forgot the PIN? Your account password lets you choose a new one.
 - Saves instantly as you type. Pin, duplicate, copy as Markdown, download `.md`, trash with undo (auto-empties after 30 days).
 - Empty notes clean themselves up. Your place in each note is remembered.
 
 **To-dos** *(optional)*
 - Check things off with a little tick, a burst, and a strike-through that draws itself.
 - <kbd>Enter</kbd> adds the next one, drag the handle to reorder, completed items tuck away.
+- **Colors** *(optional)*: give a to-do a color from the dot on its row (or right-click it); its checkbox wears it. Turn on *Group by color* in the list's header and they sort into sections — rename a color to whatever it means to you (*Work*, *Home*…).
 
 **Countdowns** *(optional)*
 - Type naturally: *"Tokyo trip dec 20"*, *"Mom's birthday march 3"*, *"Flight in 3 days at 7am"* — the date is understood as you type. Or pick one from the calendar.
@@ -67,7 +69,7 @@
 
 **Everything else**
 - Command palette (<kbd>Ctrl/⌘ K</kbd>) for searching notes and running any command.
-- Focus mode, fade-while-typing, 7 accent colors (each one recolors the whole sky), 3 writing fonts (Sans / Serif / Mono), 3 text sizes, 3 effect levels, optional sounds.
+- Focus mode, fade-while-typing, 7 accent colors (each one recolors the whole sky), 3 writing fonts (Sans / Serif / Mono), 3 text sizes, 3 effect levels, optional sounds. On shared links and in live editing, you're shown by your account's username.
 - Works on phones, prints cleanly, keyboard-first everywhere (press <kbd>?</kbd>).
 - On a phone it moves like a native app: the list and a note slide over each other, search is a button up top that opens with the keyboard ready, and added to the Home Screen it fills the whole screen, edge to edge.
 
@@ -90,7 +92,9 @@ Already have a Netlify site you want to reuse? Open it → **Site configuration 
 ## Your data
 
 - Notes, to-dos, and countdowns live **privately in your browser** (IndexedDB) on the device you're using. Nothing is uploaded unless you share it — or sign in to sync, in which case it's uploaded end-to-end encrypted with a key only your password can unlock.
-- Clearing your browser's site data erases them, so export a backup now and then: **Settings → Your data → Export**. **Import** restores it (or moves it to another device/browser).
+- Without an account, clearing your browser's site data erases them, so export a backup now and then: **Settings → Your data → Export**. **Import** restores it. With an account, everything is already synced (encrypted) — export whenever you'd like a file of your own.
+- **Pictures** stay on your device until a note they're in needs to leave it (you're signed in, or the note is shared). Then each one is encrypted with a key of its own that lives inside the note, and uploaded once; every device downloads it once and keeps it. Netlify only ever holds scrambled bytes.
+- **What pictures cost on Netlify's credit plans:** a typical photo ends up around 150–400 KB. Uploading it and each device downloading it once comes to roughly *2 credits per 100 photos* (bandwidth at 20 credits/GB, plus a few function calls) — for comparison, a single deploy is 15. Notes without pictures cost nothing extra.
 - Shared links are stored on Netlify (encrypted) until you stop sharing. Manage them in **Settings → Sharing → Live links**.
 
 ---
@@ -152,7 +156,7 @@ npm run typecheck
 - **Name:** the wordmark is plain text — search for `umbra` in `index.html`, `src/`, and `public/manifest.webmanifest`.
 - **Default accent / settings:** `DEFAULT_SETTINGS` in [`src/store/app.ts`](src/store/app.ts); the palette lives in [`src/lib/theme.ts`](src/lib/theme.ts).
 - **Design tokens** (colors, type, radii, motion): the top of [`src/styles/base.css`](src/styles/base.css).
-- **The sky and effects:** the WebGL sky (nebula, stars, corona) is one shader in [`src/fx/shaders.ts`](src/fx/shaders.ts); the rain is two passes in [`src/fx/rain.ts`](src/fx/rain.ts) (the city into a mipmapped texture, then the glass); everything else (meteors, flares, lightning timing, splashes, particles, trails) is in [`src/fx/engine.ts`](src/fx/engine.ts). The rain sound is [`src/lib/ambience.ts`](src/lib/ambience.ts). Each accent's nebula color is in [`src/lib/theme.ts`](src/lib/theme.ts).
+- **The sky and effects:** the WebGL sky (nebula, stars, corona) is one shader in [`src/fx/shaders.ts`](src/fx/shaders.ts); the rain is two passes in [`src/fx/rain.ts`](src/fx/rain.ts) (the city into a mipmapped texture, then the glass); everything else (meteors, flares, lightning timing, splashes, particles, trails) is in [`src/fx/engine.ts`](src/fx/engine.ts). Each accent's nebula color is in [`src/lib/theme.ts`](src/lib/theme.ts).
 
 ## Project layout
 
@@ -162,19 +166,20 @@ netlify/functions/collab.mts   live co-editing log for shared notes
 netlify/functions/people.mts   who can open a link (access list, approvals, removals)
 netlify/functions/account.mts  accounts (sign up / in / out)
 netlify/functions/sync.mts     encrypted sync of your notes across devices
+netlify/functions/images.mts   pictures in notes (stored only as ciphertext)
 netlify/lib/common.ts          shared helpers: sessions, access checks
 src/
   components/                  app shell, sidebar, top bar, side panel
     editor/                    TipTap editor, slash menu, formatting bubble
     widgets/                   to-dos, countdowns, date picker
-    overlays/                  command palette, settings, share sheet, toasts
+    overlays/                  command palette, settings, share sheet, the PIN pad, toasts
     ui/                        primitives (tooltip, popover, menu, switch, eclipse…)
   fx/                          the light engine: WebGL sky (eclipse + rain), effects overlay, intro, light caret
   collab/                      live co-editing: sync engine, owner sessions, title binding
   account/                     accounts, the sign-in eclipse, cross-device sync
   share/ShareView.tsx          what your friend sees
   store/                       state, IndexedDB persistence, live share sync
-  lib/                         crypto, dates, markdown export, sounds, rain ambience, theme
+  lib/                         crypto, dates, markdown export, sounds, pictures, hidden notes, theme
   styles/                      design system + component styles
 ```
 

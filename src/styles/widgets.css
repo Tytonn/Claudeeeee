@@ -169,6 +169,178 @@
   background: var(--active);
 }
 
+/* ── To-do colors ────────────────────────────────────────────────────────── */
+
+.tag-dot {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--tag, transparent);
+  box-shadow: inset 0 0 0 1.5px var(--tag, var(--fg-4));
+}
+.tag-dot.is-none {
+  background: none;
+  box-shadow: inset 0 0 0 1.5px var(--fg-4);
+}
+.menu-icon .tag-dot {
+  width: 10px;
+  height: 10px;
+  box-shadow:
+    inset 0 0 0 1.5px var(--tag),
+    0 0 8px color-mix(in oklch, var(--tag) 45%, transparent);
+}
+/* The little dot on each row that picks its color (it shows the color once there is one). */
+.todo-tag {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 24px;
+  border-radius: 7px;
+  opacity: 0;
+  transition:
+    opacity var(--t-fast),
+    background-color var(--t-fast);
+}
+.todo-tag .tag-dot {
+  width: 8px;
+  height: 8px;
+}
+.todo:hover .todo-tag,
+.todo:focus-within .todo-tag,
+.todo.is-menu .todo-tag {
+  opacity: 1;
+}
+.todo-tag:hover {
+  background: var(--active);
+}
+@media (hover: none) {
+  .todo.has-tag .todo-tag {
+    opacity: 0.85;
+  }
+}
+/* A colored to-do wears its color on its checkbox. */
+.todo.has-tag .check {
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklch, var(--tag) 88%, transparent);
+}
+.todo.has-tag .check:hover {
+  box-shadow: inset 0 0 0 1.5px var(--tag);
+  background: color-mix(in oklch, var(--tag) 13%, transparent);
+}
+.todo.has-tag .check.is-checked {
+  box-shadow: inset 0 0 0 1.5px transparent;
+}
+.todo.has-tag .check-fill {
+  background: var(--tag);
+  box-shadow: 0 0 14px -3px color-mix(in oklch, var(--tag) 75%, transparent);
+}
+.todo.has-tag .check-mark {
+  stroke: rgb(12 12 16 / 0.92);
+}
+.todo.is-done.has-tag .check-fill {
+  opacity: 0.75;
+}
+
+/* Grouped by color: a section per color. */
+.todo-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.todo-section-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 28px;
+  margin-top: 2px;
+}
+.todo-section-toggle {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  height: 100%;
+  padding: 0 6px 0 3px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--fg-2);
+  text-align: left;
+  transition:
+    color var(--t-fast),
+    background-color var(--t-fast);
+}
+button.todo-section-toggle:hover {
+  color: var(--fg-1);
+  background: var(--hover);
+}
+.todo-section-toggle .chev {
+  flex-shrink: 0;
+  color: var(--fg-4);
+}
+.todo-section-toggle .tag-dot {
+  box-shadow:
+    inset 0 0 0 1.5px var(--tag, var(--fg-4)),
+    0 0 10px color-mix(in oklch, var(--tag, transparent) 50%, transparent);
+}
+.todo-section-name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: color-mix(in oklch, var(--tag, var(--fg-3)) 62%, var(--fg-1));
+}
+.todo-section.is-plain .todo-section-name {
+  color: var(--fg-3);
+}
+.todo-section-count {
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--fg-4);
+}
+.todo-section-btn {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  color: var(--fg-4);
+  opacity: 0;
+  transition:
+    opacity var(--t-fast),
+    color var(--t-fast),
+    background-color var(--t-fast);
+}
+.todo-section-head:hover .todo-section-btn,
+.todo-section-btn:focus-visible {
+  opacity: 1;
+}
+.todo-section-btn:hover {
+  color: var(--fg-1);
+  background: var(--active);
+}
+@media (hover: none) {
+  .todo-section-btn {
+    opacity: 1;
+  }
+}
+.todo-section-input {
+  flex: 1;
+  min-width: 0;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 6px;
+  font: inherit;
+  color: var(--fg-1);
+  background: rgb(255 255 255 / 0.06);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklch, var(--tag, var(--accent)) 60%, transparent),
+    0 0 0 3px color-mix(in oklch, var(--tag, var(--accent)) 16%, transparent);
+}
+
 .todo-done {
   margin-top: 10px;
 }

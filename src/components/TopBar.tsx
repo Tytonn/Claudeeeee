@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowLeft, Check, Ellipsis, Maximize2, Minimize2, PanelLeft, PanelRight, Share } from "lucide-react";
+import { ArrowLeft, Check, Ellipsis, ImagePlus, Maximize2, Minimize2, PanelLeft, PanelRight, Share } from "lucide-react";
+import type { Editor } from "@tiptap/core";
 import { useApp } from "../store/app";
 import { useShareStatus } from "../store/shareSync";
 import { relativeLong } from "../lib/dates";
@@ -12,6 +13,7 @@ import { Tooltip } from "./ui/Tooltip";
 import { Popover } from "./ui/Popover";
 import { Menu } from "./ui/Menu";
 import { noteMenuItems } from "./Sidebar";
+import { pickImages } from "./editor/image";
 import { ShareSheet } from "./overlays/ShareSheet";
 import { usePending } from "./overlays/People";
 
@@ -108,7 +110,25 @@ export function TopBar() {
               <Ellipsis size={17} strokeWidth={1.7} />
             </IconButton>
             <Popover open={moreOpen && !!note} onClose={() => setMoreOpen(false)} anchor={moreBtn.current} placement="bottom-end" role="menu">
-              {note && <Menu items={noteMenuItems(note, { share: false })} onClose={() => setMoreOpen(false)} />}
+              {note && (
+                <Menu
+                  items={[
+                    // Pictures go in at the caret (or at the end, if you weren't writing).
+                    {
+                      label: "Add image…",
+                      icon: <ImagePlus size={15} />,
+                      immediate: true,
+                      onSelect: () => {
+                        const ed = (window as unknown as { __umbraEditor?: Editor }).__umbraEditor;
+                        if (ed && !ed.isDestroyed) pickImages(ed);
+                      },
+                    },
+                    "divider",
+                    ...noteMenuItems(note, { share: false }),
+                  ]}
+                  onClose={() => setMoreOpen(false)}
+                />
+              )}
             </Popover>
           </>
         )}

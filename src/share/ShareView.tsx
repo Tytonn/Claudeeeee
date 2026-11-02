@@ -266,7 +266,7 @@ export function ShareView({ id, keyRaw, embedded = false }: { id: string; keyRaw
     let timer = 0;
     const ask = async () => {
       try {
-        const res = await joinShare(id, await writeTokenFor(keyRaw), useApp.getState().settings.name.trim() || user.username);
+        const res = await joinShare(id, await writeTokenFor(keyRaw), user.username);
         if (stopped) return;
         joinedFor.current = `${user.uid}:${id}`;
         setRole(res.role);

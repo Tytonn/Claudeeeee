@@ -10,7 +10,23 @@ export type Note = {
   updatedAt: number;
   pinned?: boolean;
   deletedAt?: number | null;
+  /** The group (folder) it's filed in, if any. */
+  groupId?: string | null;
+  /** Kept out of the list and search until hidden notes are unlocked with the PIN. */
+  hidden?: boolean;
 };
+
+/** A named group of notes in the sidebar. */
+export type NoteGroup = {
+  id: string;
+  name: string;
+  collapsed?: boolean;
+  createdAt: number;
+  updatedAt: number;
+};
+
+/** The colors a to-do can be tagged with (and grouped by). */
+export type TodoColor = "red" | "orange" | "yellow" | "green" | "blue" | "purple";
 
 export type Todo = {
   id: string;
@@ -19,7 +35,14 @@ export type Todo = {
   createdAt: number;
   updatedAt: number;
   doneAt?: number | null;
+  color?: TodoColor | null;
 };
+
+/**
+ * The PIN for hidden notes — never the PIN itself, only a salted, stretched hash of it
+ * (and, with an account, synced end-to-end encrypted like everything else).
+ */
+export type Vault = { v: 1; salt: string; hash: string; iter: number; updatedAt: number };
 
 export type Countdown = {
   id: string;
@@ -38,7 +61,7 @@ export type FontId = "sans" | "serif" | "mono";
 export type SizeId = "s" | "m" | "l";
 export type EffectsId = "cosmic" | "subtle" | "off";
 /** How much of the sky shows through the panels. */
-export type BackdropId = "dark" | "glass" | "clear" | "crystal";
+export type BackdropId = "dark" | "glass" | "clear" | "crystal" | "bare";
 /** What's behind the glass: the eclipse, or a night city in the rain. */
 export type SceneId = "eclipse" | "rain";
 export type RainAmountId = "drizzle" | "rain" | "downpour";
@@ -53,8 +76,6 @@ export type Settings = {
   fadeWhileTyping: boolean;
   effects: EffectsId;
   backdrop: BackdropId;
-  /** Custom color for your writing (hex), or "" for the default. */
-  ink: string;
   scene: SceneId;
   /** Rain: lightning now and then. */
   lightning: boolean;
@@ -63,11 +84,16 @@ export type Settings = {
   rainAmount: RainAmountId;
   /** Rain: how out of focus the city is, 0..1 (fully, by default). */
   cityBlur: number;
-  /** Rain: the sound of it (off by default; this device only). */
-  rainSound: boolean;
-  /** 0..1 */
-  rainVolume: number;
-  name: string;
+  /** The cursor as a light: the glow on the glass and panel edges that follows it. */
+  cursorLight: boolean;
+  /** Show milliseconds on the clock (off by default)… */
+  clockMs: boolean;
+  /** …to this many digits. */
+  clockMsDigits: 1 | 2 | 3;
+  /** Show to-dos in sections, one per color. */
+  todoGroups: boolean;
+  /** Your names for the to-do colors ("Work", "Home"…). */
+  todoLabels: Partial<Record<TodoColor, string>>;
   sidebar: boolean;
   rail: boolean;
 };

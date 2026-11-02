@@ -33,6 +33,8 @@ uniform vec4 uShock1;
 uniform vec4 uShock2;    // shockwaves: xy, age 0..1, strength
 uniform float uScale;    // min(uRes)
 uniform float uQuality;  // 1 = full, 0 = light
+uniform float uCursor;   // how much the cursor lights the sky, 0..1
+uniform float uOpen;     // 1 = the "Bare" background: no panel to see, so no edge to the light
 
 float hash12(vec2 p) {
   vec3 p3 = fract(vec3(p.xyx) * .1031);
@@ -162,16 +164,27 @@ void main() {
   // The broad glow belongs to the sky around the panel only. Inside it, anything that
   // depends on the angle from the panel's center would pinch to a point right there.
   float around = smoothstep(-uScale * .012, 0., d);
-  vec2 lightDir = normalize(uMouse - uPanel.xy + vec2(1e-3));
+  // With nothing drawn over the sky ("Bare"), there's no moon to hide behind: the soft light
+  // carries straight on behind the words instead of stopping at an edge, and the bright
+  // rim and the rays that hug the panel's outline give way to rays that only begin further out.
+  around = mix(around, 1., uOpen);
+  float edgeless = mix(1., smoothstep(uScale * .02, uScale * .16, d), uOpen);
+  // The corona is brighter on the side the light comes from: the cursor, or (with the cursor's
+  // light turned off) from up and to the right.
+  vec2 toMouse = normalize(uMouse - uPanel.xy + vec2(1e-3));
+  vec2 lightDir = normalize(mix(vec2(.45, .89), toMouse, uCursor) + vec2(1e-4));
   float side = .62 + .38 * dot(pc / max(length(pc), 1.), lightDir);
-  float power = (.45 + .35 * uEnergy) * (1. + uFlare * (.5 + 2.8 * near)) * (1. - uDim * .85);
+  // A flare lights the corona up — but not the thin strip along the very top of the screen,
+  // which would otherwise read as a hard bright line where the screen ends.
+  float flareTop = mix(.3, 1., smoothstep(0., uScale * .05, uRes.y - frag.y));
+  float power = (.45 + .35 * uEnergy) * (1. + uFlare * (.5 + 2.8 * near) * flareTop) * (1. - uDim * .85);
   vec3 hot = mix(uA, vec3(1.), .55);
   float far = exp(-dn / (.13 + .05 * uEnergy + .12 * uFlare * near));
   col += mix(uA, uB, .25) * halo * power * .3 * side * around;
   col += mix(uB, uA, .6) * exp(-dn / .3) * .035 * power * (1. + gust * .6) * around;
-  col += mix(hot, uA, .35) * st * far * .24 * (1. + gust * .8) * side * power * inside;
-  col += hot * outer * (.11 + rays * .3) * (1. + gust) * side * power * inside;
-  col += mix(hot, vec3(1.), .5) * rim * .38 * side * power * inside;
+  col += mix(hot, uA, .35) * st * far * .24 * (1. + gust * .8) * side * power * inside * edgeless;
+  col += hot * outer * (.11 + rays * .3) * (1. + gust) * side * power * inside * edgeless;
+  col += mix(hot, vec3(1.), .5) * rim * .38 * side * power * inside * (1. - uOpen);
 
   // Diamond ring: a single blinding point of sunlight on the rim.
   if (uRing.z > 0.) {
@@ -181,14 +194,17 @@ void main() {
     float glow = exp(-r / (uScale * .045)) * .7;
     float h = exp(-abs(dv.y) / (uScale * .0035)) * exp(-abs(dv.x) / (uScale * .38));
     float v = exp(-abs(dv.x) / (uScale * .003)) * exp(-abs(dv.y) / (uScale * .11)) * .45;
-    col += (vec3(1.) * core * 2.4 + hot * (glow + h + v)) * uRing.z;
+    // Right at the top of the screen it fades out, so light from up there seems to come
+    // from beyond the edge instead of being cut off by it.
+    float topFade = smoothstep(0., uScale * .04, uRes.y - frag.y);
+    col += (vec3(1.) * core * 2.4 + hot * (glow + h + v)) * uRing.z * (.15 + .85 * topFade);
   }
 
   col += hot * shockLight * .28;
 
   // The cursor is a faint light source in the sky.
   float ml = exp(-pow(length(frag - uMouse) / (uScale * .42), 2.));
-  col += uA * ml * .028 * live;
+  col += uA * ml * .028 * live * uCursor;
 
   col *= 1. - uDim * .55;
   col *= 1. - .26 * pow(length(uv - .5) * 1.2, 2.2);

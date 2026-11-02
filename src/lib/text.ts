@@ -57,6 +57,9 @@ function block(node: JSONContent, indent = ""): string[] {
     }
     case "horizontalRule":
       return [indent + "---"];
+    case "image":
+      // The picture itself stays in umbra (it's encrypted); the export notes where it was.
+      return [indent + `[Image${node.attrs?.alt ? `: ${node.attrs.alt}` : ""}]`];
     case "bulletList":
       return listItems(node, () => "- ", indent);
     case "orderedList": {
@@ -112,8 +115,15 @@ export function displayTitle(note: Pick<Note, "title" | "text">): string {
   return first ? first.trim().slice(0, 80) : "Untitled";
 }
 
-export function isBlank(note: Pick<Note, "title" | "text">): boolean {
-  return !String(note.title ?? "").trim() && !String(note.text ?? "").trim();
+export function isBlank(note: Pick<Note, "title" | "text"> & { doc?: JSONContent | null }): boolean {
+  return !String(note.title ?? "").trim() && !String(note.text ?? "").trim() && !hasMedia(note.doc);
+}
+
+/** Whether a document holds anything besides text (a picture). */
+function hasMedia(doc: JSONContent | null | undefined): boolean {
+  if (!doc) return false;
+  if (doc.type === "image") return true;
+  return (doc.content ?? []).some(hasMedia);
 }
 
 export function snippet(text: string, query: string, radius = 48): string {

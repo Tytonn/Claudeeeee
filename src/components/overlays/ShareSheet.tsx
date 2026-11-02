@@ -15,6 +15,7 @@ import { useScramble } from "../../fx/useScramble";
 import { setEditable, useCollabSession } from "../../collab/manager";
 import { Presence } from "../Presence";
 import { PeoplePanel } from "./People";
+import { useAccount } from "../../account/account";
 
 function explain(err: unknown): string {
   if (err instanceof ApiError) {
@@ -42,7 +43,6 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
   const totalTodos = useApp((s) => s.todos.length);
   const countdowns = useApp((s) => s.countdowns.length);
   const patchShare = useApp((s) => s.patchShare);
-  const setSettings = useApp((s) => s.setSettings);
   const status = useShareStatus((s) => s[anchor]);
 
   const isBoard = anchor === BOARD;
@@ -51,7 +51,7 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
   const [busy, setBusy] = useState<"create" | "stop" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [name, setName] = useState(settings.name);
+  const username = useAccount((s) => s.user?.username ?? null);
   const [justCreated, setJustCreated] = useState(false);
   const [canEdit, setCanEdit] = useState(true);
   const session = useCollabSession(isBoard ? null : anchor);
@@ -62,7 +62,6 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
     setCds(record ? record.includeCountdowns : isBoard && settings.countdowns);
     setError(null);
     setCopied(false);
-    setName(settings.name);
     setJustCreated(false);
     setCanEdit(record ? record.editable !== false : true);
     // Make sure a live link really still works, rather than trusting what we remember.
@@ -106,12 +105,7 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
     if (record) void setEditable(anchor, value);
   };
 
-  const commitName = () => {
-    if (name.trim() !== settings.name) setSettings({ name: name.trim().slice(0, 40) });
-  };
-
   const create = async () => {
-    commitName();
     setBusy("create");
     setError(null);
     try {
@@ -262,10 +256,12 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
             </motion.div>
           ) : (
             <motion.div key="new" className="share-new" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.2 }}>
-              <label className="share-name">
-                <span className="share-name-label">From</span>
-                <input value={name} placeholder="Your name (optional)" maxLength={40} onChange={(e) => setName(e.target.value)} onBlur={commitName} />
-              </label>
+              {username && (
+                <div className="share-name is-static">
+                  <span className="share-name-label">From</span>
+                  <span className="share-name-value">@{username}</span>
+                </div>
+              )}
               <button type="button" className="primary-btn wide" disabled={busy === "create" || nothing} onClick={() => void create()}>
                 {busy === "create" ? (
                   <>

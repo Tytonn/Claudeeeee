@@ -43,6 +43,10 @@ export type SkyFrame = {
   dim: number;
   ring: { x: number; y: number; v: number };
   shocks: { x: number; y: number; age: number; strength: number }[];
+  /** How much the cursor lights things up, 0..1 (it can be turned off). */
+  cursor: number;
+  /** 1 when nothing is drawn over the sky ("Bare"): the light ignores the panel's outline. */
+  open: number;
   rain: RainFrame;
 };
 
@@ -70,6 +74,8 @@ const ECLIPSE_UNIFORMS = [
   "uShock2",
   "uScale",
   "uQuality",
+  "uCursor",
+  "uOpen",
 ];
 const SCENE_UNIFORMS = ["uRes", "uAspect", "uTime", "uA", "uCity", "uAmount", "uWet", "uFlash", "uWind", "uDim", "uQuality", "uBlur"];
 const GLASS_UNIFORMS = [
@@ -94,6 +100,7 @@ const GLASS_UNIFORMS = [
   "uSceneSize",
   "uWind",
   "uBlur",
+  "uCursor",
 ];
 
 const pow2 = (n: number) => Math.pow(2, Math.round(Math.log2(Math.max(1, n))));
@@ -325,6 +332,8 @@ export class Sky {
     this.shocks(L, f, fy);
     gl.uniform1f(L.uScale, Math.min(W, H));
     gl.uniform1f(L.uQuality, this.quality);
+    gl.uniform1f(L.uCursor, f.cursor);
+    gl.uniform1f(L.uOpen, f.open);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
 
@@ -388,6 +397,7 @@ export class Sky {
     gl.uniform2f(G.loc.uSceneSize, T.w, T.h);
     gl.uniform1f(G.loc.uWind, r.wind);
     gl.uniform1f(G.loc.uBlur, r.blur);
+    gl.uniform1f(G.loc.uCursor, f.cursor);
     this.shocks(G.loc, f, fy);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }

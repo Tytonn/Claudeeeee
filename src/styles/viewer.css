@@ -11,6 +11,7 @@
 .viewer-glow {
   position: fixed;
   inset: 0;
+  bottom: calc(0px - var(--vv-gap, 0px));
   z-index: -1;
   pointer-events: none;
   background:

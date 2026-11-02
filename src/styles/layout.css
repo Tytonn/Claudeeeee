@@ -307,6 +307,253 @@ html:not(.is-ready) .app {
 .sb-item .live-dot {
   position: relative;
 }
+/* ── Groups ──────────────────────────────────────────────────────────────── */
+
+.sb-folder {
+  position: relative;
+  border-radius: 10px;
+  transition:
+    background-color 220ms var(--ease),
+    box-shadow 220ms var(--ease);
+}
+.sb-folder-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 30px;
+  border-radius: 8px;
+}
+.sb-folder-toggle {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 100%;
+  padding: 0 4px 0 6px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0.005em;
+  color: var(--fg-3);
+  text-align: left;
+  transition:
+    color var(--t-fast) var(--ease),
+    background-color var(--t-fast) var(--ease);
+}
+.sb-folder-toggle:not(.is-editing):hover {
+  color: var(--fg-1);
+  background: var(--hover);
+}
+.sb-folder-toggle .chev {
+  flex-shrink: 0;
+  color: var(--fg-4);
+  transition: transform 260ms var(--ease-out);
+}
+.sb-folder-toggle .chev.is-open {
+  transform: rotate(90deg);
+}
+.sb-folder-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.sb-folder-count {
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--fg-4);
+}
+.sb-folder-more {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  margin-left: 2px;
+  border-radius: 7px;
+  color: var(--fg-4);
+  opacity: 0;
+  transition:
+    opacity var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease),
+    background-color var(--t-fast) var(--ease);
+}
+.sb-folder-head:hover .sb-folder-more,
+.sb-folder-more:focus-visible,
+.sb-folder-more.is-shown {
+  opacity: 1;
+}
+.sb-folder-more:hover {
+  color: var(--fg-1);
+  background: var(--hover);
+}
+@media (hover: none) {
+  .sb-folder-more {
+    opacity: 1;
+  }
+}
+.sb-folder-input {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  margin-left: -4px;
+  padding: 0 6px;
+  border-radius: 6px;
+  font: inherit;
+  color: var(--fg-1);
+  background: rgb(255 255 255 / 0.06);
+  box-shadow:
+    inset 0 0 0 1px var(--accent-3),
+    0 0 0 3px var(--accent-1);
+}
+/* The notes inside sit a step in, along a faint guide line. */
+.sb-folder-body {
+  position: relative;
+  overflow: hidden;
+  padding-left: 10px;
+}
+.sb-folder-body::before {
+  content: "";
+  position: absolute;
+  top: 4px;
+  bottom: 6px;
+  left: 12px;
+  width: 1px;
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.11), rgb(255 255 255 / 0.03));
+}
+.sb-folder-body .sb-item {
+  padding-left: 14px;
+}
+.sb-folder-empty {
+  padding: 6px 12px 8px;
+  font-size: 12px;
+  color: var(--fg-4);
+}
+/* Groups sit close together; the date sections keep their usual breathing room. */
+.sb-folder + .sb-folder {
+  margin-top: 2px;
+}
+/* Dragging a note: the group it would land in lights up. */
+.sb-item[draggable="true"] {
+  -webkit-user-drag: element;
+}
+.sb-folder.is-drop,
+.sb-group.is-drop:not(.sb-folder) {
+  background: color-mix(in oklch, var(--accent) 9%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--accent) 40%, transparent);
+}
+.sb-folder.is-drop .sb-folder-toggle {
+  color: var(--fg-1);
+}
+.sb-group.is-drop:not(.sb-folder) {
+  border-radius: 10px;
+}
+.sb-ungroup {
+  margin: 14px 2px 0;
+  padding: 12px;
+  overflow: hidden;
+  border-radius: 10px;
+  font-size: 12px;
+  text-align: center;
+  color: var(--fg-4);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.08);
+  transition:
+    color 200ms var(--ease),
+    background-color 200ms var(--ease),
+    box-shadow 200ms var(--ease);
+}
+.sb-ungroup.is-drop {
+  color: var(--fg-1);
+  background: color-mix(in oklch, var(--accent) 9%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--accent) 40%, transparent);
+}
+/* A note just landed: the group's name glows for a moment. */
+.sb-folder-head.is-landed .sb-folder-toggle {
+  animation: folder-landed 900ms var(--ease);
+}
+@keyframes folder-landed {
+  0% {
+    color: var(--fg-1);
+    background: color-mix(in oklch, var(--accent) 22%, transparent);
+    box-shadow: 0 0 18px color-mix(in oklch, var(--accent) 35%, transparent);
+  }
+  100% {
+    background: transparent;
+    box-shadow: 0 0 0 transparent;
+  }
+}
+
+/* ── Hidden notes, while unlocked ────────────────────────────────────────── */
+
+.sb-vault {
+  overflow: hidden;
+}
+.sb-vault-inner {
+  margin: 0 0 2px;
+  padding: 4px 4px 6px;
+  border-radius: 12px;
+  background:
+    radial-gradient(120% 90% at 0% 0%, color-mix(in oklch, var(--accent) 10%, transparent), transparent 70%),
+    rgb(255 255 255 / 0.02);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklch, var(--accent) 22%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 0.04);
+}
+.sb-vault-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 2px 0 8px;
+}
+.sb-vault-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: color-mix(in oklch, var(--accent) 55%, var(--fg-1));
+}
+.sb-vault-lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 99px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--fg-2);
+  background: rgb(255 255 255 / 0.05);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.07);
+  transition:
+    color var(--t-fast) var(--ease),
+    background-color var(--t-fast) var(--ease),
+    box-shadow var(--t-fast) var(--ease);
+}
+.sb-vault-lock:hover {
+  color: var(--fg-1);
+  background: color-mix(in oklch, var(--accent) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--accent) 40%, transparent);
+}
+.sb-vault.is-arriving .sb-vault-inner {
+  animation: vault-arrive 1.2s var(--ease);
+}
+@keyframes vault-arrive {
+  0% {
+    box-shadow:
+      inset 0 0 0 1px color-mix(in oklch, var(--accent) 70%, white),
+      0 0 30px color-mix(in oklch, var(--accent) 45%, transparent);
+  }
+  100% {
+    box-shadow:
+      inset 0 0 0 1px color-mix(in oklch, var(--accent) 22%, transparent),
+      0 0 0 transparent;
+  }
+}
+
 .sb-empty {
   padding: 28px 10px;
   text-align: center;

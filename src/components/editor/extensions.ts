@@ -31,6 +31,8 @@ import typescript from "highlight.js/lib/languages/typescript";
 import xml from "highlight.js/lib/languages/xml";
 import yaml from "highlight.js/lib/languages/yaml";
 import { SlashCommand } from "./slash";
+import { NoteImage } from "./image";
+import type { ImageAuth } from "../../lib/images";
 
 // A curated set keeps the bundle lean; auto-detection picks between these.
 const lowlight = createLowlight({ bash, c, cpp, csharp, css, diff, go, java, javascript, json, lua, markdown, python, rust, sql, typescript, xml, yaml });
@@ -100,7 +102,7 @@ function renderCaret(user: Record<string, unknown>): HTMLElement {
   return caret;
 }
 
-export function buildExtensions(opts: { onExitTop?: () => void; editable?: boolean; collab?: CollabBinding } = {}): AnyExtension[] {
+export function buildExtensions(opts: { onExitTop?: () => void; editable?: boolean; collab?: CollabBinding; imageAuth?: () => ImageAuth | null } = {}): AnyExtension[] {
   const list: AnyExtension[] = [
     StarterKit.configure({
       codeBlock: false,
@@ -122,6 +124,7 @@ export function buildExtensions(opts: { onExitTop?: () => void; editable?: boole
     Typography,
     CodeBlockLowlight.configure({ lowlight, defaultLanguage: null }),
     CharacterCount,
+    NoteImage.configure({ auth: opts.imageAuth ?? (() => null) }),
   ];
 
   if (opts.collab) {

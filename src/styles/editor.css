@@ -568,9 +568,143 @@ html[data-font="mono"] .prose blockquote p {
   color: var(--fg-4);
 }
 
-/* Your own text color (Settings → Text color): titles take it as chosen, body text a
-   touch softer, so headings still stand out. */
-html[data-ink] :is(.note, .viewer-note) {
-  --fg-1: var(--ink);
-  --fg-body: color-mix(in oklch, var(--ink) 86%, #0b0c0e);
+/* ── Pictures ────────────────────────────────────────────────────────────────
+   A blurry stand-in holds the picture's exact space from the first frame; the real image
+   develops in over it — out of soft focus, the way a photo comes up in the tray. */
+
+.prose .note-image {
+  display: flex;
+  justify-content: center;
+  margin: 1.5em 0;
+  outline: none;
+}
+.note-image-frame {
+  position: relative;
+  width: min(100%, var(--w, 100%), calc(72vh * var(--ratio, 1.5)));
+  aspect-ratio: var(--ratio, 1.5);
+  overflow: hidden;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 0.03);
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.07),
+    0 22px 60px -28px rgb(0 0 0 / 0.85);
+  transition: box-shadow 220ms var(--ease);
+}
+.note-image-ph,
+.note-image-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.note-image-ph {
+  filter: blur(18px) saturate(1.15);
+  transform: scale(1.14);
+  transition: opacity 700ms var(--ease) 260ms;
+}
+.note-image-img {
+  opacity: 0;
+  filter: blur(12px) saturate(1.1);
+  transform: scale(1.02);
+  transition:
+    opacity 620ms var(--ease),
+    filter 900ms var(--ease),
+    transform 1100ms var(--ease-out);
+}
+.note-image[data-state="ready"] .note-image-img {
+  opacity: 1;
+  filter: none;
+  transform: none;
+}
+.note-image[data-state="ready"] .note-image-ph {
+  opacity: 0;
+}
+.note-image.is-selected .note-image-frame {
+  box-shadow:
+    0 0 0 2px var(--accent),
+    0 0 0 6px var(--accent-1),
+    0 22px 60px -28px rgb(0 0 0 / 0.85);
+}
+.note-image-status {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  padding: 4px 11px;
+  border-radius: 99px;
+  font-size: 11.5px;
+  color: var(--fg-2);
+  white-space: nowrap;
+  background: rgb(8 9 12 / 0.55);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  opacity: 0;
+  transform: translateX(-50%);
+  transition: opacity 300ms var(--ease);
+  pointer-events: none;
+}
+.note-image[data-state="waiting"] .note-image-status {
+  opacity: 1;
+}
+.note-image-zoom {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  color: #fff;
+  background: rgb(8 9 12 / 0.5);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
+  opacity: 0;
+  transition:
+    opacity 180ms var(--ease),
+    background-color 180ms var(--ease);
+}
+.note-image:not([data-state="ready"]) .note-image-zoom {
+  display: none;
+}
+.note-image:hover .note-image-zoom,
+.note-image.is-selected .note-image-zoom {
+  opacity: 1;
+}
+.note-image-zoom:hover {
+  background: rgb(8 9 12 / 0.72);
+}
+@media (hover: none) {
+  .note-image[data-state="ready"] .note-image-zoom {
+    opacity: 0.9;
+  }
+}
+/* Reading (a shared page you can't edit): a click opens it. */
+.prose[contenteditable="false"] .note-image[data-state="ready"] .note-image-img {
+  cursor: zoom-in;
+}
+/* No text halos on pictures, whatever the background setting. */
+.note-image {
+  text-shadow: none;
+}
+
+/* A picture opened up to fill the screen. */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  bottom: calc(0px - var(--vv-gap, 0px));
+  z-index: 1300;
+  cursor: zoom-out;
+}
+.lightbox-img {
+  position: fixed;
+  object-fit: contain;
+  border-radius: 6px;
+  transform-origin: 0 0;
+  box-shadow: 0 40px 120px -30px rgb(0 0 0 / 0.9);
+  will-change: transform;
+  user-select: none;
 }

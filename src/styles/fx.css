@@ -54,6 +54,11 @@ html[data-fx="cosmic"] .modal,
 html[data-fx="subtle"] .modal {
   background: linear-gradient(180deg, rgb(20 21 25 / 0.84), rgb(12 13 16 / 0.88));
 }
+/* Search floats a little lighter still: more of the sky through the frosted glass. */
+html[data-fx="cosmic"] .modal.palette,
+html[data-fx="subtle"] .modal.palette {
+  background: linear-gradient(180deg, rgb(20 21 25 / 0.68), rgb(12 13 16 / 0.74));
+}
 html[data-fx="cosmic"] .overlay {
   background: rgb(2 2 4 / 0.42);
 }
@@ -248,26 +253,25 @@ html[data-fx="off"] .note-wrap.enter-focus,
 .fx-wipe {
   overflow: hidden;
 }
+/* The old words ride above the page while the moon's edge eats them away. No backing of its
+   own: the glass and the sky behind it never change. */
 .fx-wipe-page {
   position: absolute;
   inset: 0;
   overflow: hidden;
-  background: var(--canvas);
   -webkit-mask-composite: source-in;
   mask-composite: intersect;
 }
+/* The moon is only its leading edge: a burning rim with light running ahead of it and a band
+   of shadow trailing behind, out of which the next page appears. (Its gradient is set from
+   script, sized to the page; the far half is masked away.) */
 .fx-moon {
   position: absolute;
   left: 0;
   top: 0;
-  border-radius: 50%;
-  background: radial-gradient(circle at 42% 40%, #0c0c10, #030304 72%);
-  box-shadow:
-    0 0 0 1.5px color-mix(in oklch, var(--accent) 60%, white),
-    0 0 18px 2px color-mix(in oklch, var(--accent) 90%, white),
-    0 0 70px 18px color-mix(in oklch, var(--accent) 50%, transparent),
-    0 0 180px 50px color-mix(in oklch, var(--accent) 18%, transparent),
-    inset 0 0 60px rgb(0 0 0 / 0.95);
+  will-change: transform;
+  -webkit-mask-image: linear-gradient(90deg, #000 42%, transparent 50%);
+  mask-image: linear-gradient(90deg, #000 42%, transparent 50%);
 }
 
 /* ── The light caret ─────────────────────────────────────────────────────── */
@@ -339,6 +343,14 @@ html[data-fx="off"] .note-wrap.enter-focus,
 .rail-clock .colon {
   color: var(--fg-5);
   animation: colon-blink 2s steps(1) infinite;
+}
+/* With milliseconds the digits change every frame: keep that work inside the clock. */
+.rail-clock.is-fine {
+  contain: layout paint style;
+}
+.rail-clock-frac {
+  color: var(--fg-4);
+  opacity: 0.85;
 }
 @keyframes colon-blink {
   50% {
@@ -502,6 +514,8 @@ html.intro-on .app .rail-inner {
 .intro {
   position: fixed;
   inset: 0;
+  /* all the way down: on an iPhone Home Screen app the page ends short of the screen */
+  bottom: calc(0px - var(--vv-gap, 0px));
   z-index: 10000;
   display: grid;
   place-items: center;
@@ -832,6 +846,63 @@ html[data-backdrop="crystal"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(svg
 html[data-backdrop="crystal"]:is([data-fx="cosmic"], [data-fx="subtle"]) .viewer-main {
   background: none;
 }
+/* Bare: nothing between you and the sky at all. No glass, no tint, no outlines — the
+   panels are only where the words happen to be. (The sky stops shaping its light around the
+   writing area too: see uOpen in the eclipse shader.) Text keeps the crisp Crystal shadow. */
+html[data-backdrop="bare"]:is([data-fx="cosmic"], [data-fx="subtle"]) {
+  --fg-2: #c8c8d0;
+  --fg-3: #a8a8b2;
+  --fg-4: #8e8e99;
+  --fg-5: #6c6c77;
+}
+html[data-backdrop="bare"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(.sidebar, .canvas, .rail) {
+  --line: transparent;
+}
+html[data-backdrop="bare"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(.canvas, .sidebar-inner, .rail-inner),
+html[data-backdrop="bare"]:is([data-fx="cosmic"], [data-fx="subtle"]) .app:not(.is-mobile) :is(.sidebar-inner, .rail-inner) {
+  background: transparent;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+html[data-backdrop="bare"]:is([data-fx="cosmic"], [data-fx="subtle"]) .canvas,
+html[data-backdrop="bare"]:is([data-fx="cosmic"], [data-fx="subtle"]) .canvas[data-light] {
+  box-shadow: none;
+}
+html[data-backdrop="bare"]:is([data-fx="cosmic"], [data-fx="subtle"]) .canvas::before,
+html[data-backdrop="bare"]:is([data-fx="cosmic"], [data-fx="subtle"]) .canvas[data-light]::after,
+html[data-backdrop="bare"]:is([data-fx="cosmic"], [data-fx="subtle"]) .canvas-glow {
+  display: none;
+}
+html[data-backdrop="bare"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(.cd-card, .todo-add, .sb-search, .text-input, .pill-btn) {
+  background-color: transparent;
+}
+/* Countdown cards lose their card: no body, no outline, no shadow — just a faint wash on hover. */
+html[data-backdrop="bare"]:is([data-fx="cosmic"], [data-fx="subtle"]) .cd-card,
+html[data-backdrop="bare"]:is([data-fx="cosmic"], [data-fx="subtle"]) .cd-card[data-light],
+html[data-backdrop="bare"]:is([data-fx="cosmic"], [data-fx="subtle"]) .cd-card[data-light]:hover {
+  background: transparent;
+  box-shadow: none;
+}
+html[data-backdrop="bare"]:is([data-fx="cosmic"], [data-fx="subtle"]) .cd-card:hover {
+  background: rgb(255 255 255 / 0.035);
+}
+html[data-backdrop="bare"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(.canvas, .sidebar-inner, .rail-inner, .viewer-main, .viewer-bar) {
+  text-shadow:
+    0 1px 1px rgb(0 0 0 / 0.9),
+    0 1px 3px rgb(0 0 0 / 0.6),
+    0 0 12px rgb(0 0 0 / 0.38);
+}
+html[data-backdrop="bare"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(.prose pre, .prose code, .collab-label, .presence-coin) {
+  text-shadow: none;
+}
+html[data-backdrop="bare"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(svg, .check, .live-dot) {
+  filter: drop-shadow(0 1px 1.5px rgb(0 0 0 / 0.8));
+}
+html[data-backdrop="bare"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(.viewer-main, .viewer.is-embedded .viewer-bar) {
+  background: none;
+}
+
 /* Invisible measuring copies of text (the to-do strike) must never cast a shadow, or they
    show up as ghosts once text gets its halo in Clear/Crystal. */
 .todo-strike {
@@ -839,7 +910,7 @@ html[data-backdrop="crystal"]:is([data-fx="cosmic"], [data-fx="subtle"]) .viewer
 }
 /* Gradient-filled text paints its shadow over the letters themselves; give it a
    drop-shadow filter instead so it stays solid. */
-html:is([data-backdrop="clear"], [data-backdrop="crystal"]):is([data-fx="cosmic"], [data-fx="subtle"]) :is(.wordmark, .all-done) {
+html:is([data-backdrop="clear"], [data-backdrop="crystal"], [data-backdrop="bare"]):is([data-fx="cosmic"], [data-fx="subtle"]) :is(.wordmark, .all-done) {
   text-shadow: none;
   filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.85)) drop-shadow(0 0 8px rgb(0 0 0 / 0.35));
 }
@@ -849,6 +920,7 @@ html:is([data-backdrop="clear"], [data-backdrop="crystal"]):is([data-fx="cosmic"
 .fx-room {
   position: fixed;
   inset: 0;
+  bottom: calc(0px - var(--vv-gap, 0px));
   z-index: 945;
   pointer-events: none;
   background: radial-gradient(120% 90% at 50% 0%, rgb(214 224 255), rgb(170 184 228));
@@ -863,15 +935,29 @@ html:is([data-backdrop="clear"], [data-backdrop="crystal"]):is([data-fx="cosmic"
   position: absolute;
   inset: 0;
   overflow: hidden;
-  background: var(--canvas);
   will-change: clip-path, transform, filter;
 }
-/* Over open glass, the old page is a fogged sheet: the next one shows through, blurred, as it washes off. */
-html[data-backdrop="clear"] .fx-wash-page,
-html[data-backdrop="crystal"] .fx-wash-page {
-  background: rgb(6 7 10 / 0.62);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
+/* The leading edge of the water: a thin bright line where it catches the light. */
+.fx-wash-edge {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+.fx-wash-edge path {
+  fill: none;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.fx-wash-edge .glow {
+  stroke: color-mix(in oklch, var(--accent) 30%, rgb(170 205 255));
+  stroke-opacity: 0.13;
+  stroke-width: 6;
+}
+.fx-wash-edge .line {
+  stroke: rgb(222 236 255);
+  stroke-opacity: 0.55;
+  stroke-width: 1.1;
 }
 
 /* Dissolving in the rain runs top to bottom, behind a line of water instead of fire. */

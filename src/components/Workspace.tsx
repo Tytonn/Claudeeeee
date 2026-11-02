@@ -21,6 +21,7 @@ import { CommandPalette } from "./overlays/CommandPalette";
 import { SettingsModal } from "./overlays/Settings";
 import { ShortcutsModal } from "./overlays/Shortcuts";
 import { AccountModal } from "../account/AccountModal";
+import { VaultModal } from "./overlays/Vault";
 import { Toasts } from "./overlays/Toasts";
 import { Eclipse } from "./ui/Eclipse";
 import { ErrorBoundary } from "./ErrorBoundary";
@@ -165,13 +166,15 @@ function EmptyState() {
 
 function TrashView() {
   const notes = useApp((s) => s.notes);
+  const unlocked = useApp((s) => s.ui.unlocked);
   const restore = useApp((s) => s.restoreNote);
   const destroy = useApp((s) => s.destroyNote);
   const empty = useApp((s) => s.emptyTrash);
   const now = useNow(60_000);
+  // Hidden notes stay out of the trash too, unless they're unlocked.
   const trashed = useMemo(
-    () => Object.values(notes).filter((n) => n.deletedAt).sort((a, b) => (b.deletedAt ?? 0) - (a.deletedAt ?? 0)),
-    [notes],
+    () => Object.values(notes).filter((n) => n.deletedAt && (unlocked || !n.hidden)).sort((a, b) => (b.deletedAt ?? 0) - (a.deletedAt ?? 0)),
+    [notes, unlocked],
   );
   const [confirm, setConfirm] = useState(false);
 
@@ -325,6 +328,7 @@ export function Workspace() {
         <SettingsModal />
         <ShortcutsModal />
         <AccountModal />
+        <VaultModal />
         <Toasts />
       </div>
     </MotionConfig>

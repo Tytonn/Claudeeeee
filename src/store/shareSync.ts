@@ -5,6 +5,8 @@ import { isApplyingRemote, storageOk } from "./persist";
 import { fingerprint, newShareKey, seal, sha256B64, writeTokenFor } from "../lib/crypto";
 import { ApiError, createShare, deleteShare, fetchShare, initPeople, updateShare } from "../lib/api";
 import type { ShareRecord, SharePayload } from "../lib/types";
+import { onAccountChange, useAccount } from "../account/account";
+import { ensureUploaded, type ImageAuth } from "../lib/images";
 
 export const BOARD = "board";
 
@@ -24,8 +26,9 @@ export function buildPayload(
   s: AppState = useApp.getState(),
 ): SharePayload | null {
   const payload: SharePayload = { v: 1, sharedAt: Date.now() };
-  const from = s.settings.name.trim();
-  if (from) payload.from = from.slice(0, 60);
+  // Friends see who it's from: your username, if you're signed in.
+  const from = useAccount.getState().user?.username;
+  if (from) payload.from = `@${from}`.slice(0, 60);
   if (anchor !== BOARD) {
     const note = s.notes[anchor];
     if (!note || note.deletedAt) return null;
@@ -53,6 +56,11 @@ export async function startShare(
   const key = newShareKey();
   const envelope = await seal(key, payload);
   const created = await createShare(envelope);
+  // Its pictures go up before the link goes out, so your friend never meets a missing one.
+  if (anchor !== BOARD) {
+    const auth: ImageAuth = useAccount.getState().user ? { session: true } : { share: created.id, token: created.token };
+    await ensureUploaded(useApp.getState().notes[anchor]?.doc, auth).catch(() => {});
+  }
   // Read it straight back (so a link is only handed out once the server really has it),
   // and start its access list — anyone with the link, until you say otherwise. Both at once.
   const [readBack] = await Promise.allSettled([
@@ -156,6 +164,7 @@ export function startShareSync() {
     // Only touch the record we pushed — the link may have been stopped/recreated meanwhile.
     const stillCurrent = () => useApp.getState().shares[anchor]?.id === record.id;
     try {
+      if (anchor !== BOARD) await ensureUploaded(state.notes[anchor]?.doc, useAccount.getState().user ? { session: true } : { share: record.id, token: record.token });
       const envelope = await seal(record.key, payload);
       const res = await updateShare(record.id, record.token, envelope);
       if (stillCurrent()) useApp.getState().patchShare(anchor, { hash, pushedAt: Date.now(), rev: res.rev });
@@ -196,14 +205,12 @@ export function startShareSync() {
     if (!s.ready || isApplyingRemote()) return;
     const anchors = Object.keys(s.shares);
     if (!anchors.length) return;
-    const nameChanged = s.settings.name !== prev.settings.name;
     for (const anchor of anchors) {
       const r = s.shares[anchor];
       const before = prev.shares[anchor];
       const relevant =
         !before || // just created: catch edits made while the link was being made
         before.id !== r.id ||
-        nameChanged ||
         (anchor !== BOARD && s.notes[anchor] !== prev.notes[anchor]) ||
         (r.includeTodos && s.todos !== prev.todos) ||
         (r.includeCountdowns && s.countdowns !== prev.countdowns) ||
@@ -214,6 +221,11 @@ export function startShareSync() {
     }
     // A shared note was deleted for good → revoke its link.
     if (s.notes !== prev.notes && orphans(s).length) revokeOrphans();
+  });
+
+  // Your links say who they're from (your username): keep that current when you sign in or out.
+  onAccountChange(() => {
+    for (const anchor of Object.keys(useApp.getState().shares)) schedule(anchor, 1500);
   });
 
   // Catch up on anything edited (or deleted) while the app was closed.

@@ -8,6 +8,7 @@ import {
   Heading1,
   Heading2,
   Heading3,
+  ImageIcon,
   List,
   ListChecks,
   ListOrdered,
@@ -17,6 +18,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { fuzzyScore } from "../../lib/text";
+import { pickImages } from "./image";
 
 export type SlashItem = {
   id: string;
@@ -83,6 +85,17 @@ export const SLASH_ITEMS: SlashItem[] = [
     icon: ListChecks,
     keywords: ["todo", "task", "checkbox", "check"],
     run: (e, r) => e.chain().focus().deleteRange(r).toggleTaskList().run(),
+  },
+  {
+    id: "image",
+    title: "Image",
+    hint: "",
+    icon: ImageIcon,
+    keywords: ["picture", "photo", "image", "upload", "screenshot", "camera", "img"],
+    run: (e, r) => {
+      e.chain().focus().deleteRange(r).run();
+      pickImages(e);
+    },
   },
   {
     id: "quote",

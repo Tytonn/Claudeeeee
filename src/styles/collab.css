@@ -337,7 +337,7 @@
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
-html:is([data-backdrop="clear"], [data-backdrop="crystal"]) .viewer.is-embedded .viewer-bar {
+html:is([data-backdrop="clear"], [data-backdrop="crystal"], [data-backdrop="bare"]) .viewer.is-embedded .viewer-bar {
   background: none;
 }
 .viewer.is-embedded .viewer-main {

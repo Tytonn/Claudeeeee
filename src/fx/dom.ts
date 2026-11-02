@@ -16,10 +16,21 @@ let raf = 0;
 let magnet: HTMLElement | null = null;
 let tilted: HTMLElement | null = null;
 
+let lit = true;
+
 function apply() {
   raf = 0;
   if (!fx.active) return;
-  document.querySelectorAll<HTMLElement>("[data-light]").forEach((el) => {
+  // With the cursor's light turned off, things stay as they are: no rim light, no moving shadows.
+  if (!fx.cursorLight) {
+    if (lit) {
+      lit = false;
+      document.querySelectorAll<HTMLElement>("[data-light]").forEach((el) => {
+        for (const v of ["--lx", "--ly", "--near", "--sx", "--sy"]) el.style.removeProperty(v);
+      });
+    }
+  } else lit = true;
+  if (lit) document.querySelectorAll<HTMLElement>("[data-light]").forEach((el) => {
     const r = el.getBoundingClientRect();
     if (!r.width || r.bottom < 0 || r.top > innerHeight) return;
     const dx = Math.max(r.left - px, 0, px - r.right);
@@ -60,6 +71,11 @@ function apply() {
     tilt.style.setProperty("--gy", `${((ny + 0.5) * 100).toFixed(1)}%`);
   }
   tilted = tilt;
+}
+
+/** Re-applies the cursor light (after it's been turned on or off). */
+export function refreshPointerLight() {
+  if (!raf) raf = requestAnimationFrame(apply);
 }
 
 export function startPointerLight() {
@@ -103,7 +119,8 @@ export function dissolve(el: HTMLElement | null) {
   if (!r.width || !r.height) return;
   const holder = document.createElement("div");
   holder.className = `fx-ghost fx-dissolve${fx.rain ? " is-rain" : ""}`;
-  Object.assign(holder.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
+  const o = fx.origin;
+  Object.assign(holder.style, { left: `${r.left - o.x}px`, top: `${r.top - o.y}px`, width: `${r.width}px`, height: `${r.height}px` });
   const clone = ghostOf(el);
   Object.assign(clone.style, { margin: "0", width: "100%", height: "100%", transform: "none", translate: "none" });
   holder.appendChild(clone);
@@ -122,58 +139,157 @@ export function dissolve(el: HTMLElement | null) {
   requestAnimationFrame(step);
 }
 
+type Pt = { x: number; y: number };
+
+/** Where a page sits, for things laid over it by hand (accounting for a keyboard-shifted layout). */
+function overlayBox(el: HTMLElement, r: DOMRect) {
+  const o = fx.origin;
+  return { left: `${r.left - o.x}px`, top: `${r.top - o.y}px`, width: `${r.width}px`, height: `${r.height}px`, borderRadius: getComputedStyle(el).borderTopLeftRadius };
+}
+
+/** The old words, lifted off the page so the page itself can move on underneath. */
+function lift(noteEl: HTMLElement, pr: DOMRect, cls: string) {
+  const nr = noteEl.getBoundingClientRect();
+  const page = document.createElement("div");
+  page.className = cls;
+  const clone = ghostOf(noteEl);
+  Object.assign(clone.style, { position: "absolute", left: `${nr.left - pr.left}px`, top: `${nr.top - pr.top}px`, width: `${nr.width}px`, margin: "0" });
+  page.appendChild(clone);
+  return page;
+}
+
+function setMask(el: HTMLElement, mask: string | null) {
+  if (mask) {
+    el.style.setProperty("mask-image", mask);
+    el.style.setProperty("-webkit-mask-image", mask);
+  } else {
+    el.style.removeProperty("mask-image");
+    el.style.removeProperty("-webkit-mask-image");
+  }
+}
+
+function setClip(el: HTMLElement, clip: string | null) {
+  if (clip) {
+    el.style.clipPath = clip;
+    el.style.setProperty("-webkit-clip-path", clip);
+  } else {
+    el.style.removeProperty("clip-path");
+    el.style.removeProperty("-webkit-clip-path");
+  }
+}
+
+/** Something slipping out of sight (hidden away): it dims, blurs and folds into the dark. */
+export function vanish(el: HTMLElement | null) {
+  if (!el || !fx.active) return;
+  const r = el.getBoundingClientRect();
+  if (!r.width || !r.height) return;
+  const holder = document.createElement("div");
+  holder.className = "fx-ghost fx-vanish";
+  const o = fx.origin;
+  Object.assign(holder.style, { left: `${r.left - o.x}px`, top: `${r.top - o.y}px`, width: `${r.width}px`, height: `${r.height}px` });
+  const clone = ghostOf(el);
+  Object.assign(clone.style, { margin: "0", width: "100%", height: "100%", transform: "none", translate: "none" });
+  holder.appendChild(clone);
+  document.body.appendChild(holder);
+  const done = () => holder.remove();
+  holder
+    .animate(
+      [
+        { opacity: 1, filter: "blur(0px) brightness(1)", transform: "scale(1)" },
+        { opacity: 0.75, filter: "blur(0.6px) brightness(0.7)", transform: "scale(0.985)", offset: 0.35 },
+        { opacity: 0, filter: "blur(7px) brightness(0.3)", transform: "scale(0.94, 0.3)" },
+      ],
+      { duration: fx.full ? 560 : 340, easing: "cubic-bezier(0.55, 0, 0.7, 0.2)" },
+    )
+    .finished.then(done, done);
+  // A ring of light closes in on the spot as it goes dark.
+  const cx = r.left + Math.min(26, r.width / 2);
+  const cy = r.top + Math.min(r.height / 2, 18);
+  fx.ring(cx, cy, 22, 3, { dur: 460, alpha: 0.7, width: 1.4 });
+  fx.flash(cx, cy, 34, { dur: 380, alpha: 0.35 });
+}
+
 /**
- * Deleting a note: the umbra — a dark moon with a burning rim — sweeps across the
- * page and swallows it, revealing whatever comes next behind it.
+ * Deleting a note: the edge of the moon sweeps across the page. Its burning rim eats the old
+ * words as it passes, and the next page comes up out of the shadow just behind it. Nothing
+ * else changes — the glass and the sky stay exactly as they were the whole time.
  */
 export function eclipseWipe(noteEl: HTMLElement | null, panelEl: HTMLElement | null) {
   if (!noteEl || !panelEl || !fx.active) return;
   const pr = panelEl.getBoundingClientRect();
-  const nr = noteEl.getBoundingClientRect();
   if (!pr.width) return;
+  const scroller = panelEl.querySelector<HTMLElement>(".canvas-scroll");
+  const sr = scroller?.getBoundingClientRect();
 
   const stage = document.createElement("div");
   stage.className = "fx-ghost fx-wipe";
-  Object.assign(stage.style, {
-    left: `${pr.left}px`,
-    top: `${pr.top}px`,
-    width: `${pr.width}px`,
-    height: `${pr.height}px`,
-    borderRadius: getComputedStyle(panelEl).borderTopLeftRadius,
-  });
-  const page = document.createElement("div");
-  page.className = "fx-wipe-page";
-  const clone = ghostOf(noteEl);
-  Object.assign(clone.style, { position: "absolute", left: `${nr.left - pr.left}px`, top: `${nr.top - pr.top}px`, width: `${nr.width}px`, margin: "0" });
-  page.appendChild(clone);
+  Object.assign(stage.style, overlayBox(panelEl, pr));
+  const page = lift(noteEl, pr, "fx-wipe-page");
   const moon = document.createElement("div");
   moon.className = "fx-moon";
   stage.append(page, moon);
   document.body.appendChild(stage);
 
-  const R = Math.max(pr.height * 0.62, pr.width * 0.34);
-  const cy = pr.height * 0.5;
-  const startX = pr.width + R + 10;
-  const endX = -R - 10;
-  const dur = fx.full ? 1150 : 700;
+  const W = pr.width;
+  const H = pr.height;
+  // A big moon: its rim crosses the page as a gentle curve.
+  const R = Math.max(H * 0.8, W * 0.5);
+  const G = 170; // how far its glow reaches beyond the rim
+  const cy = H * 0.5;
+  const startX = W + R - 6; // the rim is already on the page in the very first frame
+  // Once the rim has cleared the page's top and bottom corners, the whole page has been swept.
+  const endX = Math.sqrt(Math.max(0, R * R - (H / 2) * (H / 2))) - 14;
+  const soft = 22;
+  const dur = fx.full ? 950 : 620;
   const t0 = fx.now();
-  moon.style.width = moon.style.height = `${R * 2}px`;
+  // Only the leading edge exists: the rim, the light ahead of it and the shadow behind it.
+  // (Its far side is never on the page.)
+  const D = (R + G) * 2;
+  Object.assign(moon.style, {
+    width: `${D}px`,
+    height: `${D}px`,
+    background: `radial-gradient(circle ${R + G}px at 50% 50%,
+      transparent ${R - 210}px,
+      rgb(2 2 5 / 0.36) ${R - 110}px,
+      rgb(2 2 5 / 0.7) ${R - 18}px,
+      color-mix(in oklch, var(--accent) 34%, rgb(2 2 5 / 0.6)) ${R - 4}px,
+      color-mix(in oklch, var(--accent) 50%, white) ${R - 0.8}px,
+      color-mix(in oklch, var(--accent) 50%, white) ${R + 0.6}px,
+      color-mix(in oklch, var(--accent) 52%, transparent) ${R + 4}px,
+      color-mix(in oklch, var(--accent) 20%, transparent) ${R + 40}px,
+      color-mix(in oklch, var(--accent) 7%, transparent) ${R + 100}px,
+      transparent ${R + G}px)`,
+  });
+  // The arc of the rim that's actually over the page.
+  const reach = Math.asin(Math.min(1, H / 2 / R));
+  // Where the next page is, relative to the panel (it sits below the top bar).
+  const dx = sr ? pr.left - sr.left : 0;
+  const dy = sr ? pr.top - sr.top : 0;
   play("eclipse");
-  fx.setDim(0.55);
+
+  const place = (cx: number) => {
+    // The old words: only where the moon hasn't reached yet.
+    setMask(page, `radial-gradient(circle ${R}px at ${cx}px ${cy}px, transparent ${R - soft}px, #000 ${R}px), linear-gradient(90deg, #000 ${cx - soft}px, transparent ${cx}px)`);
+    // The next page: only where it has.
+    if (scroller)
+      setMask(
+        scroller,
+        `radial-gradient(circle ${R}px at ${cx + dx}px ${cy + dy}px, #000 ${R - soft - 70}px, transparent ${R - 10}px), linear-gradient(90deg, transparent ${cx + dx}px, #000 ${cx + dx + soft}px)`,
+      );
+    moon.style.transform = `translate3d(${cx - R - G}px, ${cy - R - G}px, 0)`;
+  };
+  place(startX);
 
   const step = () => {
     const k = Math.min(1, (fx.now() - t0) / dur);
-    const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+    const e = (1 - Math.cos(Math.PI * k)) / 2;
     const cx = startX + (endX - startX) * e;
-    const mask = `radial-gradient(circle ${R}px at ${cx}px ${cy}px, transparent ${R - 1}px, #000 ${R}px), linear-gradient(90deg, #000 ${cx}px, transparent ${cx}px)`;
-    page.style.setProperty("mask-image", mask);
-    page.style.setProperty("-webkit-mask-image", mask);
-    moon.style.transform = `translate(${cx - R}px, ${cy - R}px)`;
-    if (k > 0.05 && k < 0.95) fx.rimDust(pr.left + cx, pr.top + cy, R, -1);
+    place(cx);
+    if (k > 0.04 && k < 0.96) fx.rimDust(pr.left + cx, pr.top + cy, R, -1, Math.PI - reach, Math.PI + reach);
     if (k < 1) requestAnimationFrame(step);
     else {
-      fx.setDim(0);
-      fx.flash(pr.left + 4, pr.top + cy, 140, { alpha: 0.4 });
+      if (scroller) setMask(scroller, null);
+      fx.flash(pr.left + 4, pr.top + cy, 140, { alpha: 0.3 });
       stage.remove();
     }
   };
@@ -182,79 +298,103 @@ export function eclipseWipe(noteEl: HTMLElement | null, panelEl: HTMLElement | n
 
 /**
  * Deleting a note, in the rain: water sheets down the page from the top and washes the
- * words away with it — running ahead in drips, the last of it sliding and blurring as it goes.
+ * words away with it — running ahead in drips, the last of it sliding and blurring as it
+ * goes — and the next page is there behind it, rinsed clean.
  */
 export function rainWash(noteEl: HTMLElement | null, panelEl: HTMLElement | null) {
   if (!noteEl || !panelEl || !fx.active) return;
   const pr = panelEl.getBoundingClientRect();
-  const nr = noteEl.getBoundingClientRect();
   if (!pr.width) return;
+  const scroller = panelEl.querySelector<HTMLElement>(".canvas-scroll");
+  const sr = scroller?.getBoundingClientRect();
 
   const stage = document.createElement("div");
   stage.className = "fx-ghost fx-wash";
-  Object.assign(stage.style, {
-    left: `${pr.left}px`,
-    top: `${pr.top}px`,
-    width: `${pr.width}px`,
-    height: `${pr.height}px`,
-    borderRadius: getComputedStyle(panelEl).borderTopLeftRadius,
-  });
-  const page = document.createElement("div");
-  page.className = "fx-wash-page";
-  const clone = ghostOf(noteEl);
-  Object.assign(clone.style, { position: "absolute", left: `${nr.left - pr.left}px`, top: `${nr.top - pr.top}px`, width: `${nr.width}px`, margin: "0" });
-  page.appendChild(clone);
-  stage.append(page);
-  document.body.appendChild(stage);
-
+  Object.assign(stage.style, overlayBox(panelEl, pr));
+  const page = lift(noteEl, pr, "fx-wash-page");
   const W = pr.width;
   const H = pr.height;
-  const cols = Math.max(12, Math.round(W / 34));
-  // Some runs of water race ahead of the rest.
-  const lead = Array.from({ length: cols }, () => (Math.random() < 0.45 ? Math.random() : Math.random() * 0.2));
-  const wob = Array.from({ length: cols }, () => Math.random() * Math.PI * 2);
+  // The leading edge of the water, catching the light.
+  const svgNS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(svgNS, "svg");
+  svg.setAttribute("class", "fx-wash-edge");
+  svg.setAttribute("width", String(W));
+  svg.setAttribute("height", String(H));
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  const glow = document.createElementNS(svgNS, "path");
+  glow.setAttribute("class", "glow");
+  const line = document.createElementNS(svgNS, "path");
+  line.setAttribute("class", "line");
+  svg.append(glow, line);
+  stage.append(page, svg);
+  document.body.appendChild(stage);
+
+  // The water's leading edge: a gently wavering line, with drips running ahead of it — narrow
+  // fingers with round heads, some racing far ahead, some barely started.
+  const n = Math.max(5, Math.round(W / 105));
+  const drips = Array.from({ length: n }, (_, i) => ({
+    x: ((i + 0.5 + (Math.random() - 0.5) * 0.7) / n) * W,
+    w: 6 + Math.random() * 9,
+    lead: Math.random() < 0.55 ? 0.35 + Math.random() * 0.65 : 0.06 + Math.random() * 0.25,
+  }));
+  const ph1 = Math.random() * Math.PI * 2;
+  const ph2 = Math.random() * Math.PI * 2;
   const dur = fx.full ? 1250 : 760;
   const t0 = fx.now();
+  const dx = sr ? pr.left - sr.left : 0;
+  const dy = sr ? pr.top - sr.top : 0;
   play("eclipse");
-  fx.setDim(0.3);
   let lastDrip = 0;
+
+  const level = (e: number) => -H * 0.22 + H * 1.5 * e;
+  const reachOf = (e: number) => H * 0.26 * Math.min(1, e * 2);
+  const front = (k: number, e: number): Pt[] => {
+    const y0 = level(e);
+    const reach = reachOf(e);
+    const pts: Pt[] = [];
+    for (let x = 0; ; x = Math.min(W, x + 3)) {
+      let y = y0 + Math.sin(x * 0.011 + ph1 + k * 3) * 5 + Math.sin(x * 0.027 + ph2 - k * 4) * 2.4;
+      for (const d of drips) {
+        const u = (x - d.x) / d.w;
+        if (u > -1 && u < 1) y = Math.max(y, y0 + d.lead * reach * Math.sqrt(1 - u * u));
+      }
+      pts.push({ x, y });
+      if (x >= W) break;
+    }
+    return pts;
+  };
+  const poly = (pts: Pt[], ox: number, oy: number) => pts.map((p) => `${(p.x + ox).toFixed(1)}px ${(p.y + oy).toFixed(1)}px`).join(", ");
+
+  const place = (k: number, e: number) => {
+    const pts = front(k, e);
+    // What's left of the old page is below the water…
+    setClip(page, `polygon(${poly(pts, 0, 0)}, ${W}px ${H + 60}px, 0px ${H + 60}px)`);
+    // …and the clean page is above it.
+    if (scroller) setClip(scroller, `polygon(${-20 + dx}px ${-60 + dy}px, ${W + 20 + dx}px ${-60 + dy}px, ${poly([...pts].reverse(), dx, dy)})`);
+    const d = `M${pts.map((p) => `${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" L")}`;
+    glow.setAttribute("d", d);
+    line.setAttribute("d", d);
+    // what's left gets pushed down a little and starts to run
+    page.style.transform = `translateY(${(e * 18).toFixed(1)}px)`;
+    page.style.filter = e > 0.02 ? `blur(${(e * 1.6).toFixed(2)}px)` : "";
+    return pts;
+  };
+  place(0, 0);
 
   const step = () => {
     const k = Math.min(1, (fx.now() - t0) / dur);
     const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
-    const front = -H * 0.25 + H * 1.5 * e;
-    const pts: string[] = [];
-    for (let i = 0; i <= cols; i++) {
-      const x = (i / cols) * W;
-      const c = Math.min(cols - 1, i);
-      const reach = lead[c] * H * 0.28 * Math.min(1, e * 2.2) + Math.sin(wob[c] + k * 6) * 3;
-      // each run is a rounded finger: shallow at its edges, deepest in the middle
-      pts.push(`${x.toFixed(1)}px ${(front - 4).toFixed(1)}px`);
-      if (i < cols) {
-        const mx = x + W / cols / 2;
-        pts.push(`${(mx - W / cols / 4).toFixed(1)}px ${(front + reach * 0.75).toFixed(1)}px`);
-        pts.push(`${mx.toFixed(1)}px ${(front + reach).toFixed(1)}px`);
-        pts.push(`${(mx + W / cols / 4).toFixed(1)}px ${(front + reach * 0.75).toFixed(1)}px`);
-      }
-    }
-    pts.push(`${W}px ${H + 40}px`, `0px ${H + 40}px`);
-    const clip = `polygon(${pts.join(", ")})`;
-    page.style.clipPath = clip;
-    page.style.setProperty("-webkit-clip-path", clip);
-    // what's left gets pushed down a little and starts to run
-    page.style.transform = `translateY(${(e * 18).toFixed(1)}px)`;
-    page.style.filter = `blur(${(e * 1.6).toFixed(2)}px)`;
-    // drops shaken loose along the front
-    if (k < 0.92 && fx.now() - lastDrip > 45) {
+    place(k, e);
+    // drops shaken loose from the heads of the drips
+    if (k < 0.92 && fx.now() - lastDrip > 55) {
       lastDrip = fx.now();
-      const c = (Math.random() * cols) | 0;
-      const x = ((c + 0.5) / cols) * W;
-      const y = front + lead[c] * H * 0.28 * Math.min(1, e * 2.2);
-      if (y > 0 && y < H) fx.burst(pr.left + x, pr.top + y, { count: 3, speed: 50, size: 1.2, life: 0.6, angle: Math.PI / 2, spread: 0.9 });
+      const d = drips[(Math.random() * drips.length) | 0];
+      const y = level(e) + d.lead * reachOf(e);
+      if (y > 0 && y < H) fx.burst(pr.left + d.x, pr.top + y, { count: 3, speed: 50, size: 1.2, life: 0.6, angle: Math.PI / 2, spread: 0.9 });
     }
     if (k < 1) requestAnimationFrame(step);
     else {
-      fx.setDim(0);
+      if (scroller) setClip(scroller, null);
       stage.remove();
     }
   };

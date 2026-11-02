@@ -2,6 +2,7 @@ import * as Y from "yjs";
 import { createStore, del as idbDel, get as idbGet, set as idbSet } from "idb-keyval";
 import { useSyncExternalStore } from "react";
 import { useApp } from "../store/app";
+import { onAccountChange, useAccount } from "../account/account";
 import { BOARD, verifyShare } from "../store/shareSync";
 import { toast } from "../store/toasts";
 import { ApiError, initDoc, setDocEditable } from "../lib/api";
@@ -33,11 +34,11 @@ let started = false;
 const emit = () => subs.forEach((fn) => fn());
 const savedKey = (anchor: string) => `ydoc:${anchor}`;
 
-/** You, as others see you: your name and your accent color (as hex, which the caret plugin needs). */
-export function userFor(settings: Pick<Settings, "name" | "accent">, fallback = "Owner"): CollabUser {
+/** You, as others see you: your username (if you're signed in) and your accent color (as hex, which the caret plugin needs). */
+export function userFor(settings: Pick<Settings, "accent">, fallback = "Owner"): CollabUser {
   const rgb = to255(oklchToRgb((ACCENTS[settings.accent] ?? ACCENTS.iris).color));
   const hex = `#${rgb.map((v) => Math.round(Math.min(255, Math.max(0, v))).toString(16).padStart(2, "0")).join("")}`;
-  return { name: (settings.name ?? "").trim().slice(0, 40) || fallback, color: hex };
+  return { name: useAccount.getState().user?.username.slice(0, 40) || fallback, color: hex };
 }
 
 /** The live session for a note, if it's shared for co-editing. */
@@ -76,9 +77,12 @@ export function startCollab() {
   sync();
   useApp.subscribe((s, prev) => {
     if (s.shares !== prev.shares || s.ready !== prev.ready) sync();
-    if (s.settings.name !== prev.settings.name || s.settings.accent !== prev.settings.accent) {
+    if (s.settings.accent !== prev.settings.accent) {
       for (const session of sessions.values()) session.setUser(userFor(s.settings));
     }
+  });
+  onAccountChange(() => {
+    for (const session of sessions.values()) session.setUser(userFor(useApp.getState().settings));
   });
 }
 

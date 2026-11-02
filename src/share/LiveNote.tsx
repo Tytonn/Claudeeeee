@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { buildExtensions } from "../components/editor/extensions";
+import { useAccount } from "../account/account";
 import { BubbleBar } from "../components/editor/BubbleBar";
 import { SlashMenu } from "../components/editor/SlashMenu";
 import { LightCaret } from "../fx/LightCaret";
@@ -32,7 +33,7 @@ export function useGuestSession(id: string, keyRaw: string, enabled: boolean): C
       setSession(s);
     });
     const unsub = useApp.subscribe((st, prev) => {
-      if (st.settings.name !== prev.settings.name || st.settings.accent !== prev.settings.accent) s?.setUser(userFor(st.settings, "Friend"));
+      if (st.settings.accent !== prev.settings.accent) s?.setUser(userFor(st.settings, "Friend"));
     });
     return () => {
       cancelled = true;
@@ -63,6 +64,8 @@ export function LiveNote({ session, onTitle }: { session: CollabSession; onTitle
           el.setSelectionRange(el.value.length, el.value.length);
         },
         collab: { doc: session.doc, awareness: session.awareness, user: userFor(useApp.getState().settings, "Friend") },
+        // Pictures you add here go up with this link's write token (or your account).
+        imageAuth: () => (useAccount.getState().user ? { session: true } : session.uploadAuth),
       }),
       editable: canEdit,
       immediatelyRender: true,

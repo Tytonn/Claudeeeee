@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import type { JSONContent } from "@tiptap/core";
-import type { Countdown, Note, Settings, SharedLink, ShareRecord, Todo } from "../lib/types";
+import type { Countdown, Note, NoteGroup, Settings, SharedLink, ShareRecord, Todo, Vault } from "../lib/types";
 import { uid } from "../lib/id";
 import { isBlank } from "../lib/text";
 
@@ -15,15 +15,16 @@ export const DEFAULT_SETTINGS: Settings = {
   fadeWhileTyping: true,
   effects: "cosmic",
   backdrop: "dark",
-  ink: "",
   scene: "eclipse",
   lightning: true,
   cityLights: true,
   rainAmount: "rain",
   cityBlur: 1,
-  rainSound: false,
-  rainVolume: 0.6,
-  name: "",
+  cursorLight: true,
+  clockMs: false,
+  clockMsDigits: 3,
+  todoGroups: false,
+  todoLabels: {},
   sidebar: true,
   rail: true,
 };
@@ -42,10 +43,20 @@ export type UIState = {
   focus: boolean;
   mobile: "list" | "editor" | "rail";
   savedAt: number;
+  /** Hidden notes are showing (this session only — every reload starts locked). */
+  unlocked: boolean;
+  /** The PIN pad, when it's up: to unlock, to choose a PIN, to change it — and what to do after. */
+  vault: VaultPrompt | null;
+  /** A group whose name is being edited in the sidebar. */
+  renaming: string | null;
 };
+
+export type VaultPrompt = { mode: "unlock" | "setup" | "change"; then?: { hide: string } | { open: true } };
 
 type Hydration = {
   notes: Record<string, Note>;
+  groups: NoteGroup[];
+  vault: Vault | null;
   todos: Todo[];
   countdowns: Countdown[];
   shares: Record<string, ShareRecord>;
@@ -57,6 +68,8 @@ type Hydration = {
 export type AppState = {
   ready: boolean;
   notes: Record<string, Note>;
+  groups: NoteGroup[];
+  vault: Vault | null;
   todos: Todo[];
   countdowns: Countdown[];
   shares: Record<string, ShareRecord>;
@@ -68,7 +81,7 @@ export type AppState = {
   setUI(patch: Partial<UIState>): void;
   setSettings(patch: Partial<Settings>): void;
 
-  createNote(init?: Partial<Pick<Note, "title" | "doc" | "text">>): string;
+  createNote(init?: Partial<Pick<Note, "title" | "doc" | "text" | "groupId" | "hidden">>): string;
   updateNote(id: string, patch: Partial<Note>, touch?: boolean): void;
   selectNote(id: string | null): void;
   trashNote(id: string): void;
@@ -78,7 +91,18 @@ export type AppState = {
   togglePin(id: string): void;
   duplicateNote(id: string): string | null;
 
-  addTodo(text: string, afterId?: string | null): string;
+  createGroup(name: string): string;
+  renameGroup(id: string, name: string): void;
+  setGroupCollapsed(id: string, collapsed: boolean): void;
+  deleteGroup(id: string): { group: NoteGroup; index: number; noteIds: string[] } | null;
+  restoreGroup(saved: { group: NoteGroup; index: number; noteIds: string[] }): void;
+  moveToGroup(noteId: string, groupId: string | null): void;
+
+  setHidden(id: string, hidden: boolean): void;
+  setVault(vault: Vault | null): void;
+  setUnlocked(unlocked: boolean): void;
+
+  addTodo(text: string, afterId?: string | null, color?: Todo["color"]): string;
   updateTodo(id: string, patch: Partial<Todo>): void;
   toggleTodo(id: string): boolean;
   removeTodo(id: string): { todo: Todo; index: number } | null;
@@ -102,17 +126,25 @@ export type AppState = {
 
 const now = () => Date.now();
 
-/** Notes sorted the way the sidebar shows them: pinned first, then most recently edited. */
-export function sortedNotes(notes: Record<string, Note>): Note[] {
+/**
+ * Notes sorted the way the sidebar shows them: pinned first, then most recently edited.
+ * Hidden notes stay out unless asked for (i.e. while they're unlocked).
+ */
+export function sortedNotes(notes: Record<string, Note>, withHidden = false): Note[] {
   return Object.values(notes)
-    .filter((n) => !n.deletedAt)
+    .filter((n) => !n.deletedAt && (withHidden || !n.hidden))
     .sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned) || b.updatedAt - a.updatedAt);
 }
+
+/** Whether a note can be seen right now (not trashed, and not hidden away while locked). */
+export const isVisible = (n: Note | undefined, unlocked: boolean): n is Note => !!n && !n.deletedAt && (unlocked || !n.hidden);
 
 export const useApp = create<AppState>()(
   subscribeWithSelector((set, get) => ({
     ready: false,
     notes: {},
+    groups: [],
+    vault: null,
     todos: [],
     countdowns: [],
     shares: {},
@@ -130,13 +162,19 @@ export const useApp = create<AppState>()(
       focus: false,
       mobile: "list",
       savedAt: 0,
+      unlocked: false,
+      vault: null,
+      renaming: null,
     },
 
     hydrate(data) {
-      const activeId = data.activeId && data.notes[data.activeId] && !data.notes[data.activeId].deletedAt ? data.activeId : (sortedNotes(data.notes)[0]?.id ?? null);
+      // Every visit starts with hidden notes locked away, so never reopen one.
+      const activeId = isVisible(data.activeId ? data.notes[data.activeId] : undefined, false) ? data.activeId : (sortedNotes(data.notes)[0]?.id ?? null);
       set((s) => ({
         ready: true,
         notes: data.notes,
+        groups: data.groups,
+        vault: data.vault,
         todos: data.todos,
         countdowns: data.countdowns,
         shares: data.shares,
@@ -165,6 +203,8 @@ export const useApp = create<AppState>()(
         text: typeof init.text === "string" ? init.text : "",
         createdAt: t,
         updatedAt: t,
+        groupId: init.groupId && get().groups.some((g) => g.id === init.groupId) ? init.groupId : null,
+        hidden: init.hidden === true,
       };
       const prev = get().ui.activeId;
       set((s) => {
@@ -200,7 +240,7 @@ export const useApp = create<AppState>()(
       const s = get();
       const note = s.notes[id];
       if (!note) return;
-      const list = sortedNotes(s.notes);
+      const list = sortedNotes(s.notes, s.ui.unlocked);
       const idx = list.findIndex((n) => n.id === id);
       const next = list[idx + 1] ?? list[idx - 1] ?? null;
       set((st) => {
@@ -230,7 +270,8 @@ export const useApp = create<AppState>()(
     emptyTrash() {
       set((s) => {
         const notes: Record<string, Note> = {};
-        for (const n of Object.values(s.notes)) if (!n.deletedAt) notes[n.id] = n;
+        // Hidden notes in the trash are only emptied while you can see them.
+        for (const n of Object.values(s.notes)) if (!n.deletedAt || (n.hidden && !s.ui.unlocked)) notes[n.id] = n;
         return { notes };
       });
     },
@@ -250,15 +291,100 @@ export const useApp = create<AppState>()(
         title: src.title ? `${src.title} (copy)` : "",
         doc: src.doc ? structuredClone(src.doc) : null,
         text: src.text,
+        groupId: src.groupId ?? null,
+        hidden: src.hidden === true,
       });
       return copy;
     },
 
-    // ── To-dos ─────────────────────────────────────────────────────────────
-    addTodo(text, afterId) {
+    // ── Groups ─────────────────────────────────────────────────────────────
+    createGroup(name) {
       const id = uid();
       const t = now();
-      const todo: Todo = { id, text, done: false, createdAt: t, updatedAt: t };
+      set((s) => ({ groups: [...s.groups, { id, name: name.trim().slice(0, 60) || "New group", collapsed: false, createdAt: t, updatedAt: t }] }));
+      return id;
+    },
+
+    renameGroup(id, name) {
+      const clean = name.trim().slice(0, 60);
+      if (!clean) return;
+      set((s) => ({ groups: s.groups.map((g) => (g.id === id ? { ...g, name: clean, updatedAt: now() } : g)) }));
+    },
+
+    setGroupCollapsed(id, collapsed) {
+      set((s) => ({ groups: s.groups.map((g) => (g.id === id ? { ...g, collapsed, updatedAt: now() } : g)) }));
+    },
+
+    deleteGroup(id) {
+      const s = get();
+      const index = s.groups.findIndex((g) => g.id === id);
+      if (index < 0) return null;
+      const group = s.groups[index];
+      const noteIds = Object.values(s.notes)
+        .filter((n) => n.groupId === id)
+        .map((n) => n.id);
+      set((st) => {
+        const notes = { ...st.notes };
+        // The notes stay; they just aren't filed anywhere any more.
+        for (const nid of noteIds) notes[nid] = { ...notes[nid], groupId: null };
+        return { groups: st.groups.filter((g) => g.id !== id), notes };
+      });
+      return { group, index, noteIds };
+    },
+
+    restoreGroup(saved) {
+      set((s) => {
+        const groups = s.groups.filter((g) => g.id !== saved.group.id);
+        groups.splice(Math.min(saved.index, groups.length), 0, saved.group);
+        const notes = { ...s.notes };
+        for (const nid of saved.noteIds) if (notes[nid]) notes[nid] = { ...notes[nid], groupId: saved.group.id };
+        return { groups, notes };
+      });
+    },
+
+    moveToGroup(noteId, groupId) {
+      set((s) => {
+        const note = s.notes[noteId];
+        if (!note || (note.groupId ?? null) === groupId) return s;
+        if (groupId && !s.groups.some((g) => g.id === groupId)) return s;
+        // Filing a note away isn't an edit: it keeps its place in time.
+        return { notes: { ...s.notes, [noteId]: { ...note, groupId } } };
+      });
+    },
+
+    // ── Hidden notes ───────────────────────────────────────────────────────
+    setHidden(id, hidden) {
+      set((s) => {
+        const note = s.notes[id];
+        if (!note) return s;
+        const notes = { ...s.notes, [id]: { ...note, hidden } };
+        // Hidden while locked: it can't stay open in front of everyone.
+        let ui = s.ui;
+        if (hidden && !s.ui.unlocked && s.ui.activeId === id) {
+          const next = sortedNotes(notes)[0]?.id ?? null;
+          ui = { ...s.ui, activeId: next };
+        }
+        return { notes, ui };
+      });
+    },
+
+    setVault(vault) {
+      set({ vault });
+    },
+
+    setUnlocked(unlocked) {
+      set((s) => {
+        let activeId = s.ui.activeId;
+        if (!unlocked && activeId && s.notes[activeId]?.hidden) activeId = sortedNotes(s.notes)[0]?.id ?? null;
+        return { ui: { ...s.ui, unlocked, activeId } };
+      });
+    },
+
+    // ── To-dos ─────────────────────────────────────────────────────────────
+    addTodo(text, afterId, color) {
+      const id = uid();
+      const t = now();
+      const todo: Todo = { id, text, done: false, createdAt: t, updatedAt: t, color: color ?? null };
       set((s) => {
         const todos = [...s.todos];
         const at = afterId ? todos.findIndex((x) => x.id === afterId) : -1;

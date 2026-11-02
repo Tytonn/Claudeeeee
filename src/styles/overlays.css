@@ -3,6 +3,7 @@
 .modal.palette {
   width: min(640px, 100%);
   border-radius: 17px;
+  background: linear-gradient(180deg, rgb(21 22 25 / 0.88), rgb(15 16 18 / 0.9));
 }
 .palette-body {
   display: flex;
@@ -542,12 +543,18 @@
   text-transform: uppercase;
   color: var(--fg-4);
 }
-.share-name input {
+.share-name.is-static {
+  box-shadow: none;
+  background: rgb(255 255 255 / 0.025);
+}
+.share-name-value {
   flex: 1;
   min-width: 0;
-  height: 100%;
+  overflow: hidden;
   font-size: 13px;
-  color: var(--fg-1);
+  color: var(--fg-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .share-error {
   padding: 9px 11px;
@@ -570,7 +577,7 @@
 .toasts {
   position: fixed;
   left: 50%;
-  bottom: max(22px, env(safe-area-inset-bottom));
+  bottom: calc(max(22px, env(safe-area-inset-bottom)) - var(--vv-gap, 0px));
   z-index: 1100;
   display: flex;
   flex-direction: column;
@@ -1422,5 +1429,173 @@
   100% {
     opacity: 0;
     transform: translate(-50%, -50%) scale(0.85);
+  }
+}
+
+/* ── Hidden notes: the PIN pad ───────────────────────────────────────────── */
+
+.modal.vault {
+  width: min(360px, 100%);
+}
+.vault-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 24px 26px;
+  text-align: center;
+}
+.vault-mark {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin-bottom: 14px;
+  filter: drop-shadow(0 0 16px color-mix(in oklch, var(--accent) 38%, transparent));
+  transition: filter 700ms var(--ease);
+}
+.vault-body.is-open .vault-mark {
+  filter: drop-shadow(0 0 34px color-mix(in oklch, var(--accent) 85%, white));
+}
+.vault-title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 400;
+  line-height: 1.1;
+  color: var(--fg-1);
+}
+.vault-sub {
+  min-height: 20px;
+  margin: 7px 0 0;
+  font-size: 13px;
+  color: var(--fg-3);
+}
+.vault-dots {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  height: 16px;
+  margin-top: 24px;
+}
+.vault-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px var(--fg-4);
+  transition:
+    background-color 160ms var(--ease),
+    box-shadow 200ms var(--ease);
+}
+.vault-dot.is-on {
+  background: var(--accent);
+  box-shadow:
+    0 0 0 1px color-mix(in oklch, var(--accent) 70%, white),
+    0 0 14px color-mix(in oklch, var(--accent) 80%, transparent);
+}
+.vault-body.is-wrong .vault-dot.is-on {
+  background: var(--danger);
+  box-shadow: 0 0 12px color-mix(in oklch, var(--danger) 60%, transparent);
+}
+.vault-note-slot {
+  display: grid;
+  place-items: center;
+  height: 22px;
+  margin-top: 10px;
+}
+.vault-note {
+  margin: 0;
+  font-size: 12px;
+  color: color-mix(in oklch, var(--danger) 72%, white);
+}
+.vault-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 66px);
+  gap: 12px 22px;
+  margin-top: 6px;
+}
+.vault-key {
+  display: grid;
+  place-items: center;
+  width: 66px;
+  height: 66px;
+  border-radius: 50%;
+  font-family: var(--font-sans);
+  font-size: 25px;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-1);
+  background: rgb(255 255 255 / 0.045);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.07),
+    inset 0 1px 0 rgb(255 255 255 / 0.05);
+  transition:
+    background-color 140ms var(--ease),
+    box-shadow 200ms var(--ease),
+    opacity 200ms var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.vault-key:hover:not(:disabled) {
+  background: rgb(255 255 255 / 0.08);
+}
+.vault-key:active:not(:disabled) {
+  background: color-mix(in oklch, var(--accent) 24%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklch, var(--accent) 55%, transparent),
+    0 0 22px color-mix(in oklch, var(--accent) 32%, transparent);
+}
+.vault-key:disabled {
+  opacity: 0.35;
+}
+.vault-key.is-del,
+.vault-key.is-text {
+  background: none;
+  box-shadow: none;
+  color: var(--fg-3);
+}
+.vault-key.is-text {
+  font-size: 12px;
+  font-weight: 500;
+}
+.vault-key.is-del:hover:not(:disabled),
+.vault-key.is-text:hover {
+  color: var(--fg-1);
+  background: none;
+}
+.vault-hint {
+  max-width: 280px;
+  margin: 18px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--fg-4);
+}
+.vault-forgot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin-top: 8px;
+}
+.vault-forgot .vault-hint {
+  margin-top: 8px;
+}
+.vault-form {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+.vault-form .text-input {
+  flex: 1;
+  min-width: 0;
+}
+/* With a mouse, the pad can be a little more compact. */
+@media (pointer: fine) {
+  .vault-pad {
+    grid-template-columns: repeat(3, 56px);
+    gap: 10px 18px;
+  }
+  .vault-key {
+    width: 56px;
+    height: 56px;
+    font-size: 21px;
   }
 }

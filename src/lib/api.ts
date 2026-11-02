@@ -152,6 +152,11 @@ export async function apiLogout() {
   await request("/api/account/logout", { method: "POST" });
 }
 
+/** Ends one particular session (not necessarily this device's own). */
+export async function apiLogoutToken(token: string) {
+  await request("/api/account/logout", { method: "POST", headers: { "x-umbra-session": token } });
+}
+
 // ── Sync ──────────────────────────────────────────────────────────────────
 
 export type SyncItem = { key: string; rev: number; at: number; del?: boolean; missing?: boolean; iv?: string; data?: string };

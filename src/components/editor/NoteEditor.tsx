@@ -3,6 +3,7 @@ import type { Editor } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { useApp } from "../../store/app";
 import { buildExtensions } from "./extensions";
+import { authForNote } from "../../lib/images";
 import { safeDoc } from "./safeDoc";
 import { LightCaret } from "../../fx/LightCaret";
 import { fx } from "../../fx/engine";
@@ -71,6 +72,7 @@ export function NoteEditor({ noteId, scroller }: Props) {
       extensions: buildExtensions({
         onExitTop: focusTitleEnd,
         collab: session ? { doc: session.doc, awareness: session.awareness, user: userFor(useApp.getState().settings) } : undefined,
+        imageAuth: () => authForNote(noteId),
       }),
       // A live doc brings its own content.
       content: session ? undefined : (safeDoc(note?.doc, note?.text ?? "") ?? ""),

@@ -403,6 +403,46 @@
 }
 .menu-label {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.menu-check,
+.menu-more {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  color: var(--fg-4);
+}
+.menu-check {
+  color: var(--accent);
+}
+.menu-item:has(.menu-hl) .menu-more {
+  color: var(--fg-2);
+}
+/* A submenu: the way back, then its own list. */
+.menu-level {
+  display: flex;
+  flex-direction: column;
+}
+.menu-back {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 7px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--fg-3);
+  text-align: left;
+  transition: color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease);
+}
+.menu-back:hover {
+  color: var(--fg-1);
+  background: rgb(255 255 255 / 0.045);
 }
 .menu-hint {
   font-size: 11px;
@@ -433,6 +473,7 @@
 .overlay {
   position: fixed;
   inset: 0;
+  bottom: calc(0px - var(--vv-gap, 0px));
   z-index: 500;
   display: grid;
   place-items: center;

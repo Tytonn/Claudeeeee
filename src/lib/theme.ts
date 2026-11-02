@@ -1,4 +1,4 @@
-import type { AccentId, FontId, RainAmountId, Settings, SizeId } from "./types";
+import type { AccentId, FontId, RainAmountId, Settings, SizeId, TodoColor } from "./types";
 
 /** `nebula` is a second hue the sky blends with the accent, so space never looks flat. */
 export const ACCENTS: Record<AccentId, { name: string; color: string; nebula: string }> = {
@@ -11,7 +11,17 @@ export const ACCENTS: Record<AccentId, { name: string; color: string; nebula: st
   rose: { name: "Rose", color: "oklch(0.79 0.115 356)", nebula: "oklch(0.5 0.15 300)" },
 };
 
-/** How hard it rains, as the engine and the sound understand it. */
+/** The colors a to-do can wear: bright enough to read on the dark glass, soft enough to sit together. */
+export const TODO_COLORS: Record<TodoColor, { name: string; color: string }> = {
+  red: { name: "Red", color: "oklch(0.72 0.17 22)" },
+  orange: { name: "Orange", color: "oklch(0.79 0.15 58)" },
+  yellow: { name: "Yellow", color: "oklch(0.87 0.14 95)" },
+  green: { name: "Green", color: "oklch(0.79 0.14 155)" },
+  blue: { name: "Blue", color: "oklch(0.75 0.13 240)" },
+  purple: { name: "Purple", color: "oklch(0.73 0.15 300)" },
+};
+
+/** How hard it rains, as the engine understands it. */
 export const RAIN_AMOUNT: Record<RainAmountId, number> = { drizzle: 0.15, rain: 0.5, downpour: 0.95 };
 
 export const FONTS: Record<FontId, { name: string; stack: string }> = {
@@ -26,34 +36,9 @@ export const SIZES: Record<SizeId, { name: string; px: number }> = {
   l: { name: "Large", px: 18.5 },
 };
 
-/** Keeps a chosen text color readable on the dark sky: very dark picks get lifted toward white. */
-export function readableInk(hex: string): string | null {
-  const m = /^#([0-9a-f]{6})$/i.exec(hex.trim());
-  if (!m) return null;
-  let [r, g, b] = [0, 2, 4].map((i) => parseInt(m[1].slice(i, i + 2), 16) / 255);
-  const lum = (c: number[]) => {
-    const lin = c.map((v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
-    return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2];
-  };
-  for (let i = 0; i < 12 && lum([r, g, b]) < 0.3; i++) {
-    r += (1 - r) * 0.18;
-    g += (1 - g) * 0.18;
-    b += (1 - b) * 0.18;
-  }
-  return `#${[r, g, b].map((v) => Math.round(v * 255).toString(16).padStart(2, "0")).join("")}`;
-}
-
-export function applyTheme(s: Pick<Settings, "accent" | "font" | "size"> & Partial<Pick<Settings, "backdrop" | "ink">>) {
+export function applyTheme(s: Pick<Settings, "accent" | "font" | "size"> & Partial<Pick<Settings, "backdrop">>) {
   const root = document.documentElement;
-  root.dataset.backdrop = s.backdrop === "glass" || s.backdrop === "clear" || s.backdrop === "crystal" ? s.backdrop : "dark";
-  const ink = s.ink ? readableInk(s.ink) : null;
-  if (ink) {
-    root.style.setProperty("--ink", ink);
-    root.dataset.ink = "";
-  } else {
-    root.style.removeProperty("--ink");
-    delete root.dataset.ink;
-  }
+  root.dataset.backdrop = s.backdrop === "glass" || s.backdrop === "clear" || s.backdrop === "crystal" || s.backdrop === "bare" ? s.backdrop : "dark";
   root.style.setProperty("--accent", ACCENTS[s.accent]?.color ?? ACCENTS.iris.color);
   root.style.setProperty("--font-editor", FONTS[s.font]?.stack ?? FONTS.sans.stack);
   // Serif text reads best a touch larger; mono a touch smaller.

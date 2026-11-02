@@ -1,9 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { AnimatePresence, Reorder, motion, useDragControls } from "motion/react";
-import { ChevronRight, GripVertical, Plus, Sparkles, X } from "lucide-react";
+import { Ban, ChevronRight, GripVertical, Layers, PenLine, Plus, Sparkles, Trash2, X } from "lucide-react";
 import { useApp } from "../../store/app";
 import { toast } from "../../store/toasts";
-import type { Todo } from "../../lib/types";
+import type { Todo, TodoColor } from "../../lib/types";
+import { TODO_COLORS } from "../../lib/theme";
+import { TODO_COLORS as COLOR_ORDER } from "../../lib/sanitize";
+import { Menu, type MenuItem } from "../ui/Menu";
+import { Popover, pointAnchor } from "../ui/Popover";
 import { haptic, play } from "../../lib/sound";
 import { ease, spring } from "../../lib/motion";
 import { Checkbox } from "../ui/Checkbox";
@@ -31,6 +35,26 @@ function removeWithUndo(id: string) {
   }
 }
 
+/** What a color is called: your name for it, or just the color. */
+function labelOf(color: TodoColor, labels: Partial<Record<TodoColor, string>>) {
+  return labels[color]?.trim() || TODO_COLORS[color].name;
+}
+
+const tagStyle = (color: TodoColor | null | undefined) => (color ? ({ "--tag": TODO_COLORS[color].color } as CSSProperties) : undefined);
+
+/** The color menu for a to-do: pick one, or none. */
+function colorItems(todo: Todo, labels: Partial<Record<TodoColor, string>>): MenuItem[] {
+  const set = (color: TodoColor | null) => () => {
+    useApp.getState().updateTodo(todo.id, { color });
+    play("pop");
+  };
+  return [
+    ...COLOR_ORDER.map((c) => ({ label: labelOf(c, labels), icon: <span className="tag-dot" style={tagStyle(c)} />, checked: todo.color === c, onSelect: set(c) }) as MenuItem),
+    "divider",
+    { label: "No color", icon: <Ban size={14} />, checked: !todo.color, onSelect: set(null) },
+  ];
+}
+
 type RowProps = { todo: Todo; prevId?: string; nextId?: string; addInput: React.RefObject<HTMLInputElement | null> };
 
 function TodoRow({ todo, prevId, nextId, addInput }: RowProps) {
@@ -39,6 +63,9 @@ function TodoRow({ todo, prevId, nextId, addInput }: RowProps) {
   const timer = useRef<number | undefined>(undefined);
   const row = useRef<HTMLLIElement>(null);
   const updateTodo = useApp((s) => s.updateTodo);
+  const labels = useApp((s) => s.settings.todoLabels);
+  const [menu, setMenu] = useState<{ x: number; y: number; full: boolean } | null>(null);
+  const menuAnchor = useMemo(() => (menu ? pointAnchor(menu.x, menu.y) : null), [menu]);
 
   const commitDone = () => {
     const openCount = useApp.getState().todos.filter((t) => !t.done).length;
@@ -98,7 +125,13 @@ function TodoRow({ todo, prevId, nextId, addInput }: RowProps) {
       value={todo.id}
       dragListener={false}
       dragControls={controls}
-      className={`todo ${settling ? "is-settling" : ""}`}
+      className={`todo ${settling ? "is-settling" : ""} ${todo.color ? "has-tag" : ""} ${menu ? "is-menu" : ""}`}
+      style={tagStyle(todo.color)}
+      onContextMenu={(e: React.MouseEvent) => {
+        if ((e.target as HTMLElement).closest("input")) return;
+        e.preventDefault();
+        setMenu({ x: e.clientX, y: e.clientY, full: true });
+      }}
       layout="position"
       initial={{ opacity: 0, y: -6, filter: "blur(3px)" }}
       animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
@@ -143,7 +176,8 @@ function TodoRow({ todo, prevId, nextId, addInput }: RowProps) {
             } else if (e.key === "Enter") {
               e.preventDefault();
               if (!el.value.trim()) return;
-              const id = useApp.getState().addTodo("", todo.id);
+              // The next one carries on in the same color.
+              const id = useApp.getState().addTodo("", todo.id, todo.color);
               focusTodo(id);
             } else if (e.key === "Backspace" && el.value === "") {
               e.preventDefault();
@@ -166,10 +200,131 @@ function TodoRow({ todo, prevId, nextId, addInput }: RowProps) {
           {todo.text}
         </span>
       </span>
+      <button
+        type="button"
+        className="todo-tag"
+        aria-label="Color"
+        title="Color"
+        onClick={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          setMenu({ x: r.left, y: r.bottom + 2, full: false });
+        }}
+      >
+        <span className="tag-dot" />
+      </button>
       <button type="button" className="todo-del" aria-label="Delete to-do" onClick={() => removeWithUndo(todo.id)}>
         <X size={13} strokeWidth={1.8} />
       </button>
+      <Popover open={Boolean(menu)} onClose={() => setMenu(null)} anchor={menuAnchor} placement="bottom-start" offsetPx={4} role="menu">
+        <Menu
+          items={[
+            ...colorItems(todo, labels),
+            ...(menu?.full ? (["divider", { label: "Delete", icon: <Trash2 size={14} />, danger: true, onSelect: () => removeWithUndo(todo.id) }] as MenuItem[]) : []),
+          ]}
+          onClose={() => setMenu(null)}
+        />
+      </Popover>
     </Reorder.Item>
+  );
+}
+
+/** A color's section in the grouped list: its name (yours to change), its to-dos, and a quick add. */
+function TodoSection({
+  color,
+  todos,
+  addInput,
+  onReorder,
+}: {
+  color: TodoColor | null;
+  todos: Todo[];
+  addInput: React.RefObject<HTMLInputElement | null>;
+  onReorder: (ids: string[], next: string[]) => void;
+}) {
+  const labels = useApp((s) => s.settings.todoLabels);
+  const [open, setOpen] = useState(true);
+  const [naming, setNaming] = useState(false);
+  const name = color ? labelOf(color, labels) : "No color";
+  const ids = todos.map((t) => t.id);
+  const [draft, setDraft] = useState(name);
+  const commitName = (save: boolean) => {
+    setNaming(false);
+    if (!save || !color) return;
+    const s = useApp.getState();
+    const next = { ...s.settings.todoLabels };
+    const clean = draft.trim().slice(0, 32);
+    if (clean && clean !== TODO_COLORS[color].name) next[color] = clean;
+    else delete next[color];
+    s.setSettings({ todoLabels: next });
+  };
+  const add = () => {
+    setOpen(true);
+    const id = useApp.getState().addTodo("", null, color);
+    focusTodo(id);
+  };
+  return (
+    <motion.section layout="position" transition={spring} className={`todo-section ${color ? "" : "is-plain"}`} style={tagStyle(color)}>
+      <header className="todo-section-head">
+        {naming ? (
+          <span className="todo-section-toggle">
+            <span className="tag-dot" />
+            <input
+              className="todo-section-input"
+              value={draft}
+              maxLength={32}
+              autoFocus
+              aria-label="Name for this color"
+              onFocus={(e) => e.currentTarget.select()}
+              onChange={(e) => setDraft(e.target.value)}
+              onBlur={() => commitName(true)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitName(true);
+                else if (e.key === "Escape") {
+                  e.stopPropagation();
+                  commitName(false);
+                }
+              }}
+            />
+          </span>
+        ) : (
+          <button type="button" className="todo-section-toggle" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+            <ChevronRight size={12} strokeWidth={2} className={`chev ${open ? "is-open" : ""}`} />
+            {color ? <span className="tag-dot" /> : <span className="tag-dot is-none" />}
+            <span className="todo-section-name">{name}</span>
+            <span className="todo-section-count mono">{todos.length}</span>
+          </button>
+        )}
+        {color && !naming && (
+          <button
+            type="button"
+            className="todo-section-btn"
+            aria-label={`Rename ${name}`}
+            title="Rename"
+            onClick={() => {
+              setDraft(name);
+              setNaming(true);
+            }}
+          >
+            <PenLine size={12} strokeWidth={1.8} />
+          </button>
+        )}
+        <button type="button" className="todo-section-btn" aria-label={`Add to ${name}`} title="Add a to-do here" onClick={add}>
+          <Plus size={13} strokeWidth={1.8} />
+        </button>
+      </header>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.24, ease }} style={{ overflow: "hidden" }}>
+            <Reorder.Group as="ul" axis="y" values={ids} onReorder={(next: string[]) => onReorder(ids, next)} className="todo-list">
+              <AnimatePresence initial={false} mode="popLayout">
+                {todos.map((t, i) => (
+                  <TodoRow key={t.id} todo={t} prevId={todos[i - 1]?.id} nextId={todos[i + 1]?.id} addInput={addInput} />
+                ))}
+              </AnimatePresence>
+            </Reorder.Group>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.section>
   );
 }
 
@@ -177,7 +332,8 @@ function DoneRow({ todo }: { todo: Todo }) {
   return (
     <motion.li
       layout="position"
-      className="todo is-done"
+      className={`todo is-done ${todo.color ? "has-tag" : ""}`}
+      style={tagStyle(todo.color)}
       initial={{ opacity: 0, y: -4 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, transition: { duration: 0.14 } }}
@@ -212,6 +368,27 @@ export function Todos() {
   const open = useMemo(() => todos.filter((t) => !t.done), [todos]);
   const done = useMemo(() => todos.filter((t) => t.done).sort((a, b) => (b.doneAt ?? 0) - (a.doneAt ?? 0)), [todos]);
   const openIds = useMemo(() => open.map((t) => t.id), [open]);
+  const grouped = useApp((s) => s.settings.todoGroups === true);
+  const anyColor = useMemo(() => todos.some((t) => t.color), [todos]);
+  // Grouped by color: a section per color in use, in rainbow order, then the uncolored ones.
+  const sections = useMemo(() => {
+    if (!grouped || !anyColor) return null;
+    const out: { color: TodoColor | null; todos: Todo[] }[] = [];
+    for (const c of COLOR_ORDER) {
+      const list = open.filter((t) => t.color === c);
+      if (list.length) out.push({ color: c, todos: list });
+    }
+    const plain = open.filter((t) => !t.color);
+    if (plain.length) out.push({ color: null, todos: plain });
+    return out;
+  }, [grouped, anyColor, open]);
+  // Reordering inside a section keeps everything else where it was.
+  const reorderWithin = (ids: string[], next: string[]) => {
+    const slots = openIds.map((id, i) => (ids.includes(id) ? i : -1)).filter((i) => i >= 0);
+    const order = [...openIds];
+    slots.forEach((slot, k) => (order[slot] = next[k]));
+    reorder(order);
+  };
   const [showDone, setShowDone] = useState(false);
   const [draft, setDraft] = useState("");
   const input = useRef<HTMLInputElement>(null);
@@ -248,6 +425,23 @@ export function Todos() {
           )}
         </AnimatePresence>
         <span className="flex" />
+        <AnimatePresence initial={false}>
+          {(anyColor || grouped) && (
+            <motion.span key="group" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }}>
+              <IconButton
+                size="sm"
+                label={grouped ? "Don't group by color" : "Group by color"}
+                active={grouped}
+                onClick={() => {
+                  useApp.getState().setSettings({ todoGroups: !grouped });
+                  play("pop");
+                }}
+              >
+                <Layers size={14} strokeWidth={1.8} />
+              </IconButton>
+            </motion.span>
+          )}
+        </AnimatePresence>
         <IconButton size="sm" label="Add to-do" onClick={() => input.current?.focus()}>
           <Plus size={15} strokeWidth={1.8} />
         </IconButton>
@@ -288,13 +482,23 @@ export function Todos() {
         </AnimatePresence>
       </form>
 
-      <Reorder.Group as="ul" axis="y" values={openIds} onReorder={reorder} className="todo-list">
-        <AnimatePresence initial={false} mode="popLayout">
-          {open.map((t, i) => (
-            <TodoRow key={t.id} todo={t} prevId={open[i - 1]?.id} nextId={open[i + 1]?.id} addInput={input} />
-          ))}
-        </AnimatePresence>
-      </Reorder.Group>
+      {sections ? (
+        <div className="todo-sections">
+          <AnimatePresence initial={false}>
+            {sections.map((sec) => (
+              <TodoSection key={sec.color ?? "none"} color={sec.color} todos={sec.todos} addInput={input} onReorder={reorderWithin} />
+            ))}
+          </AnimatePresence>
+        </div>
+      ) : (
+        <Reorder.Group as="ul" axis="y" values={openIds} onReorder={reorder} className="todo-list">
+          <AnimatePresence initial={false} mode="popLayout">
+            {open.map((t, i) => (
+              <TodoRow key={t.id} todo={t} prevId={open[i - 1]?.id} nextId={open[i + 1]?.id} addInput={input} />
+            ))}
+          </AnimatePresence>
+        </Reorder.Group>
+      )}
 
       <AnimatePresence initial={false}>
         {open.length === 0 && (

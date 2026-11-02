@@ -1,5 +1,5 @@
 import type { JSONContent } from "@tiptap/core";
-import type { Countdown, Note, ShareRecord, SharePayload, Todo, SharedLink } from "./types";
+import type { Countdown, Note, NoteGroup, ShareRecord, SharePayload, Todo, TodoColor, SharedLink, Vault } from "./types";
 
 /**
  * Everything that comes from outside this tab's own code — a shared link's decrypted
@@ -28,7 +28,40 @@ export function normalizeNote(raw: unknown): Note | null {
     updatedAt: num(raw.updatedAt),
     pinned: raw.pinned === true,
     deletedAt: typeof raw.deletedAt === "number" ? raw.deletedAt : null,
+    groupId: typeof raw.groupId === "string" && ID.test(raw.groupId) ? raw.groupId : null,
+    hidden: raw.hidden === true,
   };
+}
+
+export const TODO_COLORS: TodoColor[] = ["red", "orange", "yellow", "green", "blue", "purple"];
+const isTodoColor = (v: unknown): v is TodoColor => typeof v === "string" && (TODO_COLORS as string[]).includes(v);
+
+export function normalizeGroup(raw: unknown): NoteGroup | null {
+  if (!isObj(raw) || typeof raw.id !== "string" || !ID.test(raw.id)) return null;
+  return {
+    id: raw.id,
+    name: str(raw.name, 60).trim() || "Untitled group",
+    collapsed: raw.collapsed === true,
+    createdAt: num(raw.createdAt),
+    updatedAt: num(raw.updatedAt),
+  };
+}
+
+export function normalizeVault(raw: unknown): Vault | null {
+  if (!isObj(raw) || raw.v !== 1) return null;
+  const b64 = /^[A-Za-z0-9_-]{16,128}$/;
+  if (typeof raw.salt !== "string" || !b64.test(raw.salt) || typeof raw.hash !== "string" || !b64.test(raw.hash)) return null;
+  const iter = typeof raw.iter === "number" && Number.isInteger(raw.iter) && raw.iter >= 10_000 && raw.iter <= 5_000_000 ? raw.iter : null;
+  if (!iter) return null;
+  return { v: 1, salt: raw.salt, hash: raw.hash, iter, updatedAt: num(raw.updatedAt) };
+}
+
+/** Your names for the to-do colors, cleaned up. */
+export function normalizeTodoLabels(raw: unknown): Partial<Record<TodoColor, string>> {
+  const out: Partial<Record<TodoColor, string>> = {};
+  if (!isObj(raw)) return out;
+  for (const c of TODO_COLORS) if (typeof raw[c] === "string" && (raw[c] as string).trim()) out[c] = (raw[c] as string).trim().slice(0, 32);
+  return out;
 }
 
 export function normalizeTodo(raw: unknown): Todo | null {
@@ -40,6 +73,7 @@ export function normalizeTodo(raw: unknown): Todo | null {
     createdAt: num(raw.createdAt),
     updatedAt: num(raw.updatedAt),
     doneAt: typeof raw.doneAt === "number" ? raw.doneAt : null,
+    color: isTodoColor(raw.color) ? raw.color : null,
   };
 }
 
