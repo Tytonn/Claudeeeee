@@ -21,6 +21,7 @@ import { useApp } from "./store/app";
 import { loadAll, startPersistence, storageOk } from "./store/persist";
 import { toast } from "./store/toasts";
 import { startShareSync } from "./store/shareSync";
+import { startSync, syncNow } from "./account/sync";
 import { ACCENTS, applyTheme } from "./lib/theme";
 import type { Settings } from "./lib/types";
 import { fx } from "./fx/engine";
@@ -44,7 +45,7 @@ async function boot() {
   syncFx(settings);
   fx.init();
   startPointerLight();
-  if (import.meta.env.DEV) Object.assign(window as object, { __fx: fx, __app: useApp });
+  if (import.meta.env.DEV) Object.assign(window as object, { __fx: fx, __app: useApp, __syncNow: syncNow });
   useApp.subscribe(
     (s) => s.settings,
     (s) => {
@@ -64,6 +65,7 @@ async function boot() {
     });
   }
   startShareSync();
+  startSync();
 
   // Give the fonts a beat so the first frame is already in the right type.
   await Promise.race([document.fonts?.ready, new Promise((r) => setTimeout(r, 450))]);

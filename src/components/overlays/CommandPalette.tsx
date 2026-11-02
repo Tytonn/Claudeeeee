@@ -177,12 +177,12 @@ function useItems(query: string): Item[] {
             {
               id: "sky",
               group: "Appearance",
-              label: settings.backdrop === "clear" ? "Darker background" : "Show more of the sky",
+              label: settings.backdrop === "clear" || settings.backdrop === "crystal" ? "Darker background" : "Show more of the sky",
               icon: <Sparkles size={15} strokeWidth={1.6} />,
               keywords: "background clear glass dark transparent see through sky stars",
-              run: () => s.setSettings({ backdrop: settings.backdrop === "clear" ? "dark" : "clear" }),
+              run: () => s.setSettings({ backdrop: settings.backdrop === "clear" || settings.backdrop === "crystal" ? "dark" : "clear" }),
             },
-            ...(["dark", "glass", "clear"] as BackdropId[]).map((id) => ({
+            ...(["dark", "glass", "clear", "crystal"] as BackdropId[]).map((id) => ({
               id: `backdrop-${id}`,
               group: "Appearance",
               label: `Background: ${id[0].toUpperCase()}${id.slice(1)}`,

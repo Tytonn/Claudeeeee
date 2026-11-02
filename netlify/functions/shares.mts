@@ -14,6 +14,7 @@
  */
 import { getStore } from "@netlify/blobs";
 import type { Config, Context } from "@netlify/functions";
+import { readAcl, resolveAccess } from "../lib/common";
 
 const STORE_NAME = "umbra-shares";
 const MAX_DATA_CHARS = 4_000_000; // base64url characters (~3 MB of ciphertext)
@@ -138,10 +139,18 @@ export default async (req: Request, context: Context): Promise<Response> => {
     switch (req.method) {
       // ── Read ──────────────────────────────────────────────────────────────
       case "GET": {
-        const record = (await store.get(id, { type: "json" })) as ShareRecord | null;
+        const [record, acl] = await Promise.all([store.get(id, { type: "json" }) as Promise<ShareRecord | null>, readAcl(store, id)]);
         if (!record) return json({ error: "not_found" }, 404);
+        if (acl) {
+          // Private links, and anyone the owner removed, are turned away here.
+          const access = await resolveAccess(req, acl, record.tokenHash, "view");
+          if (!access.role) return json({ error: access.reason ?? "forbidden" }, 403);
+        }
         const etag = `"r${record.rev}"`;
-        if (req.headers.get("if-none-match") === etag) {
+        // CDNs may hand the validator back weakened (W/"r5") once they've compressed the
+        // response; treat that as the same version or every poll looks like a change.
+        const ifNone = (req.headers.get("if-none-match") ?? "").split(",").map((t) => t.trim().replace(/^W\//, ""));
+        if (ifNone.includes(etag)) {
           return new Response(null, { status: 304, headers: { etag, "cache-control": "no-store" } });
         }
         return json(

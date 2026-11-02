@@ -159,13 +159,16 @@ void main() {
   float halo = exp(-dn / (reach * 3.4)) * .3;
   float rim = exp(-abs(d) / (uScale * .0045));
   float inside = d < 0. ? exp(d / (uScale * .006)) : 1.;
+  // The broad glow belongs to the sky around the panel only. Inside it, anything that
+  // depends on the angle from the panel's center would pinch to a point right there.
+  float around = smoothstep(-uScale * .012, 0., d);
   vec2 lightDir = normalize(uMouse - uPanel.xy + vec2(1e-3));
   float side = .62 + .38 * dot(pc / max(length(pc), 1.), lightDir);
   float power = (.45 + .35 * uEnergy) * (1. + uFlare * (.5 + 2.8 * near)) * (1. - uDim * .85);
   vec3 hot = mix(uA, vec3(1.), .55);
   float far = exp(-dn / (.13 + .05 * uEnergy + .12 * uFlare * near));
-  col += mix(uA, uB, .25) * halo * power * .3 * side;
-  col += mix(uB, uA, .6) * exp(-dn / .3) * .035 * power * (1. + gust * .6);
+  col += mix(uA, uB, .25) * halo * power * .3 * side * around;
+  col += mix(uB, uA, .6) * exp(-dn / .3) * .035 * power * (1. + gust * .6) * around;
   col += mix(hot, uA, .35) * st * far * .24 * (1. + gust * .8) * side * power * inside;
   col += hot * outer * (.11 + rays * .3) * (1. + gust) * side * power * inside;
   col += mix(hot, vec3(1.), .5) * rim * .38 * side * power * inside;

@@ -38,7 +38,7 @@ export type FontId = "sans" | "serif" | "mono";
 export type SizeId = "s" | "m" | "l";
 export type EffectsId = "cosmic" | "subtle" | "off";
 /** How much of the sky shows through the panels. */
-export type BackdropId = "dark" | "glass" | "clear";
+export type BackdropId = "dark" | "glass" | "clear" | "crystal";
 
 export type Settings = {
   accent: AccentId;
@@ -50,6 +50,8 @@ export type Settings = {
   fadeWhileTyping: boolean;
   effects: EffectsId;
   backdrop: BackdropId;
+  /** Custom color for your writing (hex), or "" for the default. */
+  ink: string;
   name: string;
   sidebar: boolean;
   rail: boolean;
@@ -71,6 +73,20 @@ export type ShareRecord = {
   collab?: boolean;
   /** Friends holding the link may edit (notes only; default true). */
   editable?: boolean;
+  /** Only people the owner lets in can open it. */
+  restricted?: boolean;
+};
+
+/** A link someone shared with you — kept so you can find it again (and synced with your account). */
+export type SharedLink = {
+  id: string;
+  key: string;
+  title: string;
+  from: string;
+  /** What you can do there, as last seen. */
+  role?: "edit" | "view" | null;
+  addedAt: number;
+  openedAt: number;
 };
 
 /** What the friend receives (inside the encrypted envelope). */

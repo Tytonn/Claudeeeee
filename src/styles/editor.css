@@ -567,3 +567,10 @@ html[data-font="mono"] .prose blockquote p {
   font-size: 12.5px;
   color: var(--fg-4);
 }
+
+/* Your own text color (Settings → Text color): titles take it as chosen, body text a
+   touch softer, so headings still stand out. */
+html[data-ink] :is(.note, .viewer-note) {
+  --fg-1: var(--ink);
+  --fg-body: color-mix(in oklch, var(--ink) 86%, #0b0c0e);
+}

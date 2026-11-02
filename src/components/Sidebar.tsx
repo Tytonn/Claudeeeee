@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
-import { CalendarCheck2, Copy, Download, FileText, Keyboard, Link2, Pin, PinOff, Plus, Search, Settings2, SquarePen, Trash2 } from "lucide-react";
+import { CalendarCheck2, Copy, Download, ExternalLink, FileText, Keyboard, Link2, Pin, PinOff, Plus, Search, Settings2, SquarePen, Trash2, Users, X } from "lucide-react";
 import { sortedNotes, useApp } from "../store/app";
 import type { Note } from "../lib/types";
 import { displayTitle } from "../lib/text";
@@ -15,6 +15,9 @@ import { Kbd } from "./ui/Kbd";
 import { Menu, type MenuItem } from "./ui/Menu";
 import { Popover, pointAnchor } from "./ui/Popover";
 import { fx } from "../fx/engine";
+import { AccountButton } from "../account/AccountModal";
+import { navigate } from "../lib/router";
+import { toast } from "../store/toasts";
 
 export function noteMenuItems(note: Note, opts: { share?: boolean } = {}): MenuItem[] {
   return [
@@ -46,10 +49,73 @@ function groupNotes(list: Note[]): Group[] {
   return groups;
 }
 
+/** Notes other people shared with you — so you can always get back to them. */
+function SharedSection() {
+  const shared = useApp((s) => s.shared);
+  const openShared = useApp((s) => s.ui.openShared);
+  const view = useApp((s) => s.ui.view);
+  const setUI = useApp((s) => s.setUI);
+  const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+  const list = useMemo(() => Object.values(shared).sort((a, b) => b.openedAt - a.openedAt), [shared]);
+  const menuAnchor = useMemo(() => (menu ? pointAnchor(menu.x, menu.y) : null), [menu]);
+  if (!list.length) return null;
+  const menuLink = menu ? shared[menu.id] : null;
+  return (
+    <section className="sb-group sb-shared">
+      <div className="sb-label label">
+        <Users size={11} strokeWidth={2} /> Shared with you
+      </div>
+      {list.map((l) => {
+        const active = view === "notes" && openShared === l.id;
+        return (
+          <motion.button
+            key={l.id}
+            layout="position"
+            transition={spring}
+            type="button"
+            className={`sb-item sb-shared-item ${active ? "is-active" : ""}`}
+            aria-current={active ? "page" : undefined}
+            onClick={() => {
+              flushEditor();
+              setUI({ openShared: l.id, view: "notes", mobile: "editor" });
+            }}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setMenu({ id: l.id, x: e.clientX, y: e.clientY });
+            }}
+          >
+            {active && <motion.span layoutId="sb-active" className="sb-item-bg" transition={spring} />}
+            <span className="sb-item-title">{l.title || "Untitled"}</span>
+            <span className="sb-item-from mono">{l.from ? l.from.split(/\s+/)[0] : ""}</span>
+          </motion.button>
+        );
+      })}
+      <Popover open={Boolean(menu && menuLink)} onClose={() => setMenu(null)} anchor={menuAnchor} placement="bottom-start" role="menu">
+        {menuLink && (
+          <Menu
+            items={[
+              { label: "Open full page", icon: <ExternalLink size={15} />, onSelect: () => navigate(`/s/${menuLink.id}#${menuLink.key}`) },
+              {
+                label: "Copy link",
+                icon: <Link2 size={15} />,
+                onSelect: () => void navigator.clipboard.writeText(`${location.origin}/s/${menuLink.id}#${menuLink.key}`).then(() => toast("Link copied", { tone: "success" })),
+              },
+              "divider",
+              { label: "Remove from list", icon: <X size={15} />, danger: true, onSelect: () => useApp.getState().dropShared(menuLink.id) },
+            ]}
+            onClose={() => setMenu(null)}
+          />
+        )}
+      </Popover>
+    </section>
+  );
+}
+
 export function Sidebar() {
   const notes = useApp((s) => s.notes);
   const activeId = useApp((s) => s.ui.activeId);
   const view = useApp((s) => s.ui.view);
+  const openShared = useApp((s) => s.ui.openShared);
   const shares = useApp((s) => s.shares);
   const setUI = useApp((s) => s.setUI);
   const selectNote = useApp((s) => s.selectNote);
@@ -92,6 +158,7 @@ export function Sidebar() {
             </div>
           )}
           <LayoutGroup id="sidebar">
+            <SharedSection />
             {groups.map((g) => (
               <section key={g.label} className="sb-group">
                 <motion.div layout="position" transition={spring} className="sb-label label">
@@ -99,7 +166,7 @@ export function Sidebar() {
                 </motion.div>
                 <AnimatePresence initial={false}>
                   {g.notes.map((n) => {
-                    const active = view === "notes" && n.id === activeId;
+                    const active = view === "notes" && n.id === activeId && !openShared;
                     return (
                       <motion.button
                         key={n.id}
@@ -163,6 +230,7 @@ export function Sidebar() {
           )}
           </div>
           <div className="sb-foot-icons">
+            <AccountButton />
             <IconButton label="Keyboard shortcuts" kbd="?" placement="top" onClick={() => setUI({ shortcuts: true })}>
               <Keyboard size={15} strokeWidth={1.7} />
             </IconButton>

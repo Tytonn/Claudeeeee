@@ -19,7 +19,8 @@
 - **Share:** a beam of light goes up and the link decodes itself out of cipher glyphs. Your friend's page opens under a vast eclipsed moon; the note decrypts with a scanning line, the diamond ring flashes, and the corona flares whenever you edit.
 - Plus: a short eclipse intro once per visit, a light trail when you switch notes, the new accent color flooding the screen from the swatch you clicked, a live clock, and a sky that slowly wakes up if you leave it alone.
 - **Settings → Effects:** *Cosmic* (everything), *Subtle* (a calm sky and small flourishes) or *Off*. If your system asks for reduced motion, umbra uses *Subtle* automatically.
-- **Settings → Background:** *Dark* (smoked glass), *Glass* (more sky) or *Clear* (the sky almost fully, with a soft shade behind your words so they stay readable). Also in the command palette: *Show more of the sky*.
+- **Settings → Background:** *Dark* (smoked glass), *Glass* (more sky), *Clear* (the sky almost fully, with a soft shade behind your words) or *Crystal* (no glass at all — just outlines over the open sky, with a crisp little drop shadow behind every word). Also in the command palette: *Show more of the sky*.
+- **Settings → Text color:** six soft inks, or pick any color you like (very dark picks get lifted so they stay readable).
 
 **Notes**
 - A calm rich-text editor: type <kbd>/</kbd> for blocks (headings, lists, checklists, quotes, code, dividers, today's date), select text for a formatting bubble, or just write Markdown (`#`, `-`, `[]`, `>`, ```` ``` ````, `==highlight==`).
@@ -36,11 +37,18 @@
 - Birthdays and anniversaries repeat yearly automatically (and show which one it is — *58th*).
 - Under 24 hours it ticks live. Each countdown has a tiny eclipse: the moon slides across the sun as the day approaches, and on the day it's total.
 
+**Accounts & sync** *(optional)*
+- Create an account (a username and password — no email) and your notes, lists, shared links and settings follow you to every device you sign in on. Signing up is a little eclipse: the moon slides across as you fill it in, the corona grows with your password's strength, and your keys are forged at totality.
+- **End-to-end encrypted.** Your password never leaves your browser; it's stretched (PBKDF2, 600k rounds) into a key that proves it's you and one that unlocks your data key. Netlify only ever stores ciphertext — so nobody can read your notes, and nobody can reset a forgotten password either.
+- Signing in on a device that already has notes merges them (no duplicates of the welcome note or the starter to-dos). If two devices change the same note, the newer edit wins.
+
 **Sharing & writing together**
 - Hit **Share** on a note to make a live link — optionally including your to-do list and countdowns. Or share just your lists from the side panel.
 - **Write together, like Google Docs.** With *Friends can edit* on (the default), whoever has the link can edit the note with you at the same time. You see each other's cursors with names, who's here, and each other's words arrive within about a second. Typing in the same sentence at once merges cleanly (it's a CRDT, via Yjs). Turn *Friends can edit* off to make the link view-only — it still updates live.
 - Links are **end-to-end encrypted**: the key lives in the part of the link after `#`, which browsers never send to servers. Netlify only ever stores scrambled data — including every live edit.
 - Stop sharing any time and the link dies instantly (the live copy on the server is deleted; your note keeps every word).
+- **Who can open it — like a doc's Share dialog.** *Anyone with the link*, or *Only people I let in* (they sign in and ask; you get a toast and a badge and tap *Let in*). Everyone who opens your link while signed in shows up in the Share panel, where you can switch them between *Can edit* and *Can view*, or **remove their access at any moment** — the server turns them away on their very next request.
+- **Shared with you:** every note someone shares with you lands in a *Shared with you* section in your sidebar (synced to your account), and opens right inside your editor — live, with their cursor.
 - Friends can **Save a copy** into their own umbra. To-do lists and countdowns in a link are view-only.
 
 **Everything else**
@@ -66,7 +74,7 @@ Already have a Netlify site you want to reuse? Open it → **Site configuration 
 
 ## Your data
 
-- Notes, to-dos, and countdowns live **privately in your browser** (IndexedDB) on the device you're using. Nothing is uploaded unless you share it.
+- Notes, to-dos, and countdowns live **privately in your browser** (IndexedDB) on the device you're using. Nothing is uploaded unless you share it — or sign in to sync, in which case it's uploaded end-to-end encrypted with a key only your password can unlock.
 - Clearing your browser's site data erases them, so export a backup now and then: **Settings → Your data → Export**. **Import** restores it (or moves it to another device/browser).
 - Shared links are stored on Netlify (encrypted) until you stop sharing. Manage them in **Settings → Sharing → Live links**.
 
@@ -136,6 +144,10 @@ npm run typecheck
 ```
 netlify/functions/shares.mts   share API (Netlify Functions + Blobs)
 netlify/functions/collab.mts   live co-editing log for shared notes
+netlify/functions/people.mts   who can open a link (access list, approvals, removals)
+netlify/functions/account.mts  accounts (sign up / in / out)
+netlify/functions/sync.mts     encrypted sync of your notes across devices
+netlify/lib/common.ts          shared helpers: sessions, access checks
 src/
   components/                  app shell, sidebar, top bar, side panel
     editor/                    TipTap editor, slash menu, formatting bubble
@@ -144,6 +156,7 @@ src/
     ui/                        primitives (tooltip, popover, menu, switch, eclipse…)
   fx/                          the light engine: WebGL sky, effects overlay, intro, light caret
   collab/                      live co-editing: sync engine, owner sessions, title binding
+  account/                     accounts, the sign-in eclipse, cross-device sync
   share/ShareView.tsx          what your friend sees
   store/                       state, IndexedDB persistence, live share sync
   lib/                         crypto, dates, markdown export, sounds, theme

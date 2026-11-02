@@ -1,6 +1,6 @@
 import { createStore, delMany, entries, getMany, set as idbSet, setMany } from "idb-keyval";
-import type { Countdown, Note, Settings, ShareRecord, Todo } from "../lib/types";
-import { normalizeCountdown, normalizeList, normalizeNote, normalizeShareRecord, normalizeTodo } from "../lib/sanitize";
+import type { Countdown, Note, Settings, SharedLink, ShareRecord, Todo } from "../lib/types";
+import { normalizeCountdown, normalizeList, normalizeNote, normalizeSharedLink, normalizeShareRecord, normalizeTodo } from "../lib/sanitize";
 import { safeDoc } from "../components/editor/safeDoc";
 import { DEFAULT_SETTINGS, useApp } from "./app";
 import { seedData } from "./seed";
@@ -14,6 +14,7 @@ const TRASH_TTL = 30 * 86_400_000;
  * Storage layout (IndexedDB "umbra"/"kv"):
  *   note:<id>        one record per note
  *   share:<anchor>   one record per live link (anchor = note id or "board")
+ *   shared:<id>      links other people shared with you
  *   todos            the to-do list (ordered array)
  *   countdowns       the countdowns (array)
  *   meta             { seeded }
@@ -64,6 +65,7 @@ export async function loadAll() {
   let todos: Todo[] | null = null;
   let countdowns: Countdown[] | null = null;
   const shares: Record<string, ShareRecord> = {};
+  const shared: Record<string, SharedLink> = {};
   let legacyShares = false;
   let seeded = false;
   const expired: string[] = [];
@@ -79,6 +81,9 @@ export async function loadAll() {
     } else if (key.startsWith("share:")) {
       const record = normalizeShareRecord(v);
       if (record) shares[record.anchor] = record;
+    } else if (key.startsWith("shared:")) {
+      const link = normalizeSharedLink(v);
+      if (link) shared[link.id] = link;
     } else if (key === "shares") {
       // Older layout kept every link under one key.
       legacyShares = true;
@@ -126,7 +131,7 @@ export async function loadAll() {
     void idbSet("meta", { seeded: true, at: Date.now() }, db).catch(() => {});
   }
 
-  return { notes, todos: todos ?? [], countdowns: countdowns ?? [], shares, settings, activeId: ui.activeId };
+  return { notes, todos: todos ?? [], countdowns: countdowns ?? [], shares, shared, settings, activeId: ui.activeId };
 }
 
 /** Mirrors store changes into IndexedDB (per-record, batched) and keeps other tabs in sync. */
@@ -182,6 +187,7 @@ export function startPersistence() {
     }
     if (s.notes !== prev.notes) diffRecords("note:", s.notes, prev.notes);
     if (s.shares !== prev.shares) diffRecords("share:", s.shares, prev.shares);
+    if (s.shared !== prev.shared) diffRecords("shared:", s.shared, prev.shared);
     if (s.todos !== prev.todos) pending.set("todos", s.todos);
     if (s.countdowns !== prev.countdowns) pending.set("countdowns", s.countdowns);
     if (s.settings !== prev.settings) writeLocal(SETTINGS_KEY, s.settings);
@@ -217,6 +223,7 @@ export function startPersistence() {
           const next: Partial<typeof s> = {};
           let notes = s.notes;
           let shares = s.shares;
+          let shared = s.shared;
           keys.forEach((key, i) => {
             const value = values[i];
             if (key.startsWith("note:")) {
@@ -231,11 +238,18 @@ export function startPersistence() {
               const record = value ? normalizeShareRecord(value) : null;
               if (record) shares[anchor] = record;
               else delete shares[anchor];
+            } else if (key.startsWith("shared:")) {
+              const id = key.slice(7);
+              if (shared === s.shared) shared = { ...s.shared };
+              const link = value ? normalizeSharedLink(value) : null;
+              if (link) shared[id] = link;
+              else delete shared[id];
             } else if (key === "todos" && value) next.todos = normalizeList(value, normalizeTodo);
             else if (key === "countdowns" && value) next.countdowns = normalizeList(value, normalizeCountdown);
           });
           if (notes !== s.notes) next.notes = notes;
           if (shares !== s.shares) next.shares = shares;
+          if (shared !== s.shared) next.shared = shared;
           return next;
         });
       } finally {

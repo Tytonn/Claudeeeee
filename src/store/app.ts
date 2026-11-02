@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import type { JSONContent } from "@tiptap/core";
-import type { Countdown, Note, Settings, ShareRecord, Todo } from "../lib/types";
+import type { Countdown, Note, Settings, SharedLink, ShareRecord, Todo } from "../lib/types";
 import { uid } from "../lib/id";
 import { isBlank } from "../lib/text";
 
@@ -15,6 +15,7 @@ export const DEFAULT_SETTINGS: Settings = {
   fadeWhileTyping: true,
   effects: "cosmic",
   backdrop: "dark",
+  ink: "",
   name: "",
   sidebar: true,
   rail: true,
@@ -26,7 +27,11 @@ export type UIState = {
   palette: boolean;
   settings: boolean;
   shortcuts: boolean;
+  /** The account (sign in / sync) dialog. */
+  account: boolean;
   share: string | null; // anchor
+  /** A link someone shared with you, open in the editor area. */
+  openShared: string | null;
   focus: boolean;
   mobile: "list" | "editor" | "rail";
   savedAt: number;
@@ -37,6 +42,7 @@ type Hydration = {
   todos: Todo[];
   countdowns: Countdown[];
   shares: Record<string, ShareRecord>;
+  shared: Record<string, SharedLink>;
   settings: Settings;
   activeId: string | null;
 };
@@ -47,6 +53,7 @@ export type AppState = {
   todos: Todo[];
   countdowns: Countdown[];
   shares: Record<string, ShareRecord>;
+  shared: Record<string, SharedLink>;
   settings: Settings;
   ui: UIState;
 
@@ -82,6 +89,8 @@ export type AppState = {
   putShare(record: ShareRecord): void;
   patchShare(anchor: string, patch: Partial<ShareRecord>): void;
   dropShare(anchor: string): void;
+  putShared(link: SharedLink): void;
+  dropShared(id: string): void;
 };
 
 const now = () => Date.now();
@@ -100,6 +109,7 @@ export const useApp = create<AppState>()(
     todos: [],
     countdowns: [],
     shares: {},
+    shared: {},
     settings: DEFAULT_SETTINGS,
     ui: {
       activeId: null,
@@ -107,7 +117,9 @@ export const useApp = create<AppState>()(
       palette: false,
       settings: false,
       shortcuts: false,
+      account: false,
       share: null,
+      openShared: null,
       focus: false,
       mobile: "list",
       savedAt: 0,
@@ -121,6 +133,7 @@ export const useApp = create<AppState>()(
         todos: data.todos,
         countdowns: data.countdowns,
         shares: data.shares,
+        shared: data.shared,
         settings: { ...DEFAULT_SETTINGS, ...data.settings },
         ui: { ...s.ui, activeId },
       }));
@@ -151,7 +164,7 @@ export const useApp = create<AppState>()(
         const notes = { ...s.notes, [id]: note };
         // Quietly discard the note we're leaving if it was never written in.
         if (prev && prev !== id && notes[prev] && isBlank(notes[prev]) && !s.shares[prev]) delete notes[prev];
-        return { notes, ui: { ...s.ui, activeId: id, view: "notes", mobile: "editor" } };
+        return { notes, ui: { ...s.ui, activeId: id, openShared: null, view: "notes", mobile: "editor" } };
       });
       return id;
     },
@@ -172,7 +185,7 @@ export const useApp = create<AppState>()(
           notes = { ...notes };
           delete notes[prev];
         }
-        return { notes, ui: { ...s.ui, activeId: id, mobile: id ? "editor" : s.ui.mobile } };
+        return { notes, ui: { ...s.ui, activeId: id, openShared: null, mobile: id ? "editor" : s.ui.mobile } };
       });
     },
 
@@ -374,6 +387,19 @@ export const useApp = create<AppState>()(
         const shares = { ...s.shares };
         delete shares[anchor];
         return { shares };
+      });
+    },
+
+    // ── Links shared with you ──────────────────────────────────────────────
+    putShared(link) {
+      set((s) => ({ shared: { ...s.shared, [link.id]: link } }));
+    },
+
+    dropShared(id) {
+      set((s) => {
+        const shared = { ...s.shared };
+        delete shared[id];
+        return { shared, ui: s.ui.openShared === id ? { ...s.ui, openShared: null } : s.ui };
       });
     },
   })),

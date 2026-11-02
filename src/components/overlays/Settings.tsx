@@ -15,6 +15,7 @@ import { relativeLong } from "../../lib/dates";
 import { download, flushEditor } from "../../lib/actions";
 import { spring } from "../../lib/motion";
 import { Modal } from "../ui/Modal";
+import { useAccount } from "../../account/account";
 import { Switch } from "../ui/Switch";
 import { Segmented } from "../ui/Segmented";
 import { IconButton } from "../ui/IconButton";
@@ -92,6 +93,69 @@ function Swatches() {
         </button>
       ))}
     </div>
+  );
+}
+
+/** A few soft, readable inks — plus any color you like. */
+const INKS: { id: string; name: string; color: string }[] = [
+  { id: "", name: "Default", color: "#f3f3f5" },
+  { id: "#f4ecdf", name: "Paper", color: "#f4ecdf" },
+  { id: "#dbe4ff", name: "Moonlight", color: "#dbe4ff" },
+  { id: "#cff3e3", name: "Mint", color: "#cff3e3" },
+  { id: "#ffd8e5", name: "Blossom", color: "#ffd8e5" },
+  { id: "#ffe1b3", name: "Amber", color: "#ffe1b3" },
+];
+
+function InkPicker() {
+  const ink = useApp((s) => s.settings.ink);
+  const setSettings = useApp((s) => s.setSettings);
+  const custom = Boolean(ink) && !INKS.some((i) => i.id === ink);
+  return (
+    <div className="swatches" role="radiogroup" aria-label="Text color">
+      {INKS.map((i) => (
+        <button
+          key={i.name}
+          type="button"
+          role="radio"
+          aria-checked={ink === i.id}
+          aria-label={i.name}
+          title={i.name}
+          className="swatch"
+          style={{ "--sw": i.color } as React.CSSProperties}
+          onClick={() => setSettings({ ink: i.id })}
+        >
+          {ink === i.id && <motion.span layoutId="ink-ring" className="swatch-ring" transition={spring} />}
+          <span className="swatch-core" />
+        </button>
+      ))}
+      <label className={`swatch swatch-custom ${custom ? "is-set" : ""}`} title="Pick any color" style={{ "--sw": custom ? ink : "#f3f3f5" } as React.CSSProperties}>
+        {custom && <motion.span layoutId="ink-ring" className="swatch-ring" transition={spring} />}
+        <span className="swatch-core" />
+        <input type="color" aria-label="Custom text color" value={/^#[0-9a-f]{6}$/i.test(ink) ? ink : "#f3f3f5"} onChange={(e) => setSettings({ ink: e.target.value })} />
+      </label>
+    </div>
+  );
+}
+
+function AccountRow() {
+  const user = useAccount((s) => s.user);
+  const sync = useAccount((s) => s.sync);
+  const setUI = useApp((s) => s.setUI);
+  return (
+    <Row
+      label={user ? `Signed in as @${user.username}` : "Sync across devices"}
+      desc={
+        user
+          ? sync === "offline"
+            ? "Offline — changes will sync when you're back."
+            : "Your notes, lists, shared links and settings follow you to every device. End-to-end encrypted."
+          : "Create a free account to see your notes on your phone and laptop, and keep every note shared with you in one place."
+      }
+    >
+      <button type="button" className="ghost-btn" onClick={() => setUI({ settings: false, account: true })}>
+        {user ? "Manage" : "Sign in"}
+      </button>
+    </Row>
   );
 }
 
@@ -182,6 +246,9 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
           <Row label="Accent" desc="Tints the caret, checkmarks and the glow.">
             <Swatches />
           </Row>
+          <Row label="Text color" desc="The color of your writing. Very dark picks get lifted so they stay readable.">
+            <InkPicker />
+          </Row>
           <Row label="Writing font">
             <Segmented label="Writing font" value={settings.font} options={fontOptions} onChange={(font) => setSettings({ font })} />
           </Row>
@@ -221,6 +288,7 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
                   { value: "dark", label: "Dark" },
                   { value: "glass", label: "Glass" },
                   { value: "clear", label: "Clear" },
+                  { value: "crystal", label: "Crystal" },
                 ]}
                 onChange={(backdrop) => setSettings({ backdrop })}
               />
@@ -241,6 +309,10 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
           <Row label="Sounds" desc="Soft ticks when you check things off.">
             <Switch checked={settings.sounds} onChange={(v) => setSettings({ sounds: v })} label="Sounds" />
           </Row>
+        </Section>
+
+        <Section title="Account">
+          <AccountRow />
         </Section>
 
         <Section title="Sharing">

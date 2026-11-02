@@ -14,11 +14,13 @@ import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { Rail } from "./Rail";
 import { NoteEditor } from "./editor/NoteEditor";
+import { ShareView } from "../share/ShareView";
 import { LINK_EVENT } from "./editor/BubbleBar";
 import { useSlash } from "./editor/slash";
 import { CommandPalette } from "./overlays/CommandPalette";
 import { SettingsModal } from "./overlays/Settings";
 import { ShortcutsModal } from "./overlays/Shortcuts";
+import { AccountModal } from "../account/AccountModal";
 import { Toasts } from "./overlays/Toasts";
 import { Eclipse } from "./ui/Eclipse";
 import { ErrorBoundary } from "./ErrorBoundary";
@@ -245,6 +247,7 @@ export function Workspace() {
   const activeId = useApp((s) => s.ui.activeId);
   const view = useApp((s) => s.ui.view);
   const focus = useApp((s) => s.ui.focus);
+  const openShared = useApp((s) => (s.ui.openShared ? (s.shared[s.ui.openShared] ?? null) : null));
   const mobilePane = useApp((s) => s.ui.mobile);
   const isMobile = useIsMobile();
   const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
@@ -289,6 +292,11 @@ export function Workspace() {
           <div className="canvas-scroll" ref={setScroller}>
             {view === "trash" ? (
               <TrashView />
+            ) : openShared ? (
+              // A note someone shared with you, right here in your editor (live, if they let you edit).
+              <div key={`shared-${openShared.id}`} className="note-wrap enter-focus">
+                <ShareView embedded id={openShared.id} keyRaw={openShared.key} />
+              </div>
             ) : activeId ? (
               // Keyed (no exit animation): the next note mounts instantly — so the caret is
               // ready at once — and arrives with its entrance (dawn / focus pull / plain).
@@ -316,6 +324,7 @@ export function Workspace() {
         <CommandPalette />
         <SettingsModal />
         <ShortcutsModal />
+        <AccountModal />
         <Toasts />
       </div>
     </MotionConfig>

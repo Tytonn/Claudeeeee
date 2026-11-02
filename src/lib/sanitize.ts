@@ -1,5 +1,5 @@
 import type { JSONContent } from "@tiptap/core";
-import type { Countdown, Note, ShareRecord, SharePayload, Todo } from "./types";
+import type { Countdown, Note, ShareRecord, SharePayload, Todo, SharedLink } from "./types";
 
 /**
  * Everything that comes from outside this tab's own code — a shared link's decrypted
@@ -73,6 +73,20 @@ export function normalizeShareRecord(raw: unknown): ShareRecord | null {
     rev: typeof raw.rev === "number" ? raw.rev : undefined,
     collab: raw.collab === true ? true : undefined,
     editable: raw.editable === false ? false : undefined,
+    restricted: raw.restricted === true ? true : undefined,
+  };
+}
+
+export function normalizeSharedLink(raw: unknown): SharedLink | null {
+  if (!isObj(raw) || typeof raw.id !== "string" || !/^[A-Za-z0-9]{8,32}$/.test(raw.id) || typeof raw.key !== "string" || !/^[A-Za-z0-9_-]{16,64}$/.test(raw.key)) return null;
+  return {
+    id: raw.id,
+    key: raw.key,
+    title: str(raw.title, 300),
+    from: str(raw.from, 60),
+    role: raw.role === "edit" || raw.role === "view" ? raw.role : null,
+    addedAt: num(raw.addedAt),
+    openedAt: num(raw.openedAt),
   };
 }
 

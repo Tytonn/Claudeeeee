@@ -19,6 +19,7 @@
  */
 import { getStore } from "@netlify/blobs";
 import type { Config, Context } from "@netlify/functions";
+import { type Acl, aclKey, bearer as optionalBearer, readAcl, resolveAccess } from "../lib/common";
 
 type Store = ReturnType<typeof getStore>;
 
@@ -120,16 +121,26 @@ function sealed(raw: unknown, max: number): Sealed {
 
 const clientId = (raw: unknown) => (typeof raw === "number" && Number.isSafeInteger(raw) && raw >= 0 ? raw : 0);
 
-/** Who's asking: the owner, an editor holding the full link, or (when editing is off) nobody. */
-async function role(req: Request, head: Head): Promise<"owner" | "editor"> {
-  const hash = await sha256(bearer(req));
-  if (safeEqual(hash, head.ownerHash)) return "owner";
-  if (safeEqual(hash, head.writeHash)) {
-    if (!head.editable) throw new HttpError(403, "read_only");
-    return "editor";
-  }
-  throw new HttpError(403, "forbidden");
+/**
+ * What this request may do: the owner; people on the access list (removed people get
+ * nothing); everyone else per the link. Writing also needs proof of the link itself —
+ * the token derived from its key — so knowing a share's id alone is never enough.
+ */
+async function access(req: Request, head: Head, acl: Acl | null, write: boolean) {
+  const a = await resolveAccess(req, acl, head.ownerHash, head.editable === false ? "view" : "edit");
+  if (!a.role) throw new HttpError(403, a.reason ?? "forbidden");
+  if (!write || a.role === "owner") return a;
+  const token = optionalBearer(req);
+  if (!token || !safeEqual(await sha256(token), head.writeHash)) throw new HttpError(403, "forbidden");
+  if (a.role !== "edit") throw new HttpError(403, "read_only");
+  return a;
 }
+
+/** What goes back with every catch-up: the link's setting, and what *you* may do. */
+const rights = (head: Head, acl: Acl | null, role: string) => ({
+  editable: acl ? acl.linkRole === "edit" : head.editable,
+  role,
+});
 
 /** Read-modify-write on the head with optimistic concurrency. `fn` returns null for "no change". */
 async function updateHead(store: Store, id: string, fn: (h: Head) => Head | null): Promise<Head> {
@@ -208,24 +219,27 @@ export default async (req: Request, context: Context): Promise<Response> => {
       case "GET": {
         const raw = Number(new URL(req.url).searchParams.get("since") ?? "-1");
         const since = Number.isSafeInteger(raw) && raw >= -1 ? raw : -1;
-        const [head, first] = await Promise.all([
+        const [head, acl, first] = await Promise.all([
           store.get(k.head, { type: "json" }) as Promise<Head | null>,
+          readAcl(store, id),
           probe(store, id, Math.max(since, 0), FIRST_WINDOW),
         ]);
         if (!head) return json({ error: "no_doc" }, 404);
-        return json(await catchUp(store, id, head, since, first));
+        const a = await access(req, head, acl, false);
+        return json({ ...(await catchUp(store, id, head, since, first)), ...rights(head, acl, a.role!) });
       }
 
       // ── Append an update (and/or a compacted snapshot) ─────────────────────
       case "POST": {
         const body = await readJson(req, MAX_SNAP + MAX_ENTRY + 4_000);
         const known = typeof body.since === "number" && Number.isSafeInteger(body.since) && body.since >= -1 ? body.since : -1;
-        const [head, first] = await Promise.all([
+        const [head, acl, first] = await Promise.all([
           store.get(k.head, { type: "json" }) as Promise<Head | null>,
+          readAcl(store, id),
           probe(store, id, Math.max(known, 0), FIRST_WINDOW),
         ]);
         if (!head) return json({ error: "no_doc" }, 404);
-        await role(req, head);
+        const a = await access(req, head, acl, true);
         const c = clientId(body.client);
         // What this writer hasn't seen yet — it goes back in the response either way.
         const caught = await catchUp(store, id, head, known, first);
@@ -284,7 +298,7 @@ export default async (req: Request, context: Context): Promise<Response> => {
           }
         }
 
-        return json({ ...caught, assigned }, assigned ? 201 : 200);
+        return json({ ...caught, ...rights(head, acl, a.role!), assigned }, assigned ? 201 : 200);
       }
 
       // ── Start the log for a share (owner) ───────────────────────────────────
@@ -314,6 +328,9 @@ export default async (req: Request, context: Context): Promise<Response> => {
           updatedAt: now,
         };
         await store.setJSON(k.head, head, { onlyIfNew: true });
+        // Start the access list too (unless the owner's app already made one).
+        const acl: Acl = { v: 1, mode: "link", linkRole: head.editable ? "edit" : "view", ownerHash, linkHash: body.writeHash, members: {}, updatedAt: now };
+        await store.setJSON(aclKey(id), acl, { onlyIfNew: true });
         if (!first.modified) return json({ error: "exists" }, 409);
         return json({ seq: 1, upto: 0, editable: head.editable }, 201);
       }
@@ -323,9 +340,14 @@ export default async (req: Request, context: Context): Promise<Response> => {
         const body = await readJson(req, 2_000);
         const head = (await store.get(k.head, { type: "json" })) as Head | null;
         if (!head) return json({ error: "no_doc" }, 404);
-        if ((await role(req, head)) !== "owner") throw new HttpError(403, "forbidden");
+        const acl = await readAcl(store, id);
+        if ((await access(req, head, acl, false)).role !== "owner") throw new HttpError(403, "forbidden");
         const editable = body.editable !== false;
         const next = await updateHead(store, id, (h) => (h.editable === editable ? null : { ...h, editable, updatedAt: Date.now() }));
+        if (acl && acl.linkRole !== (editable ? "edit" : "view")) {
+          const cur = await store.getWithMetadata(aclKey(id), { type: "json" });
+          if (cur) await store.setJSON(aclKey(id), { ...(cur.data as Acl), linkRole: editable ? "edit" : "view", updatedAt: Date.now() }, cur.etag ? { onlyIfMatch: cur.etag } : {}).catch(() => {});
+        }
         return json({ editable: next.editable });
       }
 

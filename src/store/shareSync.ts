@@ -2,8 +2,8 @@ import { create } from "zustand";
 import { useApp, type AppState } from "./app";
 import { toast } from "./toasts";
 import { isApplyingRemote, storageOk } from "./persist";
-import { fingerprint, newShareKey, seal } from "../lib/crypto";
-import { ApiError, createShare, deleteShare, fetchShare, updateShare } from "../lib/api";
+import { fingerprint, newShareKey, seal, sha256B64, writeTokenFor } from "../lib/crypto";
+import { ApiError, createShare, deleteShare, fetchShare, initPeople, updateShare } from "../lib/api";
 import type { ShareRecord, SharePayload } from "../lib/types";
 
 export const BOARD = "board";
@@ -53,13 +53,16 @@ export async function startShare(
   const key = newShareKey();
   const envelope = await seal(key, payload);
   const created = await createShare(envelope);
-  // Read it straight back, so a link is only handed out once the server really has it.
-  try {
-    await fetchShare(created.id);
-  } catch (err) {
-    if (isGone(err)) throw new Error("The link didn't save on the server. Try again in a moment.");
-    /* offline for a second / can't tell: the create itself succeeded, so go ahead */
-  }
+  // Read it straight back (so a link is only handed out once the server really has it),
+  // and start its access list — anyone with the link, until you say otherwise. Both at once.
+  const [readBack] = await Promise.allSettled([
+    fetchShare(created.id, null, created.token),
+    (async () => {
+      const linkHash = await sha256B64(await writeTokenFor(key));
+      await initPeople(created.id, created.token, { linkHash, mode: "link", linkRole: includes.editable === false ? "view" : "edit" });
+    })(),
+  ]);
+  if (readBack.status === "rejected" && isGone(readBack.reason)) throw new Error("The link didn't save on the server. Try again in a moment.");
   const record: ShareRecord = {
     anchor,
     id: created.id,
@@ -99,7 +102,7 @@ export async function verifyShare(anchor: string): Promise<boolean> {
   const record = useApp.getState().shares[anchor];
   if (!record) return false;
   try {
-    await fetchShare(record.id);
+    await fetchShare(record.id, null, record.token);
     return true;
   } catch (err) {
     if (!isGone(err)) return true;

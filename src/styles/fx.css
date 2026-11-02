@@ -806,3 +806,51 @@ html[data-backdrop="glass"]:is([data-fx="cosmic"], [data-fx="subtle"]) .viewer-m
 html[data-backdrop="clear"]:is([data-fx="cosmic"], [data-fx="subtle"]) .viewer-main {
   background: radial-gradient(closest-side, rgb(3 3 6 / 0.22), rgb(3 3 6 / 0.1) 62%, transparent);
 }
+
+/* Crystal: no glass at all — the panels are just their outlines over the open sky.
+   Every bit of text gets a tiny, crisp drop shadow (plus a faint halo) so it stays sharp. */
+html[data-backdrop="crystal"]:is([data-fx="cosmic"], [data-fx="subtle"]) {
+  --fg-2: #c4c4cc;
+  --fg-3: #a4a4ae;
+  --fg-4: #8b8b96;
+  --fg-5: #6a6a74;
+  --line: rgb(255 255 255 / 0.09);
+}
+html[data-backdrop="crystal"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(.canvas, .sidebar-inner, .rail-inner) {
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+html[data-backdrop="crystal"]:is([data-fx="cosmic"], [data-fx="subtle"]) .canvas,
+html[data-backdrop="crystal"]:is([data-fx="cosmic"], [data-fx="subtle"]) .canvas[data-light] {
+  box-shadow: 0 0 0 1px var(--line);
+}
+html[data-backdrop="crystal"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(.cd-card, .todo-add, .sb-search, .text-input, .pill-btn) {
+  background-color: transparent;
+}
+html[data-backdrop="crystal"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(.canvas, .sidebar-inner, .rail-inner, .viewer-main, .viewer-bar) {
+  text-shadow:
+    0 1px 1px rgb(0 0 0 / 0.9),
+    0 1px 3px rgb(0 0 0 / 0.6),
+    0 0 12px rgb(0 0 0 / 0.38);
+}
+html[data-backdrop="crystal"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(.prose pre, .prose code, .collab-label, .presence-coin) {
+  text-shadow: none;
+}
+html[data-backdrop="crystal"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(svg, .check, .live-dot) {
+  filter: drop-shadow(0 1px 1.5px rgb(0 0 0 / 0.8));
+}
+html[data-backdrop="crystal"]:is([data-fx="cosmic"], [data-fx="subtle"]) .viewer-main {
+  background: none;
+}
+/* Invisible measuring copies of text (the to-do strike) must never cast a shadow, or they
+   show up as ghosts once text gets its halo in Clear/Crystal. */
+.todo-strike {
+  text-shadow: none !important;
+}
+/* Gradient-filled text paints its shadow over the letters themselves; give it a
+   drop-shadow filter instead so it stays solid. */
+html:is([data-backdrop="clear"], [data-backdrop="crystal"]):is([data-fx="cosmic"], [data-fx="subtle"]) :is(.wordmark, .all-done) {
+  text-shadow: none;
+  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.85)) drop-shadow(0 0 8px rgb(0 0 0 / 0.35));
+}

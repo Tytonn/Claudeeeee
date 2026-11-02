@@ -4,8 +4,8 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import type { JSONContent } from "@tiptap/core";
 import NumberFlow from "@number-flow/react";
 import { ArrowRight, Download, Link2Off, Lock, Repeat } from "lucide-react";
-import { ApiError, fetchShare } from "../lib/api";
-import { open } from "../lib/crypto";
+import { ApiError, fetchShare, joinShare } from "../lib/api";
+import { open, writeTokenFor } from "../lib/crypto";
 import type { SharePayload } from "../lib/types";
 import { sanitizePayload } from "../lib/sanitize";
 import { safeDoc } from "../components/editor/safeDoc";
@@ -27,8 +27,10 @@ import { ErrorBoundary } from "../components/ErrorBoundary";
 import { Presence } from "../components/Presence";
 import { readDoc } from "../collab/convert";
 import { LiveNote, useGuestSession, useSessionVersion } from "./LiveNote";
+import { useAccount } from "../account/account";
+import { AccountForm } from "../account/AccountModal";
 
-type Phase = "loading" | "ready" | "missing-key" | "not-found" | "removed" | "bad-key" | "error";
+type Phase = "loading" | "ready" | "missing-key" | "not-found" | "removed" | "bad-key" | "error" | "private" | "waiting" | "kicked";
 
 function ReadOnlyDoc({ doc }: { doc: JSONContent | null }) {
   const editor = useEditor({
@@ -174,6 +176,7 @@ function StateScreen({ phase }: { phase: Phase }) {
     removed: { title: "This link was turned off.", body: "The person who shared it stopped sharing. Anything you saved stays yours." },
     "bad-key": { title: "Can't unlock this.", body: "The link's key doesn't match. Make sure it was copied completely." },
     error: { title: "Couldn't reach the server.", body: "Check your connection and refresh." },
+    kicked: { title: "You don't have access anymore.", body: "The person who shared this note removed you from it. Anything you saved stays yours." },
   };
   const c = copy[phase];
   if (!c) return null;
@@ -199,7 +202,36 @@ function DecodedTitle({ text, decode }: { text: string; decode: boolean }) {
   );
 }
 
-export function ShareView({ id, keyRaw }: { id: string; keyRaw: string }) {
+/** A private link: sign in, then ask the owner to let you in (and wait for them). */
+function AccessScreen({ phase, from, onSignedIn }: { phase: Phase; from?: string; onSignedIn: () => void }) {
+  const user = useAccount((s) => s.user);
+  const who = from || "the person who shared it";
+  if (!user) {
+    return (
+      <motion.div className="viewer-state access" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}>
+        <div className="access-card">
+          <AccountForm intro={`This note is private. Sign in (or create an account in a few seconds) and ${who} can let you in.`} initialMode="up" onDone={onSignedIn} />
+        </div>
+      </motion.div>
+    );
+  }
+  return (
+    <motion.div className="viewer-state" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}>
+      <div className="viewer-state-mark waiting">
+        <Eclipse progress={0.72} size={40} className="spin-glow" />
+      </div>
+      <h1 className="display">{phase === "waiting" ? "Asked to join" : "Asking to join…"}</h1>
+      <p>
+        {phase === "waiting"
+          ? `We let ${who} know you'd like in. This page opens by itself the moment they say yes.`
+          : "One moment…"}
+      </p>
+      <p className="viewer-state-fine mono">signed in as @{user.username}</p>
+    </motion.div>
+  );
+}
+
+export function ShareView({ id, keyRaw, embedded = false }: { id: string; keyRaw: string; embedded?: boolean }) {
   const [phase, setPhase] = useState<Phase>(keyRaw ? "loading" : "missing-key");
   const [payload, setPayload] = useState<SharePayload | null>(null);
   const [updatedAt, setUpdatedAt] = useState(0);
@@ -217,18 +249,69 @@ export function ShareView({ id, keyRaw }: { id: string; keyRaw: string }) {
   useSessionVersion(session);
   const [liveTitle, setLiveTitle] = useState("");
   const sessionStatus = session?.status;
+  const user = useAccount((s) => s.user);
+  const [reload, setReload] = useState(0);
+  const [role, setRole] = useState<"edit" | "view" | "pending" | null>(null);
   useEffect(() => {
     if (sessionStatus === "gone") setPhase("removed");
-  }, [sessionStatus]);
+    if (sessionStatus === "denied") setPhase(session?.denied === "removed" ? "kicked" : session?.denied === "pending" ? "waiting" : "private");
+  }, [sessionStatus, session]);
+
+  // Signed in? Tell the owner who you are (you show up on their list), and find out what you may do.
+  const joinedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!user || !keyRaw || ownAnchor) return;
+    if (phase !== "ready" && phase !== "private" && phase !== "waiting") return;
+    let stopped = false;
+    let timer = 0;
+    const ask = async () => {
+      try {
+        const res = await joinShare(id, await writeTokenFor(keyRaw), useApp.getState().settings.name.trim() || user.username);
+        if (stopped) return;
+        joinedFor.current = `${user.uid}:${id}`;
+        setRole(res.role);
+        if (res.role === "pending") {
+          setPhase("waiting");
+          timer = window.setTimeout(ask, 4000);
+        } else if (phase !== "ready") {
+          // Let in: load it for real.
+          setPhase("loading");
+          setReload((n) => n + 1);
+        }
+      } catch (err) {
+        if (stopped) return;
+        if (err instanceof ApiError && err.code === "removed") setPhase("kicked");
+        else if (phase !== "ready") timer = window.setTimeout(ask, 6000);
+      }
+    };
+    if (phase !== "ready" || joinedFor.current !== `${user.uid}:${id}`) void ask();
+    return () => {
+      stopped = true;
+      window.clearTimeout(timer);
+    };
+  }, [user, phase, id, keyRaw, ownAnchor]);
+
+  // Keep it in your "Shared with you" list (synced to your account, if you have one).
+  useEffect(() => {
+    if (phase !== "ready" || !payload || ownAnchor || !keyRaw) return;
+    const title = (live ? liveTitle : payload.note?.title) || (payload.note ? "Untitled" : "To-dos & countdowns");
+    const s = useApp.getState();
+    const prev = s.shared[id];
+    const now = Date.now();
+    const nextRole = role === "edit" || role === "view" ? role : (prev?.role ?? null);
+    if (prev && prev.title === title && prev.from === (payload.from ?? "") && prev.role === nextRole && now - prev.openedAt < 60_000) return;
+    s.putShared({ id, key: keyRaw, title, from: payload.from ?? "", role: nextRole, addedAt: prev?.addedAt ?? now, openedAt: now });
+  }, [phase, payload, live, liveTitle, ownAnchor, id, keyRaw, role]);
 
   // A vast moon hangs above the page; its corona arcs across the top of the sky.
   useEffect(() => {
+    if (embedded) return;
     fx.setMoon(() => {
       const r = Math.max(innerWidth * 0.46, 380);
       return { x: innerWidth / 2, y: -r * 0.64, r };
     });
     return () => fx.setMoon(null);
-  }, []);
+  }, [embedded]);
 
   useEffect(() => {
     if (!keyRaw) return;
@@ -236,6 +319,7 @@ export function ShareView({ id, keyRaw }: { id: string; keyRaw: string }) {
     let timer = 0;
     let interval = 4000;
     let etag: string | null = null;
+    let lastRev = -1;
 
     const schedule = () => {
       window.clearTimeout(timer);
@@ -253,10 +337,22 @@ export function ShareView({ id, keyRaw }: { id: string; keyRaw: string }) {
           stopped = true;
           return;
         }
+        // A private link, or the owner removed you.
+        if (err instanceof ApiError && (err.code === "restricted" || err.code === "pending" || err.code === "removed")) {
+          setPhase(err.code === "removed" ? "kicked" : err.code === "pending" ? "waiting" : "private");
+          stopped = true;
+          return;
+        }
         if (!loaded.current) setPhase("error");
         interval = Math.min(30_000, interval * 2);
         schedule();
         return;
+      }
+      if (res && res.share.rev === lastRev) {
+        // Same version as before (some CDNs weaken the ETag, so this can come back as a
+        // full response): nothing changed — no light show, and keep easing off.
+        etag = res.etag;
+        res = null;
       }
       if (res) {
         try {
@@ -264,6 +360,7 @@ export function ShareView({ id, keyRaw }: { id: string; keyRaw: string }) {
           if (!data) throw new Error("empty_payload");
           if (data.note) data.note.doc = safeDoc(data.note.doc, data.note.text);
           etag = res.etag;
+          lastRev = res.share.rev;
           setPayload(data);
           setUpdatedAt(res.share.updatedAt);
           if (loaded.current) {
@@ -309,7 +406,7 @@ export function ShareView({ id, keyRaw }: { id: string; keyRaw: string }) {
       window.clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [id, keyRaw]);
+  }, [id, keyRaw, reload]);
 
   useEffect(() => {
     const t = (live ? liveTitle : payload?.note?.title)?.trim();
@@ -327,13 +424,17 @@ export function ShareView({ id, keyRaw }: { id: string; keyRaw: string }) {
 
   return (
     <MotionConfig reducedMotion="user">
-      <div className="viewer">
-        <div className="viewer-glow" aria-hidden />
+      <div className={`viewer ${embedded ? "is-embedded" : ""}`}>
+        {!embedded && <div className="viewer-glow" aria-hidden />}
         <header className="viewer-bar">
-          <button type="button" className="brand" onClick={() => navigate("/")}>
-            <Logo size={20} />
-            <span className="wordmark display">umbra</span>
-          </button>
+          {embedded ? (
+            <span className="viewer-embed-from mono">{payload?.from ? `Shared by ${payload.from}` : "Shared with you"}</span>
+          ) : (
+            <button type="button" className="brand" onClick={() => navigate("/")}>
+              <Logo size={20} />
+              <span className="wordmark display">umbra</span>
+            </button>
+          )}
           <span className="flex" />
           {phase === "ready" && (
             <>
@@ -342,6 +443,11 @@ export function ShareView({ id, keyRaw }: { id: string; keyRaw: string }) {
               <span className={`viewer-live mono ${visible ? "" : "is-paused"} ${session?.status === "offline" ? "is-offline" : ""}`} title="Updates appear here automatically">
                 <span className="live-dot" /> {!visible ? "Paused" : session?.status === "offline" ? "Reconnecting" : session?.canWrite ? "Live · editing" : "Live"}
               </span>
+              {embedded && (
+                <button type="button" className="ghost-btn sm" onClick={() => navigate(`/s/${id}#${keyRaw}`)} title="Open the full page (with any lists)">
+                  Full page
+                </button>
+              )}
               {ownAnchor ? (
                 <button
                   type="button"
@@ -370,7 +476,8 @@ export function ShareView({ id, keyRaw }: { id: string; keyRaw: string }) {
                 <span className="mono">Decrypting…</span>
               </motion.div>
             )}
-            {phase !== "loading" && phase !== "ready" && <StateScreen key="state" phase={phase} />}
+            {(phase === "private" || phase === "waiting") && <AccessScreen key="access" phase={phase} from={payload?.from} onSignedIn={() => {}} />}
+            {phase !== "loading" && phase !== "ready" && phase !== "private" && phase !== "waiting" && <StateScreen key="state" phase={phase} />}
             {phase === "ready" && payload && (
               <motion.div
                 key="ready"
@@ -501,11 +608,13 @@ export function ShareView({ id, keyRaw }: { id: string; keyRaw: string }) {
           </AnimatePresence>
         </main>
 
-        <footer className="viewer-foot">
-          <button type="button" className="link-btn" onClick={() => navigate("/")}>
-            Made with <span className="display">umbra</span> — start writing your own <ArrowRight size={12} strokeWidth={1.8} />
-          </button>
-        </footer>
+        {!embedded && (
+          <footer className="viewer-foot">
+            <button type="button" className="link-btn" onClick={() => navigate("/")}>
+              Made with <span className="display">umbra</span> — start writing your own <ArrowRight size={12} strokeWidth={1.8} />
+            </button>
+          </footer>
+        )}
 
         {payload && (
           <ImportDialog
@@ -514,7 +623,7 @@ export function ShareView({ id, keyRaw }: { id: string; keyRaw: string }) {
             onClose={() => setImportOpen(false)}
           />
         )}
-        <Toasts />
+        {!embedded && <Toasts />}
       </div>
     </MotionConfig>
   );

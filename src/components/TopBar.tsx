@@ -13,6 +13,7 @@ import { Popover } from "./ui/Popover";
 import { Menu } from "./ui/Menu";
 import { noteMenuItems } from "./Sidebar";
 import { ShareSheet } from "./overlays/ShareSheet";
+import { usePending } from "./overlays/People";
 
 function SaveStatus({ noteId }: { noteId: string }) {
   const savedAt = useApp((s) => s.ui.savedAt);
@@ -58,6 +59,7 @@ export function TopBar() {
   const shareAnchor = useApp((s) => s.ui.share);
   const shared = useApp((s) => Boolean(activeId && s.shares[activeId]));
   const status = useShareStatus((s) => (activeId ? s[activeId] : undefined));
+  const pending = usePending((s) => (activeId ? (s[activeId] ?? 0) : 0));
   const setUI = useApp((s) => s.setUI);
   const setSettings = useApp((s) => s.setSettings);
   const isMobile = useIsMobile();
@@ -66,7 +68,8 @@ export function TopBar() {
   const [moreOpen, setMoreOpen] = useState(false);
 
   const railFeature = settings.todos || settings.countdowns;
-  const showNoteTools = view === "notes" && note && !note.deletedAt;
+  const openShared = useApp((s) => s.ui.openShared);
+  const showNoteTools = view === "notes" && note && !note.deletedAt && !openShared;
 
   return (
     <div className="topbar">
@@ -98,6 +101,7 @@ export function TopBar() {
               >
                 {shared ? <span className={`live-dot ${status === "syncing" ? "is-syncing" : ""} ${status === "error" ? "is-error" : ""}`} /> : <Share size={14} strokeWidth={1.8} />}
                 <span>{shared ? "Live" : "Share"}</span>
+                {pending > 0 && <span className="pill-badge" aria-label={`${pending} waiting to be let in`}>{pending}</span>}
               </button>
             </Tooltip>
             <IconButton ref={moreBtn} label="More" onClick={() => setMoreOpen((v) => !v)} active={moreOpen}>

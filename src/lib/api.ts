@@ -9,10 +9,18 @@ export class ApiError extends Error {
   }
 }
 
+/** The signed-in account's session, sent with every request so links know who you are. */
+let sessionToken: string | null = null;
+export function setSessionToken(token: string | null) {
+  sessionToken = token;
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<{ status: number; body: T | null; etag: string | null }> {
   let res: Response;
   try {
-    res = await fetch(path, { cache: "no-store", ...init });
+    const headers = new Headers(init.headers);
+    if (sessionToken && !headers.has("x-umbra-session")) headers.set("x-umbra-session", sessionToken);
+    res = await fetch(path, { cache: "no-store", ...init, headers });
   } catch {
     throw new ApiError(0, "offline");
   }
@@ -56,11 +64,12 @@ export async function deleteShare(id: string, token: string): Promise<void> {
   });
 }
 
-/** Returns null when unchanged (304). */
-export async function fetchShare(id: string, etag?: string | null): Promise<{ share: RemoteShare; etag: string | null } | null> {
-  const { status, body, etag: nextTag } = await request<RemoteShare>(`/api/shares/${encodeURIComponent(id)}`, {
-    headers: etag ? { "if-none-match": etag } : {},
-  });
+/** Returns null when unchanged (304). The owner passes their token so private links still open for them. */
+export async function fetchShare(id: string, etag?: string | null, ownerToken?: string): Promise<{ share: RemoteShare; etag: string | null } | null> {
+  const headers: Record<string, string> = {};
+  if (etag) headers["if-none-match"] = etag;
+  if (ownerToken) headers.authorization = `Bearer ${ownerToken}`;
+  const { status, body, etag: nextTag } = await request<RemoteShare>(`/api/shares/${encodeURIComponent(id)}`, { headers });
   if (status === 304) return null;
   return { share: body!, etag: nextTag };
 }
@@ -72,7 +81,10 @@ export type DocEntry = Sealed & { n: number; c: number };
 export type DocCatchUp = {
   seq: number;
   upto: number;
+  /** The link's own setting ("friends can edit"). */
   editable: boolean;
+  /** What you may do: owner, edit or view. */
+  role?: "owner" | "edit" | "view";
   snap: (Sealed & { upto: number }) | null;
   entries: DocEntry[];
   more: boolean;
@@ -81,8 +93,9 @@ export type DocCatchUp = {
 
 const docPath = (id: string) => `/api/shares/${encodeURIComponent(id)}/doc`;
 
-export async function fetchDoc(id: string, since: number): Promise<DocCatchUp> {
-  const { body } = await request<DocCatchUp>(`${docPath(id)}?since=${since}`);
+/** `token` (owner or link write token) lets the owner in even when the link is private. */
+export async function fetchDoc(id: string, since: number, token?: string): Promise<DocCatchUp> {
+  const { body } = await request<DocCatchUp>(`${docPath(id)}?since=${since}`, token ? { headers: { authorization: `Bearer ${token}` } } : {});
   return body!;
 }
 
@@ -119,4 +132,76 @@ export async function setDocEditable(id: string, ownerToken: string, editable: b
     body: JSON.stringify({ editable }),
   });
   return body!;
+}
+
+// ── Accounts ──────────────────────────────────────────────────────────────
+
+export type SessionInfo = { token: string; uid: string; username: string };
+
+export async function apiSignup(body: { username: string; auth: string; wrapped: Sealed }) {
+  const { body: res } = await request<SessionInfo>("/api/account/signup", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  return res!;
+}
+
+export async function apiLogin(body: { username: string; auth: string }) {
+  const { body: res } = await request<SessionInfo & { wrapped: Sealed }>("/api/account/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  return res!;
+}
+
+export async function apiLogout() {
+  await request("/api/account/logout", { method: "POST" });
+}
+
+// ── Sync ──────────────────────────────────────────────────────────────────
+
+export type SyncItem = { key: string; rev: number; at: number; del?: boolean; missing?: boolean; iv?: string; data?: string };
+
+export async function syncPull(since: number) {
+  const { body } = await request<{ seq: number; items: SyncItem[]; more: boolean }>(`/api/sync?since=${since}`);
+  return body!;
+}
+
+export async function syncPush(items: { key: string; base: number; at: number; del?: boolean; iv?: string; data?: string }[]) {
+  const { body } = await request<{ seq: number; results: { key: string; rev: number }[]; conflicts: { key: string; rev: number }[] }>("/api/sync", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ items }),
+  });
+  return body!;
+}
+
+// ── People on a shared link ───────────────────────────────────────────────
+
+export type Person = { uid: string; username: string; name: string; role: "edit" | "view" | "pending" | "blocked"; at: number; seen: number };
+export type People = { mode: "link" | "restricted"; linkRole: "edit" | "view"; members: Person[] };
+const peoplePath = (id: string) => `/api/shares/${encodeURIComponent(id)}/people`;
+const ownerHeaders = (token: string) => ({ "content-type": "application/json", authorization: `Bearer ${token}` });
+
+export async function initPeople(id: string, ownerToken: string, body: { linkHash: string; mode?: "link" | "restricted"; linkRole?: "edit" | "view" }) {
+  const { body: res } = await request<People>(peoplePath(id), { method: "PUT", headers: ownerHeaders(ownerToken), body: JSON.stringify(body) });
+  return res!;
+}
+
+export async function getPeople(id: string, ownerToken: string) {
+  const { body } = await request<People>(peoplePath(id), { headers: { authorization: `Bearer ${ownerToken}` } });
+  return body!;
+}
+
+export async function patchPeople(id: string, ownerToken: string, patch: { mode?: "link" | "restricted"; linkRole?: "edit" | "view"; uid?: string; role?: "edit" | "view" | "blocked" | "remove" }) {
+  const { body } = await request<People>(peoplePath(id), { method: "PATCH", headers: ownerHeaders(ownerToken), body: JSON.stringify(patch) });
+  return body!;
+}
+
+export async function joinShare(id: string, proof: string, name: string) {
+  const { body } = await request<{ role: "edit" | "view" | "pending"; mode: "link" | "restricted"; listed: boolean }>(`/api/shares/${encodeURIComponent(id)}/join`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ proof, name }),
+  });
+  return body!;
+}
+
+export async function usernameAvailable(username: string) {
+  const { body } = await request<{ available: boolean }>(`/api/account/available?username=${encodeURIComponent(username)}`);
+  return body!.available;
 }

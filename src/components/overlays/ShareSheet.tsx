@@ -14,6 +14,7 @@ import { fx } from "../../fx/engine";
 import { useScramble } from "../../fx/useScramble";
 import { setEditable, useCollabSession } from "../../collab/manager";
 import { Presence } from "../Presence";
+import { PeoplePanel } from "./People";
 
 function explain(err: unknown): string {
   if (err instanceof ApiError) {
@@ -247,6 +248,7 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
                       : "Live — they'll see your edits as you make them"}
                 {session && <Presence session={session} withNames />}
               </div>
+              <PeoplePanel anchor={anchor} />
               <div className="share-actions">
                 {typeof navigator.share === "function" && (
                   <button type="button" className="ghost-btn" onClick={() => void sendNative()}>

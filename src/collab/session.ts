@@ -20,8 +20,8 @@ export const REMOTE = "umbra-remote";
 
 export type CollabUser = { name: string; color: string };
 export type Collaborator = CollabUser & { clientId: number; self: boolean };
-/** gone: the link was turned off · missing: there's no live doc for it (yet) */
-export type SessionStatus = "connecting" | "live" | "offline" | "gone" | "missing";
+/** gone: the link was turned off · missing: no live doc for it (yet) · denied: the owner removed you, or it's private */
+export type SessionStatus = "connecting" | "live" | "offline" | "gone" | "missing" | "denied";
 
 // ── Wire format of one log entry, inside the encryption ─────────────────────
 // [version = 1][u32 doc length][doc update][u32 awareness length][awareness update]
@@ -94,8 +94,12 @@ export class CollabSession {
   readonly shareId: string;
   readonly owner: boolean;
   status: SessionStatus = "connecting";
-  /** Whether the owner lets friends edit. */
+  /** Whether the owner lets friends (via the link) edit. */
   editable = true;
+  /** What *you* may do here, as the server sees it. */
+  role: "owner" | "edit" | "view" | null = null;
+  /** Why you were turned away (removed / restricted / pending). */
+  denied: string | null = null;
   /** Highest log entry applied (contiguous). */
   seq: number;
   /** Bumped on every change worth re-rendering for. */
@@ -197,7 +201,8 @@ export class CollabSession {
   }
 
   get canWrite() {
-    return this.status !== "gone" && this.status !== "missing" && (this.owner || this.editable);
+    if (this.status === "gone" || this.status === "missing" || this.status === "denied") return false;
+    return this.owner || (this.role ? this.role === "edit" : this.editable);
   }
 
   /** Everyone with this doc open right now (you included). */
@@ -336,7 +341,7 @@ export class CollabSession {
     if (this.stopped) return;
     window.clearTimeout(this.pollTimer);
     this.pollTimer = 0;
-    if (document.hidden || this.status === "gone" || this.status === "missing") return;
+    if (document.hidden || this.status === "gone" || this.status === "missing" || this.status === "denied") return;
     // Cadence is measured from when the last poll started, so slow round trips don't add up.
     const wait = delay ?? Math.max(0, this.interval() - (Date.now() - this.pollStarted));
     this.pollTimer = window.setTimeout(() => void this.poll(), wait);
@@ -380,7 +385,7 @@ export class CollabSession {
     try {
       let res: DocCatchUp;
       do {
-        res = await fetchDoc(this.shareId, this.seq);
+        res = await fetchDoc(this.shareId, this.seq, this.token);
         if (this.stopped) return;
         await this.apply(res);
       } while (res.more);
@@ -432,8 +437,10 @@ export class CollabSession {
       }
     }
     if (fromOthers) this.lastRemote = Date.now();
-    const editableChanged = this.editable !== res.editable;
+    const role = this.owner ? "owner" : res.role === "edit" || res.role === "view" ? res.role : res.editable ? "edit" : "view";
+    const editableChanged = this.editable !== res.editable || this.role !== role;
     this.editable = res.editable;
+    this.role = role;
     this.upto = res.upto;
     this.seq = Math.max(this.seq, res.seq);
     if (!this.synced) {
@@ -446,8 +453,13 @@ export class CollabSession {
   private fail(err: unknown) {
     if (err instanceof ApiError) {
       if (err.code === "read_only") {
-        this.editable = false;
+        this.role = "view";
         this.emit();
+        return;
+      }
+      if (err.code === "removed" || err.code === "restricted" || err.code === "pending") {
+        this.denied = err.code;
+        this.setStatus("denied");
         return;
       }
       if (err.code === "no_doc") {
