@@ -4,7 +4,7 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  height: 100dvh;
+  height: var(--app-h, 100dvh);
   overflow-x: hidden;
   overflow-y: auto;
 }

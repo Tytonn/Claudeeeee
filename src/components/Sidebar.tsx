@@ -8,7 +8,7 @@ import { noteGroup, shortStamp } from "../lib/dates";
 import { useNow } from "../lib/hooks";
 import { ALT, MOD } from "../lib/theme";
 import { spring } from "../lib/motion";
-import { copyMarkdown, downloadMarkdown, duplicateNote, flushEditor, newNote, openShare, togglePin, trashNote } from "../lib/actions";
+import { copyMarkdown, downloadMarkdown, duplicateNote, flushEditor, newNote, openSearch, openShare, togglePin, trashNote } from "../lib/actions";
 import { Logo } from "./ui/Eclipse";
 import { IconButton } from "./ui/IconButton";
 import { Kbd } from "./ui/Kbd";
@@ -137,9 +137,14 @@ export function Sidebar() {
             <Logo size={20} />
             <span className="wordmark display">umbra</span>
           </div>
-          <IconButton label="New note" kbd={`${ALT} N`} onClick={() => newNote()} data-magnetic>
-            <SquarePen size={16} strokeWidth={1.7} />
-          </IconButton>
+          <div className="sb-head-actions">
+            <IconButton label="Search" tooltip={false} className="sb-mobile-only" onClick={openSearch}>
+              <Search size={17} strokeWidth={1.8} />
+            </IconButton>
+            <IconButton label="New note" kbd={`${ALT} N`} onClick={() => newNote()} data-magnetic>
+              <SquarePen size={16} strokeWidth={1.7} />
+            </IconButton>
+          </div>
         </header>
 
         <button type="button" className="sb-search" data-light onClick={() => setUI({ palette: true })}>

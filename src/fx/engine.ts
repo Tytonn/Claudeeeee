@@ -1,5 +1,6 @@
 import { mixRgb, oklchToRgb, to255, type RGB } from "./color";
 import { Sky, type SceneId } from "./sky";
+import { viewportHeight } from "../lib/platform";
 
 /**
  * umbra's light engine. One animation loop drives three layers:
@@ -211,7 +212,7 @@ class FxEngine {
 
   private resize() {
     this.W = innerWidth;
-    this.H = innerHeight;
+    this.H = viewportHeight();
     this.dpr = Math.min(devicePixelRatio || 1, 2);
     this.sky?.resize(this.W, this.H, this.baseSkyScale * this.skyScale);
     for (const [c, ctx] of [
@@ -277,6 +278,15 @@ class FxEngine {
   onThunder(fn: (t: Thunder) => void) {
     this.thunderFns.add(fn);
     return () => this.thunderFns.delete(fn);
+  }
+
+  /** Fades the sky up from dark — how a scene change looks where view transitions aren't used. */
+  fadeSky(dur = 1000) {
+    if (!this.active) return;
+    const frames = [{ opacity: 0 }, { opacity: 1 }];
+    const timing = { duration: dur, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" };
+    this.skyCanvas?.animate(frames, timing);
+    this.dustCanvas?.animate(frames, timing);
   }
 
   /** Renders the sky right now (so a view transition can capture the new scene). */

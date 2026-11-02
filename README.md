@@ -67,6 +67,7 @@
 - Command palette (<kbd>Ctrl/⌘ K</kbd>) for searching notes and running any command.
 - Focus mode, fade-while-typing, 7 accent colors (each one recolors the whole sky), 3 writing fonts (Sans / Serif / Mono), 3 text sizes, 3 effect levels, optional sounds.
 - Works on phones, prints cleanly, keyboard-first everywhere (press <kbd>?</kbd>).
+- On a phone it moves like a native app: the list and a note slide over each other, search is a button up top that opens with the keyboard ready, and added to the Home Screen it fills the whole screen, edge to edge.
 
 ---
 

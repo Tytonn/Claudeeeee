@@ -38,6 +38,7 @@ import { download } from "../../lib/actions";
 import { spring } from "../../lib/motion";
 import { Modal } from "../ui/Modal";
 import { Kbd } from "../ui/Kbd";
+import { changeScene } from "../../fx/transitions";
 
 type Item = {
   id: string;
@@ -180,8 +181,8 @@ function useItems(query: string): Item[] {
       ...(settings.effects !== "off"
         ? [
             settings.scene === "rain"
-              ? { id: "scene", group: "Appearance", label: "Back to the eclipse", icon: <Moon size={15} strokeWidth={1.6} />, keywords: "scene theme space stars sky background eclipse", run: () => s.setSettings({ scene: "eclipse" }) }
-              : { id: "scene", group: "Appearance", label: "Make it rain", icon: <CloudRain size={15} strokeWidth={1.6} />, keywords: "scene theme rain storm city night window background", run: () => s.setSettings({ scene: "rain" }) },
+              ? { id: "scene", group: "Appearance", label: "Back to the eclipse", icon: <Moon size={15} strokeWidth={1.6} />, keywords: "scene theme space stars sky background eclipse", run: () => window.setTimeout(() => changeScene("eclipse"), 240) }
+              : { id: "scene", group: "Appearance", label: "Make it rain", icon: <CloudRain size={15} strokeWidth={1.6} />, keywords: "scene theme rain storm city night window background", run: () => window.setTimeout(() => changeScene("rain"), 240) },
             ...(settings.scene === "rain"
               ? [
                   {

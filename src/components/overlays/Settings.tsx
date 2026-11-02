@@ -1,5 +1,4 @@
 import { useRef, useState, type ReactNode } from "react";
-import { flushSync } from "react-dom";
 import { motion } from "motion/react";
 import { Download, FileText, LayoutList, Link2, Upload, X } from "lucide-react";
 import { useApp } from "../../store/app";
@@ -8,8 +7,6 @@ import { exportAll, importBackup } from "../../store/persist";
 import { toast } from "../../store/toasts";
 import { ACCENTS, FONTS } from "../../lib/theme";
 import type { AccentId, BackdropId, EffectsId, FontId, RainAmountId, SceneId, SizeId } from "../../lib/types";
-import { fx } from "../../fx/engine";
-import { oklchToRgb, to255 } from "../../fx/color";
 import { displayTitle } from "../../lib/text";
 import { relativeLong } from "../../lib/dates";
 import { download, flushEditor } from "../../lib/actions";
@@ -20,6 +17,7 @@ import { Switch } from "../ui/Switch";
 import { Segmented } from "../ui/Segmented";
 import { IconButton } from "../ui/IconButton";
 import { Eclipse } from "../ui/Eclipse";
+import { changeAccent, changeScene } from "../../fx/transitions";
 
 function Row({ label, desc, children, htmlFor }: { label: string; desc?: ReactNode; children: ReactNode; htmlFor?: string }) {
   return (
@@ -44,86 +42,6 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-/** The new accent floods out from the swatch, like light spilling across the room. */
-function pickAccent(id: AccentId, e: React.MouseEvent) {
-  const set = () => useApp.getState().setSettings({ accent: id });
-  const x = e.clientX;
-  const y = e.clientY;
-  const start = (document as Document & { startViewTransition?: (cb: () => void) => { ready: Promise<void>; finished: Promise<void> } })
-    .startViewTransition;
-  if (!start || !fx.active || useApp.getState().settings.accent === id) {
-    set();
-    return;
-  }
-  const root = document.documentElement;
-  root.classList.add("vt-accent");
-  const t = start.call(document, () => flushSync(set));
-  const radius = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
-  t.ready
-    .then(() => {
-      root.animate(
-        { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${radius}px at ${x}px ${y}px)`] },
-        { duration: 780, easing: "cubic-bezier(0.22, 0.9, 0.25, 1)", pseudoElement: "::view-transition-new(root)" },
-      );
-      const c = to255(oklchToRgb(ACCENTS[id].color));
-      fx.ring(x, y, 8, 120, { dur: 700, color: c });
-      fx.burst(x, y, { count: 30, speed: 260, colors: [c, [255, 255, 255]], life: 0.9 });
-    })
-    .catch(() => {});
-  t.finished.finally(() => root.classList.remove("vt-accent"));
-}
-
-type ViewTransitionStart = (cb: () => void) => { ready: Promise<void>; finished: Promise<void> };
-
-/** Where the falling sheet of rain has got to: its lower edge, with drips running ahead. */
-const DRIPS = Array.from({ length: 29 }, (_, i) => (i % 2 ? 0.25 + Math.random() * 0.75 : Math.random() * 0.25));
-function curtain(k: number) {
-  const pts = ["0% -20%", "100% -20%"];
-  for (let i = DRIPS.length - 1; i >= 0; i--) pts.push(`${((i / (DRIPS.length - 1)) * 100).toFixed(2)}% ${(k * 100 + DRIPS[i] * 16 - 8).toFixed(2)}%`);
-  return `polygon(${pts.join(", ")})`;
-}
-
-/**
- * Changing the scene. Rain comes down over everything like a sheet of water running down
- * the window; the eclipse opens out from where you clicked, like the accent does.
- */
-function pickScene(id: SceneId, e: React.MouseEvent) {
-  const s = useApp.getState();
-  if (s.settings.scene === id) return;
-  const set = () => s.setSettings({ scene: id });
-  const start = (document as Document & { startViewTransition?: ViewTransitionStart }).startViewTransition;
-  if (!start || !fx.active) {
-    set();
-    return;
-  }
-  const root = document.documentElement;
-  root.classList.add("vt-accent");
-  const x = e.clientX;
-  const y = e.clientY;
-  const t = start.call(document, () => {
-    flushSync(set);
-    fx.renderNow();
-  });
-  t.ready
-    .then(() => {
-      if (fx.rain) {
-        root.animate(
-          { clipPath: [curtain(-0.18), curtain(0.5), curtain(1.2)] },
-          { duration: 1300, easing: "cubic-bezier(0.5, 0, 0.3, 1)", pseudoElement: "::view-transition-new(root)" },
-        );
-      } else {
-        const radius = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
-        root.animate(
-          { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${radius}px at ${x}px ${y}px)`] },
-          { duration: 900, easing: "cubic-bezier(0.22, 0.9, 0.25, 1)", pseudoElement: "::view-transition-new(root)" },
-        );
-        fx.ring(x, y, 8, 140, { dur: 800 });
-      }
-    })
-    .catch(() => {});
-  t.finished.finally(() => root.classList.remove("vt-accent"));
-}
-
 const SCENES: { id: SceneId; name: string; sub: string }[] = [
   { id: "eclipse", name: "Eclipse", sub: "A living corona in deep space" },
   { id: "rain", name: "Rain", sub: "A city at night, through a wet window" },
@@ -136,7 +54,7 @@ function ScenePicker() {
       {SCENES.map((sc) => {
         const on = (scene === "rain" ? "rain" : "eclipse") === sc.id;
         return (
-          <button key={sc.id} type="button" role="radio" aria-checked={on} className={`scene-card is-${sc.id} ${on ? "is-on" : ""}`} onClick={(e) => pickScene(sc.id, e)}>
+          <button key={sc.id} type="button" role="radio" aria-checked={on} className={`scene-card is-${sc.id} ${on ? "is-on" : ""}`} onClick={(e) => changeScene(sc.id, e.clientX, e.clientY)}>
             <span className="scene-art" aria-hidden>
               {sc.id === "eclipse" ? (
                 <Eclipse progress={1} size={34} />
@@ -194,7 +112,7 @@ function Swatches() {
           title={ACCENTS[id].name}
           className="swatch"
           style={{ "--sw": ACCENTS[id].color } as React.CSSProperties}
-          onClick={(e) => pickAccent(id, e)}
+          onClick={(e) => changeAccent(id, e.clientX, e.clientY)}
         >
           {accent === id && <motion.span layoutId="swatch-ring" className="swatch-ring" transition={spring} />}
           <span className="swatch-core" />

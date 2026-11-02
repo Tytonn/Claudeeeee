@@ -6,7 +6,7 @@
   position: relative;
   display: grid;
   grid-template-columns: var(--sb-col) minmax(0, 1fr) var(--rail-col);
-  height: 100dvh;
+  height: var(--app-h, 100dvh);
   transition: grid-template-columns 520ms var(--ease-out);
 }
 .app.has-sidebar {
@@ -24,7 +24,7 @@ html:not(.is-ready) .app {
 .rail {
   position: relative;
   min-width: 0;
-  height: 100dvh;
+  height: var(--app-h, 100dvh);
   overflow: hidden;
 }
 
@@ -355,6 +355,11 @@ html:not(.is-ready) .app {
 .sb-mobile-only {
   display: none !important;
 }
+.sb-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
 
 /* ── Rail ────────────────────────────────────────────────────────────────── */
 
@@ -556,7 +561,7 @@ html[data-typing] .topbar:hover {
   position: absolute;
   inset: 0;
   width: 100%;
-  height: 100dvh;
+  height: var(--app-h, 100dvh);
   margin: 0;
   border-radius: 0;
   transition:
@@ -571,11 +576,28 @@ html[data-typing] .topbar:hover {
   transform: none;
   pointer-events: auto;
 }
+/* Plenty of room under the status bar: iPhones soften whatever sits right below it. */
 .app.is-mobile .sidebar-inner {
-  padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom)) 14px;
+  padding: calc(env(safe-area-inset-top) + 20px) 12px max(12px, env(safe-area-inset-bottom)) 14px;
 }
 .app.is-mobile .rail-inner {
-  padding: max(12px, env(safe-area-inset-top)) 14px max(40px, env(safe-area-inset-bottom)) 14px;
+  padding: calc(env(safe-area-inset-top) + 20px) 14px max(40px, env(safe-area-inset-bottom)) 14px;
+}
+.app.is-mobile .sb-head {
+  height: 44px;
+  margin-bottom: 14px;
+}
+/* On a phone, search is a button up top (it opens with the keyboard ready), not a whole bar. */
+.app.is-mobile .sb-search {
+  display: none;
+}
+.app.is-mobile .sb-head .icon-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+}
+.app.is-mobile .wordmark {
+  font-size: 27px;
 }
 .app.is-mobile .sb-item {
   height: 42px;
@@ -600,6 +622,14 @@ html[data-typing] .topbar:hover {
 .app.is-mobile[data-pane="rail"] > .rail {
   transform: none;
   visibility: visible;
+  transition:
+    transform 460ms var(--ease-out),
+    opacity 460ms var(--ease-out),
+    visibility 0s linear 0s;
+}
+/* Going back: the list is there from the first frame, gliding in under the page as it leaves
+   (without this it stayed hidden until the page had gone, then popped in all at once). */
+.app.is-mobile[data-pane="list"] > .sidebar {
   transition:
     transform 460ms var(--ease-out),
     opacity 460ms var(--ease-out),
@@ -667,7 +697,9 @@ html[data-typing] .topbar:hover {
 @media (hover: none) {
   .sb-search .kbd-group,
   .empty-hints,
-  .sb-foot-icons .icon-btn[aria-label="Keyboard shortcuts"] {
+  .sb-foot-icons .icon-btn[aria-label="Keyboard shortcuts"],
+  .palette-body .kbd-group,
+  .palette-foot {
     display: none !important;
   }
 }
@@ -775,7 +807,7 @@ html[data-typing] .topbar:hover {
   align-items: center;
   justify-content: center;
   gap: 14px;
-  min-height: 100dvh;
+  min-height: var(--app-h, 100dvh);
   padding: 24px;
   text-align: center;
 }

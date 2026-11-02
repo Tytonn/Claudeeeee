@@ -28,10 +28,12 @@ import { fx } from "./fx/engine";
 import { startPointerLight } from "./fx/dom";
 import { setSoundEnabled, setSoundTheme } from "./lib/sound";
 import { setRainSound, thunder } from "./lib/ambience";
+import { startViewportFit } from "./lib/platform";
 import { App } from "./App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
 async function boot() {
+  startViewportFit();
   const data = await loadAll();
   useApp.getState().hydrate(data);
 
