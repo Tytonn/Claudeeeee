@@ -20,13 +20,22 @@ export type RainFrame = {
   wind: number;
   /** Fades the whole scene in when it first appears. */
   fade: number;
+  /** How out of focus the city is, 0..1. */
+  blur: number;
 };
 
 export type SkyFrame = {
   scene: SceneId;
   time: number;
   mouse: { x: number; y: number }; // CSS px
-  panel: { x: number; y: number; w: number; h: number; r: number; circle: boolean }; // CSS px rect
+  panel: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    r: number;
+    circle: boolean;
+  }; // CSS px rect
   a: RGB;
   b: RGB;
   energy: number;
@@ -38,7 +47,10 @@ export type SkyFrame = {
 };
 
 type GL = WebGLRenderingContext | WebGL2RenderingContext;
-type Program = { prog: WebGLProgram; loc: Record<string, WebGLUniformLocation | null> };
+type Program = {
+  prog: WebGLProgram;
+  loc: Record<string, WebGLUniformLocation | null>;
+};
 
 const ECLIPSE_UNIFORMS = [
   "uRes",
@@ -59,7 +71,7 @@ const ECLIPSE_UNIFORMS = [
   "uScale",
   "uQuality",
 ];
-const SCENE_UNIFORMS = ["uRes", "uAspect", "uTime", "uA", "uCity", "uAmount", "uWet", "uFlash", "uWind", "uDim", "uQuality"];
+const SCENE_UNIFORMS = ["uRes", "uAspect", "uTime", "uA", "uCity", "uAmount", "uWet", "uFlash", "uWind", "uDim", "uQuality", "uBlur"];
 const GLASS_UNIFORMS = [
   "uScene",
   "uRes",
@@ -79,6 +91,9 @@ const GLASS_UNIFORMS = [
   "uShock1",
   "uShock2",
   "uFade",
+  "uSceneSize",
+  "uWind",
+  "uBlur",
 ];
 
 const pow2 = (n: number) => Math.pow(2, Math.round(Math.log2(Math.max(1, n))));
@@ -99,9 +114,18 @@ export class Sky {
   private rainGlass: Program | null = null;
   private rainBroken = false;
   private lodExt = false;
-  private target: { fb: WebGLFramebuffer; tex: WebGLTexture; w: number; h: number } | null = null;
+  private target: {
+    fb: WebGLFramebuffer;
+    tex: WebGLTexture;
+    w: number;
+    h: number;
+  } | null = null;
+  /** When the city was last painted (scene time); it's redrawn at most 30 times a second. */
+  private cityAt = -1;
   scale = 1;
   quality = 1;
+  /** City texels per CSS pixel. */
+  cityScale = 0.75;
 
   static create(canvas: HTMLCanvasElement): Sky | null {
     try {
@@ -200,11 +224,12 @@ export class Sky {
     return true;
   }
 
-  /** The texture the city is painted into: about half the screen's resolution. */
+  /** The texture the city is painted into: about the screen's own resolution. */
   private ensureTarget(): boolean {
     const gl = this.gl;
-    let w = Math.max(64, Math.round(this.canvas.width * 0.5));
-    let h = Math.max(64, Math.round(this.canvas.height * 0.5));
+    const k = Math.min(this.cityScale, 2048 / Math.max(1, this.cssW, this.cssH));
+    let w = Math.max(64, Math.round(this.cssW * k));
+    let h = Math.max(64, Math.round(this.cssH * k));
     // WebGL1 can only mipmap power-of-two textures; the stretch doesn't matter, it's sampled by uv.
     if (!this.gl2) {
       w = Math.min(2048, pow2(w));
@@ -237,6 +262,7 @@ export class Sky {
       return false;
     }
     this.target = { fb, tex, w, h };
+    this.cityAt = -1;
     return true;
   }
 
@@ -311,26 +337,32 @@ export class Sky {
     const k = this.scale;
     const fy = (y: number) => (this.cssH - y) * k;
 
-    // 1 · the city, into the texture
+    // 1 · the city, into the texture — it moves slowly, so 30 times a second is plenty
+    // (except while lightning flickers or the glass ripples)
     const S = this.rainScene!;
-    gl.bindFramebuffer(gl.FRAMEBUFFER, T.fb);
-    gl.viewport(0, 0, T.w, T.h);
-    gl.useProgram(S.prog);
-    gl.uniform2f(S.loc.uRes, T.w, T.h);
-    gl.uniform1f(S.loc.uAspect, this.cssW / Math.max(1, this.cssH));
-    gl.uniform1f(S.loc.uTime, f.time);
-    gl.uniform3f(S.loc.uA, f.a[0], f.a[1], f.a[2]);
-    gl.uniform1f(S.loc.uCity, r.city);
-    gl.uniform1f(S.loc.uAmount, r.amount);
-    gl.uniform1f(S.loc.uWet, r.wet);
-    gl.uniform4f(S.loc.uFlash, r.flash, r.boltX, r.boltSeed, r.bolt);
-    gl.uniform1f(S.loc.uWind, r.wind);
-    gl.uniform1f(S.loc.uDim, f.dim);
-    gl.uniform1f(S.loc.uQuality, this.quality);
-    gl.drawArrays(gl.TRIANGLES, 0, 3);
-    gl.bindTexture(gl.TEXTURE_2D, T.tex);
-    gl.generateMipmap(gl.TEXTURE_2D);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    const fresh = this.cityAt < 0 || f.time - this.cityAt > 1 / 31 || f.time < this.cityAt || r.flash > 0.004 || f.dim > 0.01;
+    if (fresh) this.cityAt = f.time;
+    if (fresh) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, T.fb);
+      gl.viewport(0, 0, T.w, T.h);
+      gl.useProgram(S.prog);
+      gl.uniform2f(S.loc.uRes, T.w, T.h);
+      gl.uniform1f(S.loc.uAspect, this.cssW / Math.max(1, this.cssH));
+      gl.uniform1f(S.loc.uTime, f.time);
+      gl.uniform3f(S.loc.uA, f.a[0], f.a[1], f.a[2]);
+      gl.uniform1f(S.loc.uCity, r.city);
+      gl.uniform1f(S.loc.uAmount, r.amount);
+      gl.uniform1f(S.loc.uWet, r.wet);
+      gl.uniform4f(S.loc.uFlash, r.flash, r.boltX, r.boltSeed, r.bolt);
+      gl.uniform1f(S.loc.uWind, r.wind);
+      gl.uniform1f(S.loc.uDim, f.dim);
+      gl.uniform1f(S.loc.uQuality, this.quality);
+      gl.uniform1f(S.loc.uBlur, r.blur);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      gl.bindTexture(gl.TEXTURE_2D, T.tex);
+      gl.generateMipmap(gl.TEXTURE_2D);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    }
 
     // 2 · the glass
     const G = this.rainGlass!;
@@ -353,6 +385,9 @@ export class Sky {
     gl.uniform1f(G.loc.uLodBase, Math.log2(T.w / W));
     gl.uniform1f(G.loc.uScale, Math.min(W, H));
     gl.uniform1f(G.loc.uFade, r.fade);
+    gl.uniform2f(G.loc.uSceneSize, T.w, T.h);
+    gl.uniform1f(G.loc.uWind, r.wind);
+    gl.uniform1f(G.loc.uBlur, r.blur);
     this.shocks(G.loc, f, fy);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }

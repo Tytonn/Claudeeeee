@@ -751,79 +751,11 @@
     radial-gradient(8px 8px at 78% 40%, color-mix(in oklch, var(--accent) 70%, transparent), transparent 75%),
     linear-gradient(180deg, #090c14, #120f17 55%, #1b1310);
 }
-/* falling rain: three layers of streaks on tiles of different sizes, so it never lines up */
-.scene-rain {
+.scene-svg {
   position: absolute;
-  inset: -16px;
-  background-image:
-    radial-gradient(0.8px 6px at 50% 50%, rgb(204 224 255 / 0.62), transparent),
-    radial-gradient(0.7px 5px at 30% 40%, rgb(204 224 255 / 0.42), transparent),
-    radial-gradient(0.6px 4px at 70% 60%, rgb(204 224 255 / 0.32), transparent);
-  background-size:
-    23px 31px,
-    37px 43px,
-    17px 29px;
-  transform: skewX(-10deg);
-  animation: scene-rain 0.55s linear infinite;
-}
-@keyframes scene-rain {
-  to {
-    background-position:
-      0 62px,
-      0 43px,
-      0 58px;
-  }
-}
-.scene-drop {
-  position: absolute;
-  z-index: 1;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 36% 32%, #fff 0 12%, rgb(255 255 255 / 0.12) 30%, rgb(0 0 0 / 0.35) 78%);
-  box-shadow: 0 0 0 0.5px rgb(255 255 255 / 0.25);
-}
-.scene-drop.a {
-  left: 24%;
-  top: 22%;
-}
-.scene-drop.b {
-  left: 58%;
-  top: 46%;
-  width: 5px;
-  height: 5px;
-}
-.scene-drop.c {
-  left: 76%;
-  top: 8%;
-  width: 6px;
-  height: 8px;
-  border-radius: 50% 50% 50% 50% / 40% 40% 60% 60%;
-  animation: scene-run 3.2s cubic-bezier(0.6, 0, 0.4, 1) infinite;
-}
-@keyframes scene-run {
-  0%,
-  18% {
-    transform: none;
-    opacity: 0;
-  }
-  24% {
-    opacity: 1;
-  }
-  52% {
-    transform: translate(-1px, 22px);
-  }
-  62% {
-    transform: translate(1px, 26px);
-  }
-  92% {
-    transform: translate(-1px, 66px);
-    opacity: 1;
-  }
-  100% {
-    transform: translate(-1px, 70px);
-    opacity: 0;
-  }
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 .scene-text {
   display: flex;
@@ -849,12 +781,6 @@
   box-shadow:
     inset 0 0 0 1.5px color-mix(in oklch, var(--accent) 75%, white),
     0 0 26px -8px var(--accent);
-}
-@media (prefers-reduced-motion: reduce) {
-  .scene-rain,
-  .scene-drop.c {
-    animation: none;
-  }
 }
 
 .set-inline {

@@ -23,11 +23,14 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <style>
       html { background: #060607; }
+      /* Covers the first frames (the sky drawing itself, the fonts arriving) until the intro or the app is ready. */
+      #veil { position: fixed; inset: 0; z-index: 20000; background: #060607; pointer-events: none; transition: opacity 450ms ease; }
     </style>
   </head>
   <body>
+    <div id="veil" aria-hidden="true"></div>
     <div id="root"></div>
-    <noscript><p style="color:#a9a9b2;font:15px system-ui;text-align:center;margin-top:30vh">umbra needs JavaScript to run.</p></noscript>
+    <noscript><p style="position:relative;z-index:20001;color:#a9a9b2;font:15px system-ui;text-align:center;margin-top:30vh">umbra needs JavaScript to run.</p></noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

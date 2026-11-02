@@ -87,7 +87,6 @@ export function Intro({ onDone }: { onDone: () => void }) {
           </div>
           <div className="intro-tag mono">a quiet place to write</div>
         </div>
-        <div className="intro-skip mono">press any key</div>
       </div>
     );
   }
@@ -110,7 +109,6 @@ export function Intro({ onDone }: { onDone: () => void }) {
         </div>
         <div className="intro-tag mono">a quiet place to write</div>
       </div>
-      <div className="intro-skip mono">press any key</div>
     </div>
   );
 }

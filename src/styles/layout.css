@@ -564,9 +564,10 @@ html[data-typing] .topbar:hover {
   height: var(--app-h, 100dvh);
   margin: 0;
   border-radius: 0;
+  /* A page leaving to the right fades as it slides, and is hidden once it's gone. */
   transition:
     transform 460ms var(--ease-out),
-    opacity 460ms var(--ease-out),
+    opacity 300ms var(--ease-out),
     visibility 0s linear 460ms;
 }
 .app.is-mobile .sidebar-inner,
@@ -609,6 +610,7 @@ html[data-typing] .topbar:hover {
 .app.is-mobile > .canvas {
   z-index: 2;
   transform: translateX(100%);
+  opacity: 0;
   visibility: hidden;
   box-shadow: -30px 0 60px rgb(0 0 0 / 0.5);
 }
@@ -616,31 +618,39 @@ html[data-typing] .topbar:hover {
   z-index: 3;
   background: var(--bg);
   transform: translateX(100%);
+  opacity: 0;
   visibility: hidden;
 }
 .app.is-mobile[data-pane="editor"] > .canvas,
 .app.is-mobile[data-pane="rail"] > .rail {
   transform: none;
+  opacity: 1;
   visibility: visible;
   transition:
     transform 460ms var(--ease-out),
-    opacity 460ms var(--ease-out),
+    opacity 260ms var(--ease-out),
     visibility 0s linear 0s;
 }
-/* Going back: the list is there from the first frame, gliding in under the page as it leaves
-   (without this it stayed hidden until the page had gone, then popped in all at once). */
+/* Going back: the list is there from the first frame, gliding in as the page leaves (without
+   this it stayed hidden until the page had gone, then popped in all at once). */
 .app.is-mobile[data-pane="list"] > .sidebar {
   transition:
     transform 460ms var(--ease-out),
-    opacity 460ms var(--ease-out),
+    opacity 380ms var(--ease-out) 60ms,
     visibility 0s linear 0s;
 }
+/* The page underneath fades away quickly — with a see-through background it would otherwise
+   show through the new page while it slides in. */
 .app.is-mobile[data-pane="editor"] > .sidebar,
 .app.is-mobile[data-pane="rail"] > .sidebar,
 .app.is-mobile[data-pane="rail"] > .canvas {
   transform: translateX(-22%);
-  opacity: 0.35;
+  opacity: 0;
   visibility: hidden;
+  transition:
+    transform 460ms var(--ease-out),
+    opacity 200ms var(--ease-out),
+    visibility 0s linear 460ms;
 }
 .app.is-mobile .topbar {
   padding-top: env(safe-area-inset-top);

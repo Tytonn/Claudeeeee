@@ -17,7 +17,7 @@
 - **Delete the open note:** the moon slides across and swallows it. Anything else you delete dissolves into embers.
 - **Check off a to-do:** a sunburst, then it burns away and its light streaks into *Completed*.
 - **Share:** a beam of light goes up and the link decodes itself out of cipher glyphs. Your friend's page opens under a vast eclipsed moon; the note decrypts with a scanning line, the diamond ring flashes, and the corona flares whenever you edit.
-- Plus: a short eclipse intro once per visit, a light trail when you switch notes, the new accent color flooding the screen from the swatch you clicked, a live clock, and a sky that slowly wakes up if you leave it alone.
+- Plus: a short eclipse intro once per visit (followed by an invitation to sign in, if you aren't), a light trail when you switch notes, the new accent color flooding the screen from the swatch you clicked, a live clock, and a sky that slowly wakes up if you leave it alone.
 - **Settings → Effects:** *Cosmic* (everything), *Subtle* (a calm sky and small flourishes) or *Off*. If your system asks for reduced motion, umbra uses *Subtle* automatically.
 - **Settings → Background:** *Dark* (smoked glass), *Glass* (more sky), *Clear* (the sky almost fully, with a soft shade behind your words) or *Crystal* (no glass at all — just outlines over the open sky, with a crisp little drop shadow behind every word). Also in the command palette: *Show more of the sky*.
 - **Settings → Text color:** six soft inks, or pick any color you like (very dark picks get lifted so they stay readable).
@@ -28,8 +28,10 @@
 - Your cursor is a warm light held near the glass: drops glint as it passes and the fog glows around it.
 - **Lightning** *(toggle)*: now and then a storm flickers in the clouds or a bolt comes down behind the skyline; every drop on the glass lights up and the room brightens for an instant. Never while you're typing, never more than three flickers a second, and never with reduced motion.
 - **City lights** *(toggle)*: the city fades out, leaving just the rain and the dark.
-- **How hard it rains:** *Drizzle* (clear glass, a few beads), *Rain*, or *Downpour* (fogged up, drops running everywhere).
-- **Rain sound** *(off by default, just on the device you turn it on)*: soft rain on the window — the wash of it, the patter on the glass and the sill, now and then a fat drop close by — and thunder rolling in a few seconds after the lightning you see. It's synthesized from noise (no recordings), has its own volume slider, and fades out whenever the tab is hidden.
+- **How hard it rains:** *Drizzle* (clear glass, a few beads), *Rain*, or *Downpour* (misted up, drops running everywhere).
+- **Blur:** how out of focus the city is — from crisp bokeh to a soft, dreamy glow. It's real defocus, worked out for every pixel (not a blurred picture), so it stays smooth at any setting; the rain outside softens a little less, and the drops on the glass always stay sharp.
+- Drawn sharp: the glass at up to twice your screen's pixel density, the city at about its full resolution (and only 30 times a second, since it barely moves), the rain as fine anti-aliased streaks.
+- **Rain sound** *(off by default, just on the device you turn it on)*: quiet, close rain, like an ASMR recording — a soft hush built from thousands of tiny drops a second, light patter on the glass, now and then a single drop by your left or right ear (a tick, a tap, a plip into a puddle), and low thunder rolling in a few seconds after the lightning you see. It's all synthesized at full fidelity (no recordings), has its own volume slider, and fades out whenever the tab is hidden.
 - Everything else goes wet too: a new note brings the lightning close; checking a to-do is a splash (ripples, a crown of droplets); erased letters run off the page like drips; deleting a note washes it away from the top; other things you delete are rinsed off in drops; sharing calls down a bolt; the intro writes *umbra* into the fogged glass; and the little sounds become drips and bubbles.
 - It switches over with a sheet of rain running down the screen. Command palette: *Make it rain*, *Back to the eclipse*, and toggles for lightning, city lights and sound.
 - Like the eclipse, it pauses completely when the tab is hidden, drops to ~30 fps while you type, and lowers its resolution on its own if a device struggles.

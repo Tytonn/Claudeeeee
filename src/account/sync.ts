@@ -18,7 +18,22 @@ import { dataKey, onAccountChange, sessionExpired, useAccount, type AccountUser 
  * normal cross-tab updates).
  */
 
-const SYNCED_SETTINGS = ["name", "accent", "font", "size", "todos", "countdowns", "sounds", "fadeWhileTyping", "ink", "scene", "lightning", "cityLights", "rainAmount"] as const;
+const SYNCED_SETTINGS = [
+  "name",
+  "accent",
+  "font",
+  "size",
+  "todos",
+  "countdowns",
+  "sounds",
+  "fadeWhileTyping",
+  "ink",
+  "scene",
+  "lightning",
+  "cityLights",
+  "rainAmount",
+  "rainBlur",
+] as const;
 type SyncedSettings = Pick<Settings, (typeof SYNCED_SETTINGS)[number]>;
 
 type Meta = { v: 1; seq: number; revs: Record<string, number>; dirty: Record<string, number>; merged: boolean };
@@ -138,7 +153,9 @@ function apply(changes: Change[]) {
       if (shared !== s.shared) next.shared = shared;
       // If the open note was deleted on another device, open the next one.
       if (next.notes && s.ui.activeId && !next.notes[s.ui.activeId]) {
-        const fallback = Object.values(next.notes).filter((n) => !n.deletedAt).sort((a, b) => b.updatedAt - a.updatedAt)[0];
+        const fallback = Object.values(next.notes)
+          .filter((n) => !n.deletedAt)
+          .sort((a, b) => b.updatedAt - a.updatedAt)[0];
         next.ui = { ...s.ui, activeId: fallback?.id ?? null };
       }
       return next;
@@ -374,7 +391,7 @@ function watchStore() {
   unsubscribeStore?.();
   unsubscribeStore = useApp.subscribe((s, prev) => {
     if (!user || !meta || applying || !s.ready) return;
-    const diff = <T,>(prefix: string, next: Record<string, T>, before: Record<string, T>) => {
+    const diff = <T>(prefix: string, next: Record<string, T>, before: Record<string, T>) => {
       if (next === before) return;
       for (const id in next) if (next[id] !== before[id]) mark(prefix + id);
       for (const id in before) if (!(id in next)) mark(prefix + id);

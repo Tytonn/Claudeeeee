@@ -658,17 +658,6 @@ html.intro-on .app .rail-inner {
   color: var(--fg-3);
   animation: fade-in 900ms ease 2s both;
 }
-.intro-skip {
-  position: absolute;
-  bottom: max(28px, env(safe-area-inset-bottom));
-  left: 50%;
-  translate: -50% 0;
-  font-size: 10.5px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--fg-5);
-  animation: fade-in 800ms ease 1s both;
-}
 @keyframes fade-in {
   from {
     opacity: 0;

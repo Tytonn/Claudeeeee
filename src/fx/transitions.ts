@@ -34,7 +34,12 @@ export function changeAccent(id: AccentId, x: number, y: number) {
   const c = to255(oklchToRgb(ACCENTS[id].color));
   const sparkle = () => {
     fx.ring(x, y, 8, 120, { dur: 700, color: c });
-    fx.burst(x, y, { count: 30, speed: 260, colors: [c, [255, 255, 255]], life: 0.9 });
+    fx.burst(x, y, {
+      count: 30,
+      speed: 260,
+      colors: [c, [255, 255, 255]],
+      life: 0.9,
+    });
   };
   const start = viewTransitions();
   if (!start) {
@@ -51,8 +56,14 @@ export function changeAccent(id: AccentId, x: number, y: number) {
   t.ready
     .then(() => {
       root.animate(
-        { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${coverRadius(x, y)}px at ${x}px ${y}px)`] },
-        { duration: 780, easing: "cubic-bezier(0.22, 0.9, 0.25, 1)", pseudoElement: "::view-transition-new(root)" },
+        {
+          clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${coverRadius(x, y)}px at ${x}px ${y}px)`],
+        },
+        {
+          duration: 780,
+          easing: "cubic-bezier(0.22, 0.9, 0.25, 1)",
+          pseudoElement: "::view-transition-new(root)",
+        },
       );
       sparkle();
     })
@@ -79,10 +90,7 @@ export function changeScene(id: SceneId, x = innerWidth / 2, y = innerHeight / 2
   const start = viewTransitions();
   if (!start) {
     set();
-    if (fx.active) {
-      fx.fadeSky();
-      if (!fx.rain) fx.ring(x, y, 8, 140, { dur: 800 });
-    }
+    if (fx.active) fx.fadeSky();
     return;
   }
   const root = document.documentElement;
@@ -96,14 +104,23 @@ export function changeScene(id: SceneId, x = innerWidth / 2, y = innerHeight / 2
       if (fx.rain) {
         root.animate(
           { clipPath: [curtain(-0.18), curtain(0.5), curtain(1.2)] },
-          { duration: 1300, easing: "cubic-bezier(0.5, 0, 0.3, 1)", pseudoElement: "::view-transition-new(root)" },
+          {
+            duration: 1300,
+            easing: "cubic-bezier(0.5, 0, 0.3, 1)",
+            pseudoElement: "::view-transition-new(root)",
+          },
         );
       } else {
         root.animate(
-          { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${coverRadius(x, y)}px at ${x}px ${y}px)`] },
-          { duration: 900, easing: "cubic-bezier(0.22, 0.9, 0.25, 1)", pseudoElement: "::view-transition-new(root)" },
+          {
+            clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${coverRadius(x, y)}px at ${x}px ${y}px)`],
+          },
+          {
+            duration: 900,
+            easing: "cubic-bezier(0.22, 0.9, 0.25, 1)",
+            pseudoElement: "::view-transition-new(root)",
+          },
         );
-        fx.ring(x, y, 8, 140, { dur: 800 });
       }
     })
     .catch(() => {});

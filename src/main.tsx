@@ -32,6 +32,9 @@ import { startViewportFit } from "./lib/platform";
 import { App } from "./App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
+// Whatever happens during startup, never leave the launch veil up.
+window.setTimeout(() => document.getElementById("veil")?.remove(), 6000);
+
 async function boot() {
   startViewportFit();
   const data = await loadAll();
@@ -43,7 +46,8 @@ async function boot() {
     const accent = ACCENTS[s.accent] ?? ACCENTS.iris;
     fx.setAccent(accent.color, accent.nebula);
     const amount = RAIN_AMOUNT[s.rainAmount] ?? 0.5;
-    fx.setRain({ lightning: s.lightning !== false, city: s.cityLights !== false, amount });
+    const blur = typeof s.rainBlur === "number" ? Math.min(1, Math.max(0, s.rainBlur)) : 0.25;
+    fx.setRain({ lightning: s.lightning !== false, city: s.cityLights !== false, amount, blur });
     fx.setScene(s.scene === "rain" ? "rain" : "eclipse", first);
     const raining = fx.rain && s.effects !== "off";
     setSoundTheme(raining ? "rain" : "eclipse");
@@ -86,6 +90,19 @@ async function boot() {
     </ErrorBoundary>,
   );
   requestAnimationFrame(() => document.documentElement.classList.add("is-ready"));
+  // Lift the launch veil once the first real frame is up: at once if the intro (which brings its
+  // own dark) is playing, otherwise as a soft fade.
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      const veil = document.getElementById("veil");
+      if (!veil) return;
+      if (document.querySelector(".intro")) veil.remove();
+      else {
+        veil.style.opacity = "0";
+        window.setTimeout(() => veil.remove(), 500);
+      }
+    }),
+  );
 }
 
 void boot();

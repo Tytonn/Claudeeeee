@@ -2,15 +2,17 @@
  * Rain: a night city seen through a rain-streaked window.
  *
  * Two passes. The first paints the world outside — out of focus, as if your eyes were on
- * the glass: bokeh from windows, streetlamps, signs and traffic, wet reflections, mist,
- * rain falling through the lamplight, and lightning in the clouds. It's drawn small into a
- * mipmapped texture, so the second pass can look at it through any amount of blur.
+ * the glass: bokeh from windows, streetlamps, signs and traffic, wet reflections, mist and
+ * lightning in the clouds. It changes slowly, so it's drawn at about screen resolution into
+ * a mipmapped texture, at most 30 times a second.
  *
- * The second pass is the glass. Beads of rain stick to it and come and go; now and then a
- * drop gathers, breaks free and runs down in fits and starts, leaving a clear, beaded trail.
- * Every drop is a tiny lens: it shows the city upside down, sharp and small, with dark
- * edges. The rest of the pane is fogged. Your cursor is a warm light near the glass —
- * drops glint as it passes — and lightning lights them all at once.
+ * The second pass is the glass, at full resolution, every frame. Rain falls past outside in
+ * fine, sharp streaks that catch the light behind them. Beads of rain stick to the pane and
+ * come and go; now and then a drop gathers, breaks free and runs down in fits and starts,
+ * leaving a clear, beaded trail. Every drop is a tiny lens: it shows the city upside down,
+ * sharp and small. A light veil of mist hangs on the glass and the lights bloom softly
+ * through it. Your cursor is a warm light near the glass — drops glint as it passes — and
+ * lightning lights them all at once.
  */
 
 const NOISE = /* glsl */ `
@@ -73,6 +75,7 @@ uniform vec4 uFlash;     // lightning: brightness, bolt x (layout units), seed, 
 uniform float uWind;     // rain slant (x per y)
 uniform float uDim;
 uniform float uQuality;
+uniform float uBlur;     // how out of focus the city is, 0..1
 
 ${NOISE}
 
@@ -90,7 +93,7 @@ vec3 cityColor(float h) {
 /* Out-of-focus lights on a jittered grid. Bigger cells read as nearer: bigger, softer,
    fewer. Each light is a disc of light with a brighter rim and a faint colour fringe,
    the way real bokeh looks. */
-vec3 bokeh(vec2 p, float cell, float rMin, float rMax, float dens, float seed, float lo, float hi, float gain) {
+vec3 bokeh(vec2 p, float cell, float rMin, float rMax, float dens, float seed, float lo, float hi, float gain, float softK) {
   vec3 acc = vec3(0.);
   vec2 id0 = floor(p / cell);
   for (int j = -1; j <= 1; j++) {
@@ -100,23 +103,24 @@ vec3 bokeh(vec2 p, float cell, float rMin, float rMax, float dens, float seed, f
       vec2 c = (id + .15 + .7 * vec2(hash12(id + seed + 3.1), hash12(id + seed + 5.9))) * cell;
       float band = smoothstep(lo - .08, lo + .06, c.y) * (1. - smoothstep(hi - .16, hi + .1, c.y));
       if (h > dens * band) continue;
-      float r = mix(rMin, rMax, hash12(id + seed + 8.2));
+      // Defocus: each light spreads into a bigger, softer disc, dimmer as its light spreads out.
+      float r = mix(rMin, rMax, hash12(id + seed + 8.2)) * (1. + uBlur * .35);
       float d = length(p - c);
-      if (d > r * 1.7) continue;
+      if (d > r * 1.5) continue;
       float hue = hash12(id + seed + 17.3);
       vec3 col = cityColor(hue);
       float kind = hash12(id + seed + 23.1);
-      float bright = mix(.28, 1., pow(hash12(id + seed + 11.7), 2.2));
+      float bright = mix(.28, 1., pow(hash12(id + seed + 11.7), 2.2)) / (1. + uBlur * .42);
       // Neon buzzes and stutters now and then; windows go dark and light up again, slowly.
       if (hue > .69 && hue < .91) bright *= .55 + .45 * step(.16, vnoise(vec2(uTime * 7. + kind * 40., kind * 9.)));
       bright *= .5 + .5 * smoothstep(.22, .5, vnoise(vec2(uTime * .045 + kind * 31., kind * 5.)));
-      float soft = r * .1 + .0012;
+      float soft = r * (softK + uBlur * .8) + .0009;
       vec3 rr = r * vec3(1.03, 1., .97);
       vec3 disc = smoothstep(rr + soft * .5, rr - soft, vec3(d));
-      float rim = smoothstep(r * .4, r, d) * disc.g;
+      float rim = smoothstep(r * .4, r, d) * disc.g * (1. - uBlur * .75);
       // fine grain inside the disc, like dust on a lens
       disc *= .9 + .1 * vnoise((p - c) / r * 3. + id);
-      float halo = exp(-max(d - r, 0.) / (r * .3)) * (1. - disc.g) * smoothstep(r * 1.7, r * 1.15, d);
+      float halo = exp(-max(d - r, 0.) / (r * (.3 + uBlur * .3))) * (1. - disc.g) * smoothstep(r * 1.5, r * 1.1, d);
       acc += col * bright * gain * (disc * .5 + rim * .4 + halo * .14);
     }
   }
@@ -152,7 +156,7 @@ vec3 traffic(vec2 p) {
       for (int s = 0; s < 2; s++) {
         vec2 dv = vec2(x, p.y) - vec2(cx + (float(s) - .5) * .026, ly);
         float d = length(dv);
-        acc += c * (smoothstep(r, r * .7, d) * .5 + exp(-d / (r * 1.4)) * .09) * (.95 - fl * .2);
+        acc += c * (smoothstep(r * (1. + uBlur * .5), r * max(.1, .7 - uBlur * .55), d) * .5 / (1. + uBlur * .6) + exp(-d / (r * (1.4 + uBlur))) * .09) * (.95 - fl * .2);
         if (dv.y < 0.) {
           float wob = sin(p.y * 260. + uTime * 4. + id) * .0018;
           float dr = length(vec2((dv.x + wob) * 1.5, (dv.y + .01) * .2));
@@ -178,7 +182,7 @@ vec3 lamps(vec2 p, out float cone) {
     vec3 lc = hash11(id * 7.3) < .72 ? vec3(1., .58, .24) : vec3(.84, .9, 1.);
     float d = length(p - c);
     float r = .024;
-    acc += lc * (smoothstep(r, r * .72, d) * .55 + exp(-d / .045) * .16 + exp(-d / .16) * .05);
+    acc += lc * (smoothstep(r * (1. + uBlur * .5), r * max(.1, .72 - uBlur * .55), d) * .55 / (1. + uBlur * .6) + exp(-d / (.045 + uBlur * .02)) * .16 + exp(-d / .16) * .05);
     // the pool of light under it, on the wet pavement
     vec2 pd = (p - vec2(c.x, .12)) * vec2(1., 4.);
     acc += lc * exp(-dot(pd, pd) / .012) * .05;
@@ -207,7 +211,8 @@ float bolt(vec2 p, float seed, float x0) {
   float bottom = .3 + hash11(seed * 1.3) * .12;
   if (p.y < bottom - .03) return 0.;
   float d = abs(p.x - boltX(p.y, x0, seed));
-  float b = exp(-d * d / .000014) + exp(-d / .018) * .3 + exp(-d / .08) * .1;
+  float bw = 1. + uBlur * 8.;
+  float b = exp(-d * d / (.000014 * bw)) + exp(-d / (.018 * (1. + uBlur))) * .3 + exp(-d / .08) * .1;
   b *= smoothstep(bottom - .03, bottom + .05, p.y);
   for (int k = 0; k < 3; k++) {
     float fk = float(k);
@@ -222,27 +227,6 @@ float bolt(vec2 p, float seed, float x0) {
     b += (exp(-db * db / .000007) + exp(-db / .014) * .22) * along * .65;
   }
   return b;
-}
-
-/* Rain falling through the air: thin streaks on slanted columns. */
-float rainLayer(vec2 p, float cols, float speed, float len, float dens, float width, float seed) {
-  vec2 q = p;
-  q.x += q.y * uWind;
-  q.x *= cols;
-  float ci = floor(q.x);
-  float fx = fract(q.x) - .5;
-  float hc = hash11(ci * 1.37 + seed);
-  float y = q.y * cols * .22 + uTime * speed * (.8 + .4 * hc) + hc * 31.;
-  float ri = floor(y);
-  float fy = fract(y);
-  vec2 g = vec2(ci, ri) + seed;
-  if (hash12(g) > dens) return 0.;
-  float xo = (hash12(g + 2.7) - .5) * .6;
-  float l = len * (.6 + .8 * hash12(g + 5.3));
-  float s = fy - hash12(g + 7.9) * (1. - l);
-  float along = smoothstep(0., l * .12, s) * (1. - smoothstep(l * .25, l, s));
-  float across = exp(-pow((fx - xo) / width, 2.));
-  return along * across;
 }
 
 void main() {
@@ -266,14 +250,15 @@ void main() {
   // Lightning lights the clouds from inside, brightest around the strike.
   float nearBolt = exp(-abs(p.x - uFlash.y) * 1.5);
   col += flash * vec3(.48, .54, .86) * (.06 + clouds * (.35 + .95 * nearBolt) + .12 * nearBolt) * smoothstep(hz - .15, hz + .25, uv.y);
-  if (uFlash.w > .01) col += vec3(.82, .86, 1.) * bolt(p, uFlash.z, uFlash.y) * uFlash.w * 1.8;
+  if (uFlash.w > .01) col += vec3(.82, .86, 1.) * bolt(p, uFlash.z, uFlash.y) * uFlash.w * 1.8 / (1. + uBlur * 1.5);
 
   // The skyline, softly out of focus: a far row of blocks, then a nearer, taller one —
   // lit a little from below by the street.
   float farTop = max(roofs(p.x, .11, hz - .02, hz + .1, 3.7), roofs(p.x + .05, .07, hz - .04, hz + .07, 5.3));
   float nearTop = max(roofs(p.x + 3., .17, hz + .03, hz + .3, 9.1), roofs(p.x + 1.3, .11, hz - .02, hz + .16, 12.7));
-  float mFar = smoothstep(farTop + .016, farTop - .016, uv.y);
-  float mNear = smoothstep(nearTop + .013, nearTop - .013, uv.y);
+  float eb = uBlur * .05;
+  float mFar = smoothstep(farTop + .016 + eb, farTop - .016 - eb, uv.y);
+  float mNear = smoothstep(nearTop + .013 + eb, nearTop - .013 - eb, uv.y);
   float street = smoothstep(.55, .1, uv.y);
   col = mix(col, vec3(.022, .025, .034) + haze * (.25 + street * .5) + flash * vec3(.04, .045, .07), mFar * .8);
   col = mix(col, vec3(.011, .012, .017) + haze * street * .55 + flash * vec3(.014, .016, .024), mNear * .82);
@@ -287,9 +272,9 @@ void main() {
   vec3 lights = vec3(0.);
   if (uCity > .001) {
     // Windows, only where there are buildings to hold them.
-    lights += bokeh(p, .03, .0055, .0105, .6, 1., .16, .8, .62) * max(mFar * .55, mNear);
-    lights += bokeh(p + vec2(t * .0012, 0.), .075, .015, .03, .4, 7., .1, .66, .85);
-    if (uQuality > .5) lights += bokeh(p - vec2(t * .0025, 0.), .17, .045, .088, .32, 13., .02, .72, .5);
+    lights += bokeh(p, .03, .0055, .0105, .46, 1., .16, .8, .5, .2) * max(mFar * .55, mNear);
+    lights += bokeh(p + vec2(t * .0012, 0.), .075, .015, .03, .4, 7., .1, .66, .85, .08);
+    if (uQuality > .5) lights += bokeh(p - vec2(t * .0025, 0.), .19, .045, .088, .32, 13., .02, .72, .5, .1);
     lights += traffic(p);
     lights += lamps(p, cone);
     // Red warning lights on the tallest towers, blinking slowly.
@@ -304,14 +289,8 @@ void main() {
     cone *= uCity;
   }
   col += lights;
-
-  // Rain in the air, lit by whatever light is behind it.
-  float lit = .03 + dot(lights, vec3(.3, .5, .2)) * 1.6 + cone * .4 + flash * .6 + glowY * .05;
-  float dens = mix(.18, .62, uAmount) * uWet;
-  float rain = rainLayer(p, 150., 26., .7, dens, .16, 1.) * .55;
-  rain += rainLayer(p + vec2(.31, 0.), 70., 17., .8, dens * .8, .12, 5.) * .75;
-  if (uQuality > .5) rain += rainLayer(p + vec2(.17, 0.), 26., 9., .9, dens * .55, .1, 9.) * .5;
-  col += rain * lit * vec3(.72, .78, .9);
+  // The air under the lamps is bright with rain (the streaks themselves are drawn on the glass pass).
+  col += vec3(.5, .55, .65) * cone * .012 * (.4 + uAmount) * uWet;
 
   col *= 1. - uDim * .6;
   col = col / (1. + col * .3);
@@ -343,12 +322,66 @@ uniform vec4 uShock0;
 uniform vec4 uShock1;
 uniform vec4 uShock2;    // ripples: xy, age 0..1, strength
 uniform float uFade;     // fades the scene in when it first appears
+uniform vec2 uSceneSize; // the city texture, texels
+uniform float uWind;     // rain slant (x per y)
+uniform float uBlur;     // how out of focus the world outside is (rain softens a little less)
 
 ${NOISE}
+
+/** Anti-aliasing width for edges drawn on the glass, in CSS px (about one device pixel). */
+float AA;
 
 vec3 scene(vec2 uv, float lod) {
   vec3 c = TEXLOD(uScene, uv, lod).rgb;
   return c * c;
+}
+
+/* A smooth, round blur: one mip level read through a cubic B-spline (four bilinear taps).
+   A plain lookup of a small mip looks blocky and jumps as lights move; this doesn't. */
+vec3 sceneSoft(vec2 uv, float level) {
+  vec2 size = max(floor(uSceneSize / exp2(level)), vec2(1.));
+  vec2 p = uv * size - .5;
+  vec2 i = floor(p);
+  vec2 f = p - i;
+  vec2 f2 = f * f;
+  vec2 f3 = f2 * f;
+  vec2 w0 = (-f3 + 3. * f2 - 3. * f + 1.) / 6.;
+  vec2 w1 = (3. * f3 - 6. * f2 + 4.) / 6.;
+  vec2 w2 = (-3. * f3 + 3. * f2 + 3. * f + 1.) / 6.;
+  vec2 w3 = f3 / 6.;
+  vec2 g0 = w0 + w1;
+  vec2 g1 = w2 + w3;
+  vec2 h0 = (i - .5 + w1 / g0) / size;
+  vec2 h1 = (i + 1.5 + w3 / g1) / size;
+  vec3 a = TEXLOD(uScene, vec2(h0.x, h0.y), level).rgb;
+  vec3 b = TEXLOD(uScene, vec2(h1.x, h0.y), level).rgb;
+  vec3 c = TEXLOD(uScene, vec2(h0.x, h1.y), level).rgb;
+  vec3 d = TEXLOD(uScene, vec2(h1.x, h1.y), level).rgb;
+  vec3 v = g0.y * (g0.x * a + g1.x * b) + g1.y * (g0.x * c + g1.x * d);
+  return v * v;
+}
+
+/* Rain falling past outside, drawn sharp at screen resolution: fine streaks on slanted
+   columns (CSS px). Near ones are longer, faster and softer; far ones short and fine. */
+float streaks(vec2 P, float colW, float speed, float len, float dens, float w, float seed) {
+  vec2 q = P;
+  q.x += q.y * uWind;
+  float cx = q.x / colW;
+  float ci = floor(cx);
+  float fx = (fract(cx) - .5) * colW;
+  float hc = hash11(ci * 1.37 + seed);
+  float cell = len * 2.4;
+  float y = (q.y + uTime * speed * (.8 + .4 * hc)) / cell + hc * 37.;
+  float ri = floor(y);
+  float fy = fract(y) * cell;
+  vec2 g = vec2(ci, ri) + seed;
+  if (hash12(g) > dens) return 0.;
+  float l = len * (.55 + .9 * hash12(g + 5.3));
+  float s = fy - hash12(g + 7.9) * (cell - l);
+  if (s < 0. || s > l) return 0.;
+  float along = smoothstep(0., l * .18, s) * (1. - smoothstep(l * .35, l, s));
+  float d = abs(fx - (hash12(g + 2.7) - .5) * colW * .55);
+  return along * exp(-d * d / (w * w)) * (.55 + .45 * hash12(g + 9.1));
 }
 
 /* Beads: rain that hit the glass and stuck. Each cell's bead is replaced every so often
@@ -369,7 +402,7 @@ void beads(vec2 P, float cell, float dens, float rMin, float rMax, float life, f
   q.y *= q.y > 0. ? 1.1 : .95;
   float d = length(q);
   if (d >= r || vis <= 0.) return;
-  float m = smoothstep(r, r - 1.1, d) * vis;
+  float m = smoothstep(r, r - AA, d) * vis;
   if (m > D.w) D = vec4(q / r, r, m);
 }
 
@@ -424,7 +457,7 @@ void runner(vec2 P, float W, float seed, float H, inout vec4 D, inout float clea
       vec2 q = P - bc;
       float d = length(q);
       if (d < br) {
-        float m = smoothstep(br, br - 1., d);
+        float m = smoothstep(br, br - AA, d);
         if (m > D.w) D = vec4(q / br, br, m);
       }
     }
@@ -441,7 +474,7 @@ void runner(vec2 P, float W, float seed, float H, inout vec4 D, inout float clea
   qs.x *= 1. + max(q.y, 0.) / (rr * 2.6);
   float d = length(qs);
   if (d < rr) {
-    float m = smoothstep(rr, rr - 1.1, d) * endFade;
+    float m = smoothstep(rr, rr - AA, d) * endFade;
     if (m > D.w) D = vec4(qs / rr, rr, m);
   }
 }
@@ -464,6 +497,7 @@ void main() {
   vec2 uv = frag / uRes;
   vec2 P = frag / uDpr;
   float H = uRes.y / uDpr;
+  AA = 1.2 / uDpr;
 
   float rl = 0.;
   vec2 rip = ripple(uShock0, frag, rl) + ripple(uShock1, frag, rl) + ripple(uShock2, frag, rl);
@@ -483,15 +517,27 @@ void main() {
     beads(Pd + vec2(47., 31.), 100., dens * .4, 6., 15., 26., 4., trail, D);
   }
 
-  // Fogged glass everywhere except where water has run.
+  // A light veil of mist on the glass, except where water has run.
   float fn = vnoise(P / 420. + vec2(uTime * .006, 0.)) * .6 + vnoise(P / 130. - uTime * .01) * .4;
-  float fog = uFog * mix(.62, 1.12, fn) * (1. - clear) * mix(.35, 1., uWet);
+  float fog = uFog * mix(.55, 1.15, fn) * (1. - clear) * mix(.35, 1., uWet);
   vec2 suv = uv + rip / uRes;
-  vec3 back = scene(suv, mix(.7, 4.6, fog));
-  vec3 bloom = scene(suv, 5.8);
-  back = mix(back, back * .86 + bloom * .45 + vec3(.006, .008, .011), fog * .55);
+  vec3 back = scene(suv, .2 + fog * 2.2);
+  // the lights bloom softly through the wet glass
+  vec3 bloom = sceneSoft(suv, 4.) * .65 + sceneSoft(suv, 6.) * .35;
+  back += bloom * (.1 + fog * .3);
+  back = mix(back, back * .9 + vec3(.011, .013, .018), fog * .45);
   // where a drop has run, the glass is clean and wet: clearer, a touch brighter
-  back *= 1. + trail * .12;
+  back *= 1. + trail * .1;
+
+  // Rain falling past outside, lit by whatever light is behind it.
+  float rd = mix(.18, .62, uAmount) * uWet;
+  float sb = 1. + uBlur * 1.6;
+  float rain = streaks(P, 9., 950., 22., rd, .55 * sb, 1.) * .5;
+  rain += streaks(P + vec2(4.3, 0.), 17., 1400., 44., rd * .8, .75 * sb, 5.) * .7;
+  if (uQuality > .5) rain += streaks(P + vec2(11.7, 0.), 43., 2100., 120., rd * .5, 1.7 * sb, 9.) * .45;
+  rain /= 1. + uBlur * .9;
+  float lum = dot(back, vec3(.3, .5, .2)) * 1.6 + dot(bloom, vec3(.3, .5, .2)) * 1.4;
+  back += vec3(.76, .82, .95) * rain * (.01 + lum * .9 + uFlash.x * .6) * (1. - fog * .35);
 
   vec3 lampCol = mix(vec3(1., .86, .7), uA, .3);
   float mnear = 1. / (1. + dot((uMouse - frag) / uDpr, (uMouse - frag) / uDpr) / (300. * 300.));
@@ -502,16 +548,18 @@ void main() {
     float l2 = min(dot(n, n), 1.);
     // a little lens: the city, upside down, small and sharp
     vec2 off = -n * r * (1. + 6. * (1. + .7 * l2));
-    vec3 img = scene((Pd + off) * uDpr / uRes, .25);
+    vec3 img = scene((Pd + off) * uDpr / uRes, 1.);
     vec3 N = normalize(vec3(n * .92, sqrt(max(1. - l2 * .85, .0))));
     float rim = smoothstep(.45, 1., sqrt(l2));
-    vec3 dc = img * (1.3 - rim * rim * 1.15) + vec3(.004, .005, .008);
+    // tiny beads read as specks of light, not dark dots: less shadow at their edges
+    float tiny = 1. - smoothstep(2.5, 7., r);
+    vec3 dc = img * (1.3 - rim * rim * 1.15 * (1. - tiny * .7)) + vec3(.004, .005, .008) + bloom * tiny * .25;
     // the cursor is a warm light held near the glass; a faint one from above, always
     vec3 L = vec3((uMouse - frag) / uDpr, 240.);
     vec3 hv = normalize(normalize(L) + vec3(0., 0., 1.));
     float near = 1. / (1. + dot(L.xy, L.xy) / (320. * 320.));
     float spec = pow(max(dot(N, hv), 0.), 70.) * near * 1.5;
-    float amb = pow(max(dot(N, normalize(vec3(-.3, .62, 1.))), 0.), 36.) * .14;
+    float amb = pow(max(dot(N, normalize(vec3(-.3, .62, 1.))), 0.), 36.) * (.14 + tiny * .16);
     dc += lampCol * spec + vec3(.75, .82, 1.) * amb;
     dc += lampCol * near * .05 * (1. - rim);
     // lightning catches the top of every drop

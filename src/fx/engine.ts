@@ -62,7 +62,7 @@ type Frag = { x: number; y: number; vx: number; vy: number; life: number; max: n
 type Glyph = Timed & { ch: string; x: number; y: number; font: string; ash: boolean; vx: number; spin: number; drip?: boolean };
 /** A lightning strike: a few flickers of light, maybe with a bolt you can see. */
 type Strike = { t0: number; pulses: { at: number; amp: number; tau: number }[]; x: number; seed: number; bolt: boolean };
-export type RainOptions = { lightning: boolean; city: boolean; amount: number };
+export type RainOptions = { lightning: boolean; city: boolean; amount: number; blur: number };
 export type Thunder = { delay: number; power: number };
 
 const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
@@ -147,7 +147,8 @@ class FxEngine {
 
   /** Which sky: the eclipse, or rain on the window. */
   scene: SceneId = "eclipse";
-  private rainOpts: RainOptions = { lightning: true, city: true, amount: 0.5 };
+  private rainOpts: RainOptions = { lightning: true, city: true, amount: 0.5, blur: 0.25 };
+  private blurK = 0.25;
   private wet = 1;
   private sceneFade = 1;
   private cityK = 1;
@@ -214,7 +215,7 @@ class FxEngine {
     this.W = innerWidth;
     this.H = viewportHeight();
     this.dpr = Math.min(devicePixelRatio || 1, 2);
-    this.sky?.resize(this.W, this.H, this.baseSkyScale * this.skyScale);
+    this.sizeSky();
     for (const [c, ctx] of [
       [this.dustCanvas, this.dctx],
       [this.overCanvas, this.octx],
@@ -228,9 +229,23 @@ class FxEngine {
   }
 
   private get baseSkyScale() {
-    // The rain's glass is drawn at CSS resolution at most: drops are smooth, and it's a heavier scene.
-    if (this.scene === "rain") return this.small ? 0.5 : Math.min(devicePixelRatio || 1, 1) * (this.effective === "subtle" ? 0.7 : 1);
+    if (this.scene === "rain") {
+      // Drops and falling rain need real resolution: up to 2x (1.6x on phones), within a pixel budget.
+      const dpr = devicePixelRatio || 1;
+      const budget = Math.sqrt(4.2e6 / Math.max(1, this.W * this.H));
+      return Math.min(dpr, this.small ? 1.6 : 2, budget) * (this.effective === "subtle" ? 0.75 : 1);
+    }
     return this.small ? 0.55 : Math.min(devicePixelRatio || 1, 1.25) * (this.effective === "subtle" ? 0.6 : 1);
+  }
+
+  /** Sizes the sky for the current scene, level and measured speed. */
+  private sizeSky() {
+    if (!this.sky) return;
+    const scale = this.baseSkyScale * this.skyScale;
+    this.sky.resize(this.W, this.H, scale);
+    // The city behind the rain is soft, so it needs a little less than the glass in front of it.
+    this.sky.cityScale = Math.min(1.15, Math.max(0.6, scale * 0.75));
+    this.sky.quality = this.effective === "cosmic" && (!this.small || this.rain) ? 1 : 0;
   }
 
   get rain() {
@@ -257,7 +272,7 @@ class FxEngine {
       this.flashNow = 0;
       this.setRoomFlash(0);
     }
-    if (this.started) this.sky?.resize(this.W, this.H, this.baseSkyScale * this.skyScale);
+    if (this.started) this.sizeSky();
   }
 
   setRain(o: Partial<RainOptions>) {
@@ -265,6 +280,7 @@ class FxEngine {
     if (!this.started) {
       this.cityK = this.rainOpts.city ? 1 : 0;
       this.amountK = this.rainOpts.amount;
+      this.blurK = this.rainOpts.blur;
     }
     if (!this.lightningOn) this.strikes = this.strikes.filter((s) => this.clock - s.t0 < 900);
   }
@@ -299,13 +315,14 @@ class FxEngine {
   /** Watches real frame times; trades sky resolution for smoothness when needed. */
   private adapt(realDt: number) {
     this.frameMs += (realDt * 1000 - this.frameMs) * 0.05;
-    if (this.frameMs > 24 && this.skyScale > 0.36) {
+    const floor = this.rain ? 0.5 : 0.35;
+    if (this.frameMs > 24 && this.skyScale > floor + 0.01) {
       this.slowFor += realDt;
       this.fastFor = 0;
       if (this.slowFor > 1.2) {
-        this.skyScale = Math.max(0.35, this.skyScale * 0.75);
+        this.skyScale = Math.max(floor, this.skyScale * 0.8);
         this.slowFor = 0;
-        this.sky?.resize(this.W, this.H, this.baseSkyScale * this.skyScale);
+        this.sizeSky();
       }
     } else if (this.frameMs < 13 && this.skyScale < 1) {
       this.fastFor += realDt;
@@ -313,7 +330,7 @@ class FxEngine {
       if (this.fastFor > 5) {
         this.skyScale = Math.min(1, this.skyScale * 1.2);
         this.fastFor = 0;
-        this.sky?.resize(this.W, this.H, this.baseSkyScale * this.skyScale);
+        this.sizeSky();
       }
     } else {
       this.slowFor = Math.max(0, this.slowFor - realDt);
@@ -345,7 +362,6 @@ class FxEngine {
     for (const c of [this.skyCanvas, this.dustCanvas, this.overCanvas]) if (c) c.style.display = on ? "" : "none";
     if (!this.sky && this.skyCanvas) this.skyCanvas.style.display = "none";
     document.documentElement.dataset.fx = lvl;
-    if (this.sky) this.sky.quality = lvl === "cosmic" && !this.small ? 1 : 0;
     this.resize();
     if (on && !this.raf) {
       this.last = performance.now();
@@ -495,10 +511,11 @@ class FxEngine {
         bolt: bolt?.bolt ? Math.min(1, this.flashNow * 2.2) : 0,
         amount: this.amountK,
         wet: this.wet,
-        fog: 0.5 + this.amountK * 0.32,
+        fog: 0.24 + this.amountK * 0.3,
         city: this.cityK,
         wind: 0.13 + 0.05 * Math.sin(this.time * 0.07) + 0.035 * Math.sin(this.time * 0.23 + 1),
         fade: this.sceneFade,
+        blur: this.blurK,
       },
     });
   }
@@ -513,6 +530,7 @@ class FxEngine {
     this.sceneFade += (1 - this.sceneFade) * Math.min(1, dt * 1.6);
     this.cityK += ((this.rainOpts.city ? 1 : 0) - this.cityK) * Math.min(1, dt * 1.4);
     this.amountK += (this.rainOpts.amount - this.amountK) * Math.min(1, dt * 0.8);
+    this.blurK += (this.rainOpts.blur - this.blurK) * Math.min(1, dt * 6);
 
     // Now and then, lightning — but never while you're writing.
     if (this.lightningOn && !this.calm && !document.hidden && now > this.nextStrike) {
@@ -1248,11 +1266,7 @@ class FxEngine {
     this.overDirty = true;
   }
 
-  burst(
-    x: number,
-    y: number,
-    o: { count?: number; speed?: number; size?: number; life?: number; colors?: C255[]; gravity?: number; sparks?: number; spread?: number; angle?: number } = {},
-  ) {
+  burst(x: number, y: number, o: { count?: number; speed?: number; size?: number; life?: number; colors?: C255[]; gravity?: number; sparks?: number; spread?: number; angle?: number } = {}) {
     if (!this.active) return;
     const scale = this.full ? 1 : 0.4;
     const count = Math.round((o.count ?? 24) * scale);
@@ -1349,9 +1363,7 @@ class FxEngine {
       [1.45, 84, false, this.accentHot, 0.12],
       [1.72, 14, true, WHITE, 0.38],
     ];
-    ghosts.forEach(([k, r, hex, color, alpha], i) =>
-      this.ghosts.push({ x: x + (cx - x) * k * 2, y: y + (cy - y) * k * 2, r, hex, color, alpha, t0: now + i * 40, dur: 1100 }),
-    );
+    ghosts.forEach(([k, r, hex, color, alpha], i) => this.ghosts.push({ x: x + (cx - x) * k * 2, y: y + (cy - y) * k * 2, r, hex, color, alpha, t0: now + i * 40, dur: 1100 }));
     this.rays.push({ x, y, n: 16, r0: 6, len: 90, color: this.accentHot, spin: 0.3, width: 1.4, t0: now, dur: 700 });
     this.burst(x, y, { count: 70, speed: 420, size: 2, life: 1.1, sparks: 0.7 });
     this.overDirty = true;
