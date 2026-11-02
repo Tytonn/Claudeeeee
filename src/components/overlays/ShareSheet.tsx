@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { Check, Copy, FileText, Hourglass, ListChecks, Lock, Send } from "lucide-react";
 import type { VirtualElement } from "@floating-ui/react-dom";
 import { useApp } from "../../store/app";
-import { BOARD, shareUrl, startShare, stopShare, useShareStatus } from "../../store/shareSync";
+import { BOARD, shareUrl, startShare, stopShare, useShareStatus, verifyShare } from "../../store/shareSync";
 import { toast } from "../../store/toasts";
 import { ApiError } from "../../lib/api";
 import { displayTitle } from "../../lib/text";
@@ -59,6 +59,15 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
     setCopied(false);
     setName(settings.name);
     setJustCreated(false);
+    // Make sure a live link really still works, rather than trusting what we remember.
+    if (!record) return;
+    let current = true;
+    void verifyShare(anchor).then((ok) => {
+      if (current && !ok) setError("That link doesn't work anymore. It was turned off or never saved. Create a new one below and send that instead.");
+    });
+    return () => {
+      current = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 

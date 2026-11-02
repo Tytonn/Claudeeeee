@@ -167,7 +167,7 @@ function ImportDialog({ payload, open: isOpen, onClose }: { payload: SharePayloa
 function StateScreen({ phase }: { phase: Phase }) {
   const copy: Record<string, { title: string; body: string }> = {
     "missing-key": { title: "This link is incomplete.", body: "The secret part after the # is missing — ask your friend to copy the whole link again." },
-    "not-found": { title: "Nothing here.", body: "This link doesn't exist, or the person who shared it turned it off." },
+    "not-found": { title: "Nothing here.", body: "This link doesn't exist, or the person who shared it turned it off. Ask them to send you a new one." },
     removed: { title: "This link was turned off.", body: "The person who shared it stopped sharing. Anything you saved stays yours." },
     "bad-key": { title: "Can't unlock this.", body: "The link's key doesn't match. Make sure it was copied completely." },
     error: { title: "Couldn't reach the server.", body: "Check your connection and refresh." },

@@ -3,7 +3,7 @@ import { useApp, type AppState } from "./app";
 import { toast } from "./toasts";
 import { isApplyingRemote, storageOk } from "./persist";
 import { fingerprint, newShareKey, seal } from "../lib/crypto";
-import { ApiError, createShare, deleteShare, updateShare } from "../lib/api";
+import { ApiError, createShare, deleteShare, fetchShare, updateShare } from "../lib/api";
 import type { ShareRecord, SharePayload } from "../lib/types";
 
 export const BOARD = "board";
@@ -47,6 +47,13 @@ export async function startShare(anchor: string, includes: Pick<ShareRecord, "in
   const key = newShareKey();
   const envelope = await seal(key, payload);
   const created = await createShare(envelope);
+  // Read it straight back, so a link is only handed out once the server really has it.
+  try {
+    await fetchShare(created.id);
+  } catch (err) {
+    if (isGone(err)) throw new Error("The link didn't save on the server. Try again in a moment.");
+    /* offline for a second / can't tell: the create itself succeeded, so go ahead */
+  }
   const record: ShareRecord = {
     anchor,
     id: created.id,
@@ -74,6 +81,25 @@ export async function stopShare(anchor: string): Promise<void> {
   }
   if (useApp.getState().shares[anchor]?.id === record.id) useApp.getState().dropShare(anchor);
   useShareStatus.setState({ [anchor]: "idle" });
+}
+
+/**
+ * Asks the server whether a live link still works. If it's gone (turned off elsewhere, or
+ * never saved), forgets it locally so the owner sees the truth and can make a new one.
+ * Resolves true when the link works or we can't tell (offline), false when it's gone.
+ */
+export async function verifyShare(anchor: string): Promise<boolean> {
+  const record = useApp.getState().shares[anchor];
+  if (!record) return false;
+  try {
+    await fetchShare(record.id);
+    return true;
+  } catch (err) {
+    if (!isGone(err)) return true;
+    if (useApp.getState().shares[anchor]?.id === record.id) useApp.getState().dropShare(anchor);
+    useShareStatus.setState({ [anchor]: "idle" });
+    return false;
+  }
 }
 
 /** Links whose note no longer exists at all (deleted forever, or expired from trash). */
