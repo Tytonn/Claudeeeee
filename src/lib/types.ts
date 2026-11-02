@@ -62,8 +62,8 @@ export type SizeId = "s" | "m" | "l";
 export type EffectsId = "cosmic" | "subtle" | "off";
 /** How much of the sky shows through the panels. */
 export type BackdropId = "dark" | "glass" | "clear" | "crystal" | "bare";
-/** What's behind the glass: the eclipse, or a night city in the rain. */
-export type SceneId = "eclipse" | "rain";
+/** What's behind the glass: deep space round the eclipse (shown as "Galaxy"), a night city in the rain, or a total solar eclipse over the clouds. */
+export type SceneId = "eclipse" | "rain" | "solar";
 export type RainAmountId = "drizzle" | "rain" | "downpour";
 
 export type Settings = {
@@ -84,6 +84,8 @@ export type Settings = {
   rainAmount: RainAmountId;
   /** Rain: how out of focus the city is, 0..1 (fully, by default). */
   cityBlur: number;
+  /** Solar eclipse: the clouds drifting below it (and the thin high ones that cross it). */
+  solarClouds: boolean;
   /** The cursor as a light: the glow on the glass and panel edges that follows it. */
   cursorLight: boolean;
   /** Show milliseconds on the clock (off by default)… */

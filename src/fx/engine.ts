@@ -5,8 +5,9 @@ import { viewportHeight } from "../lib/platform";
 /**
  * umbra's light engine. One animation loop drives three layers:
  *  - the sky (WebGL): nebula dust, stars, and the solar corona around the editor panel —
- *    or, in the rain scene, a night city seen through a wet window, with lightning
- *  - dust (2D, behind the UI): motes drifting through the corona light
+ *    or, in the rain scene, a night city seen through a wet window, with lightning — or a
+ *    total solar eclipse, seen from the ground, over a bank of cloud
+ *  - dust (2D, behind the UI): motes drifting through the corona light (birds, in the eclipse)
  *  - overlay (2D, above the UI): sunbursts, flares, embers, light trails — splashes and drips in the rain
  * Everything is in CSS pixels; effects are fire-and-forget.
  */
@@ -63,6 +64,10 @@ type Glyph = Timed & { ch: string; x: number; y: number; font: string; ash: bool
 /** A lightning strike: a few flickers of light, maybe with a bolt you can see. */
 type Strike = { t0: number; pulses: { at: number; amp: number; tau: number }[]; x: number; seed: number; bolt: boolean };
 export type RainOptions = { lightning: boolean; city: boolean; amount: number; blur: number };
+/** The moon nudged a hair off the sun and back — [ms, offset in sun radii] keys. A diamond ring, or just a glimmer of Baily's beads. */
+type Nudge = { t0: number; dir: { x: number; y: number }; keys: [number, number][] };
+/** Birds heading home to roost: the eclipse has fooled them into thinking it's evening. */
+type Flock = { t0: number; dur: number; x0: number; y0: number; x1: number; y1: number; birds: { ox: number; oy: number; phase: number; rate: number; size: number }[] };
 
 const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -70,6 +75,42 @@ const clamp01 = (t: number) => Math.min(1, Math.max(0, t));
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 const WHITE: C255 = [255, 255, 255];
 const WATER: C255 = [196, 222, 255];
+const SUNLIGHT: C255 = [255, 222, 186];
+const smooth = (a: number, b: number, x: number) => {
+  const t = clamp01((x - a) / (b - a));
+  return t * t * (3 - 2 * t);
+};
+
+/** The moon's radius in sun radii, and how high the mountains on its edge stand (as in the shader). */
+const MOON_R = 1.026;
+const CRAGS = 0.012;
+
+/** How much of the sun the moon leaves showing, 0..1, with their centers d sun radii apart. */
+function uncovered(d: number) {
+  const r1 = 1;
+  const r2 = MOON_R;
+  if (d >= r1 + r2) return 1;
+  if (d <= r2 - r1) return 0;
+  const acos = (x: number) => Math.acos(Math.min(1, Math.max(-1, x)));
+  const a = r1 * r1 * acos((d * d + r1 * r1 - r2 * r2) / (2 * d * r1));
+  const b = r2 * r2 * acos((d * d + r2 * r2 - r1 * r1) / (2 * d * r2));
+  const c = 0.5 * Math.sqrt(Math.max(0, (-d + r1 + r2) * (d + r1 - r2) * (d - r1 + r2) * (d + r1 + r2)));
+  return clamp01(1 - (a + b - c) / Math.PI);
+}
+
+/** Smooth steps between [time, value] keys. */
+function keyed(keys: [number, number][], t: number) {
+  if (t <= keys[0][0]) return keys[0][1];
+  for (let i = 1; i < keys.length; i++) {
+    const [t1, v1] = keys[i];
+    if (t <= t1) {
+      const [t0, v0] = keys[i - 1];
+      const u = (t - t0) / Math.max(1, t1 - t0);
+      return v0 + (v1 - v0) * u * u * (3 - 2 * u);
+    }
+  }
+  return keys[keys.length - 1][1];
+}
 
 class FxEngine {
   level: FxLevel = "cosmic";
@@ -165,6 +206,33 @@ class FxEngine {
   /** A veil of light over everything, for the instant lightning lights up the room. */
   private room: HTMLDivElement | null = null;
 
+  /** The solar eclipse: where the sun hangs (CSS px). It glides to a new spot when the layout changes. */
+  private sun = { x: 0, y: 0, r: 50 };
+  private sunPlaced = false;
+  /** What the sun's spot depends on: the page's panels, a friend's page, or nothing yet. */
+  private sunAnchor: "none" | "panel" | "moon" = "none";
+  /** Held somewhere else for now: the intro plays out in the middle of the screen. */
+  private sunHold: { x: number; y: number; r: number } | null = null;
+  private nudges: Nudge[] = [];
+  /** The intro's moon, sliding in over the sun (its offset, in sun radii). */
+  private approach: { x: number; y: number } | null = null;
+  private solarFade = 1;
+  private coronaK = 1;
+  private moonNow = { x: 0, y: 0 };
+  private lightNow = 0;
+  private glareNow = { x: 0, y: -1, v: 0 };
+  private eruption: { t0: number; dur: number; angle: number; size: number } | null = null;
+  private eruptNow: [number, number, number, number] = [0, 0, 0, 0];
+  private nextGlint = 30000;
+  private nextErupt = 45000;
+  private nextFlock = 25000;
+  private flock: Flock | null = null;
+  private solarOpts = { clouds: true };
+  /** Where the widgets in the right-hand column end (CSS px), measured now and then. */
+  private railBottom = 0;
+  private railAt = -1e9;
+  private cloudsK = 1;
+
   // ── lifecycle ────────────────────────────────────────────────────────────
 
   init() {
@@ -178,6 +246,7 @@ class FxEngine {
     if (!this.sky) this.skyCanvas.style.display = "none";
     // Rain needs a little more of the GPU; if this device can't draw it, stay with the eclipse.
     if (this.scene === "rain" && this.sky && !this.sky.rainReady()) this.scene = "eclipse";
+    if (this.scene === "solar" && this.sky && !this.sky.solarReady()) this.scene = "eclipse";
     document.documentElement.dataset.scene = this.scene;
     this.dustCanvas = this.makeCanvas("fx-dust");
     this.dctx = this.dustCanvas.getContext("2d");
@@ -298,6 +367,10 @@ class FxEngine {
       const budget = Math.sqrt(4.2e6 / Math.max(1, this.W * this.H));
       return Math.min(dpr, this.small ? 1.6 : 2, budget) * (this.effective === "subtle" ? 0.75 : 1);
     }
+    if (this.scene === "solar") {
+      // The clouds are drawn small anyway; the moon wants a crisp edge.
+      return Math.min(devicePixelRatio || 1, this.small ? 1.25 : 1.5) * (this.effective === "subtle" ? 0.7 : 1);
+    }
     return this.small ? 0.55 : Math.min(devicePixelRatio || 1, 1.25) * (this.effective === "subtle" ? 0.6 : 1);
   }
 
@@ -308,34 +381,65 @@ class FxEngine {
     this.sky.resize(this.W, this.H, scale);
     // The city behind the rain is soft, so it needs a little less than the glass in front of it.
     this.sky.cityScale = Math.min(1.15, Math.max(0.6, scale * 0.75));
-    this.sky.quality = this.effective === "cosmic" && (!this.small || this.rain) ? 1 : 0;
+    this.sky.quality = this.effective === "cosmic" && (!this.small || this.rain || this.solar) ? 1 : 0;
   }
 
   get rain() {
     return this.scene === "rain";
   }
 
+  get solar() {
+    return this.scene === "solar";
+  }
+
   /** Switches the sky. The rain sets in gradually; `instant` skips that (e.g. at startup). */
   setScene(scene: SceneId, instant = false) {
     if (scene === this.scene) return;
     if (scene === "rain" && this.sky && !this.sky.rainReady()) scene = "eclipse";
+    if (scene === "solar" && this.sky && !this.sky.solarReady()) scene = "eclipse";
+    if (scene === this.scene) return;
     this.scene = scene;
     document.documentElement.dataset.scene = scene;
-    if (scene === "rain") {
-      this.wet = instant ? 1 : 0.15;
-      this.sceneFade = instant ? 1 : 0.6;
+    if (scene !== "eclipse") {
       this.cmes = [];
       this.meteors = [];
       this.wakes = [];
       this.frags = [];
-      this.nextStrike = this.clock + rand(4000, 9000);
       this.dustClear = true;
+    }
+    if (scene === "rain") {
+      this.wet = instant ? 1 : 0.15;
+      this.sceneFade = instant ? 1 : 0.6;
+      this.nextStrike = this.clock + rand(4000, 9000);
     } else {
       this.strikes = [];
       this.flashNow = 0;
       this.setRoomFlash(0);
     }
+    if (scene === "solar") {
+      this.solarFade = instant ? 1 : 0.55;
+      this.nudges = [];
+      this.eruption = null;
+      this.flock = null;
+      this.coronaK = 1;
+      this.nextGlint = this.clock + rand(25000, 45000);
+      this.nextErupt = this.clock + rand(35000, 70000);
+      this.nextFlock = this.clock + rand(15000, 40000);
+      // Straight to its spot (so a view transition's snapshot already has it there).
+      this.sunPlaced = this.started;
+      if (this.started) this.sun = this.sunHome();
+    }
     if (this.started) this.sizeSky();
+  }
+
+  setSolar(o: Partial<{ clouds: boolean }>) {
+    this.solarOpts = { ...this.solarOpts, ...o };
+    if (!this.started) this.cloudsK = this.solarOpts.clouds ? 1 : 0;
+  }
+
+  /** Where the sun is (CSS px), for things that start from it. */
+  get sunSpot() {
+    return { ...this.sun };
   }
 
   setRain(o: Partial<RainOptions>) {
@@ -366,13 +470,14 @@ class FxEngine {
   renderNow() {
     if (!this.started || !this.sky) return;
     this.lastSky = -1e9;
+    this.sky.invalidate();
     this.renderSky(this.clock);
   }
 
   /** Watches real frame times; trades sky resolution for smoothness when needed. */
   private adapt(realDt: number) {
     this.frameMs += (realDt * 1000 - this.frameMs) * 0.05;
-    const floor = this.rain ? 0.5 : 0.35;
+    const floor = this.rain || this.solar ? 0.5 : 0.35;
     if (this.frameMs > 24 && this.skyScale > floor + 0.01) {
       this.slowFor += realDt;
       this.fastFor = 0;
@@ -507,8 +612,9 @@ class FxEngine {
     const idle = now - this.lastInput > 25000;
     const energyTo = this.calm ? 0.2 : idle ? 1.4 : 1;
     this.energy += (energyTo - this.energy) * Math.min(1, dt * (this.calm ? 1.2 : idle ? 0.35 : 3));
-    // The eclipse slows and holds its breath while you write; rain just keeps falling.
-    this.time += dt * (this.rain ? 1 : (0.25 + 0.75 * this.energy) * (lvl === "subtle" ? 0.35 : 1));
+    // The eclipse slows and holds its breath while you write; rain just keeps falling; the clouds
+    // under the solar eclipse drift on, a little slower.
+    this.time += dt * (this.rain ? 1 : this.solar ? (0.45 + 0.55 * Math.min(1, this.energy)) * (lvl === "subtle" ? 0.6 : 1) : (0.25 + 0.75 * this.energy) * (lvl === "subtle" ? 0.35 : 1));
     this.smouse.x += (this.mouse.x - this.smouse.x) * Math.min(1, dt * 4);
     this.smouse.y += (this.mouse.y - this.smouse.y) * Math.min(1, dt * 4);
     for (let i = 0; i < 3; i++) {
@@ -523,15 +629,17 @@ class FxEngine {
     this.inkBudget = Math.min(24, this.inkBudget + dt * 40);
     this.trackPanel();
     if (this.rain) this.stepRain(now, dt, idle);
+    if (this.solar) this.stepSolar(now, dt, idle);
 
     // Sky: the eclipse drifts so slowly while you write that ~30fps is plenty then. Rain never
-    // slows down — falling drops stutter visibly at anything less than every frame.
-    const throttle = !this.rain && this.energy < 0.4 ? 32 : 0;
+    // slows down — falling drops stutter visibly at anything less than every frame — and nor does
+    // the solar eclipse while something's happening in it.
+    const throttle = !this.rain && !this.solarBusy && this.energy < 0.4 ? 32 : 0;
     if (this.sky && (now - this.lastSky > throttle || this.flare > 0.02 || this.shocks.length || this.flashNow > 0.004)) {
       this.renderSky(now);
     }
 
-    if (this.rain) {
+    if (this.rain || this.solar) {
       this.drawDust(dt);
       this.drawOverlay(now, dt);
       return;
@@ -592,7 +700,278 @@ class FxEngine {
         fade: this.sceneFade,
         blur: this.blurK,
       },
+      solar: {
+        sun: { x: this.sun.x - ox, y: this.sun.y - oy, r: this.sun.r },
+        moon: this.moonNow,
+        light: this.lightNow,
+        glare: this.glareNow,
+        corona: this.coronaK,
+        erupt: this.eruptNow,
+        fade: this.solarFade,
+        clouds: this.cloudsK,
+      },
     });
+  }
+
+  // ── the solar eclipse ────────────────────────────────────────────────────
+
+  /**
+   * Where the sun hangs: low in the sky, just above the clouds, on the right — over the
+   * right-hand column when it's open, settling in the clear sky below the widgets there (it
+   * drifts down out of the way as the list grows, as far as the clouds).
+   */
+  private sunHome() {
+    const W = this.W;
+    const H = this.H;
+    const m = Math.min(W, H);
+    if (this.panelCircle) {
+      // A friend's page: high over the note, like a banner.
+      const r = Math.max(34, Math.min(76, m * 0.075));
+      return { x: W / 2, y: Math.max(r * 2.4, H * 0.14), r };
+    }
+    const p = this.panel;
+    const right = W - (p.x + p.w);
+    if (!this.small && this.panelEl && right > 220) {
+      const r = Math.max(36, Math.min(70, right * 0.19, m * 0.066));
+      const t = performance.now();
+      if (t - this.railAt > 400) {
+        this.railAt = t;
+        const last = document.querySelector<HTMLElement>(".app.has-rail .rail-inner")?.lastElementChild;
+        this.railBottom = last ? last.getBoundingClientRect().bottom : 0;
+      }
+      return { x: p.x + p.w + right / 2, y: Math.min(H * 0.74, Math.max(H * 0.5, this.railBottom + r * 2.5)), r };
+    }
+    const r = Math.max(32, Math.min(68, m * (this.small ? 0.1 : 0.064)));
+    return { x: W * (this.small ? 0.7 : 0.8), y: H * (this.small ? 0.62 : 0.56), r };
+  }
+
+  /** Something's moving in the solar sky, so it should be drawn every frame. */
+  private get solarBusy() {
+    return (
+      this.solar &&
+      (this.nudges.length > 0 || this.approach !== null || this.eruption !== null || this.solarFade < 0.995 || this.sunHold !== null || (this.cloudsK > 0 && this.cloudsK < 1))
+    );
+  }
+
+  private stepSolar(now: number, dt: number, idle: boolean) {
+    this.solarFade += (1 - this.solarFade) * Math.min(1, dt * 1.6);
+    this.cloudsK += ((this.solarOpts.clouds ? 1 : 0) - this.cloudsK) * Math.min(1, dt * 1.8);
+    if (Math.abs(this.cloudsK - (this.solarOpts.clouds ? 1 : 0)) < 0.002) this.cloudsK = this.solarOpts.clouds ? 1 : 0;
+    const to = this.sunHold ?? this.sunHome();
+    // The first time there's a page to hang it by, it goes straight there; after that it glides.
+    const anchor = this.panelCircle ? "moon" : this.panelEl ? "panel" : "none";
+    if (anchor !== this.sunAnchor) {
+      if (this.sunAnchor === "none" && !this.sunHold) this.sunPlaced = false;
+      this.sunAnchor = anchor;
+    }
+    if (!this.sunPlaced) {
+      this.sun = { ...to };
+      this.sunPlaced = true;
+    } else {
+      const k = Math.min(1, dt * 2.2);
+      this.sun.x += (to.x - this.sun.x) * k;
+      this.sun.y += (to.y - this.sun.y) * k;
+      this.sun.r += (to.r - this.sun.r) * k;
+    }
+
+    // The moon: nudged a hair off the sun now and then — or, in the intro, sliding in over it.
+    let ox = 0;
+    let oy = 0;
+    this.nudges = this.nudges.filter((n) => {
+      const t = now - n.t0;
+      if (t >= n.keys[n.keys.length - 1][0]) return false;
+      // its edge creeps unevenly, so the beads along it flicker
+      const v = Math.max(0, keyed(n.keys, t) + Math.sin(t * 0.047 + n.t0) * 0.0009 + Math.sin(t * 0.031) * 0.0006);
+      ox -= n.dir.x * v;
+      oy -= n.dir.y * v;
+      return true;
+    });
+    if (this.approach) {
+      ox += this.approach.x;
+      oy += this.approach.y;
+    }
+    this.moonNow = { x: ox, y: oy };
+    const d = Math.hypot(ox, oy);
+    this.lightNow = uncovered(d);
+    // The glare: from the moment the deepest valleys along the moon's edge let the sun through.
+    const g = smooth(0.003, 0.042, d - (MOON_R - 1 - CRAGS));
+    this.glareNow = d > 1e-6 ? { x: -ox / d, y: -oy / d, v: Math.pow(g, 1.5) * (1 + Math.min(1.2, this.lightNow * 10)) } : { x: 0, y: -1, v: 0 };
+    // The corona can only be seen at totality: the least bit of sunlight drowns it out.
+    const coronaTo = 1 - smooth(0.0015, 0.03, this.lightNow);
+    this.coronaK += (coronaTo - this.coronaK) * Math.min(1, dt * (coronaTo > this.coronaK ? 1.5 : 9));
+
+    const e = this.eruption;
+    const ep = e ? (now - e.t0) / e.dur : 1;
+    if (e && ep >= 1) this.eruption = null;
+    this.eruptNow = e && ep < 1 ? [e.angle, Math.max(0, ep), e.size, 1] : [0, 0, 0, 0];
+
+    // Left be: now and then a glimmer of Baily's beads, a prominence erupting, birds going to roost.
+    if (this.full && !this.calm && !document.hidden && !this.sunHold) {
+      if (now > this.nextGlint) {
+        this.glint();
+        this.nextGlint = now + rand(40000, 95000) * (idle ? 0.6 : 1);
+      }
+      if (now > this.nextErupt) {
+        this.erupt();
+        this.nextErupt = now + rand(50000, 120000) * (idle ? 0.6 : 1);
+      }
+      if (now > this.nextFlock) {
+        this.birds();
+        this.nextFlock = now + rand(70000, 170000) * (idle ? 0.7 : 1);
+      }
+    }
+  }
+
+  /** A glimmer: the moon's edge drifts a hair off the sun, and Baily's beads flicker along it for a moment. */
+  glint() {
+    if (!this.solar || !this.active) return;
+    const a = rand(0, Math.PI * 2);
+    this.nudges.push({
+      t0: this.clock,
+      dir: { x: Math.cos(a), y: Math.sin(a) },
+      keys: [
+        [0, 0],
+        [600, 0.02],
+        [1500, 0.0262],
+        [2500, 0.0255],
+        [3400, 0.012],
+        [3900, 0],
+      ],
+    });
+  }
+
+  /** A prominence lifts off the sun's edge and erupts into space, slowly. */
+  erupt() {
+    if (!this.solar || !this.full) return;
+    this.eruption = { t0: this.clock, dur: rand(9000, 13000), angle: rand(0, Math.PI * 2), size: rand(0.8, 1.4) };
+  }
+
+  /** A flock of birds crosses the sky, dark against the glow. */
+  birds() {
+    if (!this.solar || !this.full) return;
+    const s = this.sun;
+    const ltr = Math.random() < 0.5;
+    // across the glow round the sun, where they show up dark against it
+    const y0 = s.y + rand(-1.3, 1.1) * s.r;
+    const n = 5 + ((Math.random() * 7) | 0);
+    const birds = Array.from({ length: n }, (_, i) => {
+      const row = Math.ceil(i / 2);
+      return {
+        ox: -row * rand(11, 15) + rand(-3, 3),
+        oy: (i % 2 ? -1 : 1) * row * rand(5, 7) + rand(-2, 2),
+        phase: rand(0, Math.PI * 2),
+        rate: rand(7.5, 10),
+        size: rand(4.6, 6.8),
+      };
+    });
+    this.flock = { t0: this.clock, dur: rand(16000, 24000), x0: ltr ? -80 : this.W + 80, y0, x1: ltr ? this.W + 80 : -80, y1: y0 + rand(-0.05, 0.1) * this.H, birds };
+  }
+
+  private drawFlock(ctx: CanvasRenderingContext2D) {
+    const f = this.flock;
+    if (!f) return;
+    const k = (this.clock - f.t0) / f.dur;
+    if (k >= 1) {
+      this.flock = null;
+      return;
+    }
+    const dir = Math.sign(f.x1 - f.x0);
+    const bx = f.x0 + (f.x1 - f.x0) * k;
+    const by = f.y0 + (f.y1 - f.y0) * k + Math.sin(k * 7) * 7;
+    const t = this.clock / 1000;
+    ctx.globalCompositeOperation = "source-over";
+    ctx.strokeStyle = "rgba(9, 7, 10, 0.88)";
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    for (const b of f.birds) {
+      const x = bx + b.ox * dir + Math.sin(t * 0.7 + b.phase) * 3;
+      const y = by + b.oy + Math.sin(t * 0.9 + b.phase * 2) * 2;
+      const w = b.size;
+      const lift = Math.sin(t * b.rate + b.phase) * w * 0.6;
+      ctx.lineWidth = Math.max(1.2, w * 0.3);
+      ctx.beginPath();
+      ctx.moveTo(x - w, y - lift);
+      ctx.quadraticCurveTo(x - w * 0.42, y - lift * 0.15 - w * 0.2, x, y);
+      ctx.quadraticCurveTo(x + w * 0.42, y - lift * 0.15 - w * 0.2, x + w, y - lift);
+      ctx.stroke();
+    }
+  }
+
+  /**
+   * New note, under the solar eclipse: the moon slips a hair off the sun. Baily's beads flicker
+   * along its edge — then the sunlight bursts out at one point, the diamond ring. It lights the
+   * clouds, flares across the lens, and fades as the moon slides back over.
+   */
+  private solarDiamond(strength = 1) {
+    const s = this.sun;
+    // It breaks out on the side facing the middle of the screen, more or less.
+    const a = Math.atan2(this.H * 0.45 - s.y, this.W * 0.5 - s.x) + rand(-0.55, 0.55);
+    const dir = { x: Math.cos(a), y: Math.sin(a) };
+    const peak = 0.034 + 0.026 * strength;
+    const burst = 520;
+    this.nudges = [
+      {
+        t0: this.clock,
+        dir,
+        keys: [
+          [0, 0],
+          [160, 0.021],
+          [400, 0.027],
+          [burst, peak],
+          [burst + 260, peak],
+          [burst + 1250, 0.03],
+          [burst + 1900, 0.022],
+          [burst + 2500, 0],
+        ],
+      },
+    ];
+    this.lensFlare({ x: s.x + dir.x * s.r, y: s.y + dir.y * s.r }, burst - 40, strength);
+  }
+
+  /**
+   * The sunlight flaring in the lens, over everything: a wash of warm light, and ghosts marching
+   * across the screen from the point where it broke out (by default, wherever it's breaking out now).
+   */
+  lensFlare(at?: { x: number; y: number }, delay = 0, strength = 1) {
+    if (!this.full) return;
+    const s = this.sun;
+    const x = at?.x ?? s.x + this.glareNow.x * s.r;
+    const y = at?.y ?? s.y + this.glareNow.y * s.r;
+    this.flash(x, y, Math.max(this.W, this.H) * 0.75, { dur: 1600, alpha: 0.13 * strength, color: SUNLIGHT, delay });
+    this.flash(x, y, s.r * 1.4, { dur: 700, alpha: 0.75, color: WHITE, delay });
+    const cx = this.W / 2;
+    const cy = this.H / 2;
+    const ghosts: [number, number, boolean, C255, number][] = [
+      [0.32, 16, true, SUNLIGHT, 0.26],
+      [0.58, 44, false, this.accentHot, 0.14],
+      [0.84, 8, false, WHITE, 0.36],
+      [1.16, 26, true, this.accent, 0.22],
+      [1.46, 72, false, SUNLIGHT, 0.09],
+      [1.74, 12, true, WHITE, 0.3],
+    ];
+    const t0 = this.clock + delay;
+    ghosts.forEach(([k, r, hex, color, alpha], i) =>
+      this.ghosts.push({ x: x + (cx - x) * k * 2, y: y + (cy - y) * k * 2, r, hex, color, alpha: alpha * strength, t0: t0 + i * 45, dur: 1400 }),
+    );
+    this.overDirty = true;
+  }
+
+  /**
+   * The solar intro: the moon slides in over the sun in the middle of the screen. `spot` holds
+   * the sun there (null lets it glide home); `moon` is the moon's offset in sun radii (null once
+   * it's home). `fromBlack` fades the sky up from dark.
+   */
+  holdSun(spot: { x: number; y: number; r: number } | null, o: { fromBlack?: boolean } = {}) {
+    this.sunHold = spot;
+    if (spot) {
+      this.sun = { ...spot };
+      this.sunPlaced = true;
+    }
+    if (o.fromBlack) this.solarFade = 0;
+  }
+
+  setApproach(moon: { x: number; y: number } | null) {
+    this.approach = moon;
   }
 
   // ── rain: the weather ────────────────────────────────────────────────────
@@ -764,7 +1143,13 @@ class FxEngine {
   private drawDust(dt: number) {
     const ctx = this.dctx;
     if (!ctx) return;
-    if (this.rain) {
+    if (this.solar && this.flock) {
+      this.wipe(ctx);
+      this.drawFlock(ctx);
+      this.dustClear = true;
+      return;
+    }
+    if (this.rain || this.solar) {
       if (this.dustClear) this.wipe(ctx);
       this.dustClear = false;
       return;
@@ -808,7 +1193,7 @@ class FxEngine {
 
   /** Spawns one meteor, mostly where it can be seen: through the side glass or around the panel. */
   meteor(o: { fireball?: boolean } = {}) {
-    if (!this.full || this.rain) return;
+    if (!this.full || this.rain || this.solar) return;
     const p = this.panel;
     const left = Math.max(0, p.x);
     const right = Math.max(0, this.W - (p.x + p.w));
@@ -1412,6 +1797,10 @@ class FxEngine {
     if (!this.active) return;
     if (this.rain) {
       this.thunderclap();
+      return;
+    }
+    if (this.solar) {
+      this.solarDiamond();
       return;
     }
     const p = this.panel;

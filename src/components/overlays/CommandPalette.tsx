@@ -5,7 +5,9 @@ import {
   CalendarPlus,
   CloudLightning,
   CloudRain,
-  Moon,
+  Cloudy,
+  Eclipse,
+  Orbit,
   CornerDownLeft,
   Download,
   EyeOff,
@@ -201,9 +203,26 @@ function useItems(query: string): Item[] {
       })),
       ...(settings.effects !== "off"
         ? [
-            settings.scene === "rain"
-              ? { id: "scene", group: "Appearance", label: "Back to the eclipse", icon: <Moon size={15} strokeWidth={1.6} />, keywords: "scene theme space stars sky background eclipse", run: () => window.setTimeout(() => changeScene("eclipse"), 240) }
-              : { id: "scene", group: "Appearance", label: "Make it rain", icon: <CloudRain size={15} strokeWidth={1.6} />, keywords: "scene theme rain storm city night window background", run: () => window.setTimeout(() => changeScene("rain"), 240) },
+            // every scene but the one you're in
+            ...[
+              { id: "eclipse" as const, label: "Scene: Galaxy", icon: <Orbit size={15} strokeWidth={1.6} />, keywords: "scene theme space stars galaxy nebula sky background corona" },
+              { id: "solar" as const, label: "Scene: Solar eclipse", icon: <Eclipse size={15} strokeWidth={1.6} />, keywords: "scene theme sun eclipse totality corona diamond ring clouds sunset sky background" },
+              { id: "rain" as const, label: "Make it rain", icon: <CloudRain size={15} strokeWidth={1.6} />, keywords: "scene theme rain storm city night window background" },
+            ]
+              .filter((sc) => sc.id !== (settings.scene === "rain" || settings.scene === "solar" ? settings.scene : "eclipse"))
+              .map((sc) => ({ id: `scene-${sc.id}`, group: "Appearance", label: sc.label, icon: sc.icon, keywords: sc.keywords, run: () => window.setTimeout(() => changeScene(sc.id), 240) })),
+            ...(settings.scene === "solar"
+              ? [
+                  {
+                    id: "clouds",
+                    group: "Appearance",
+                    label: settings.solarClouds !== false ? "Clear the clouds away" : "Bring the clouds back",
+                    icon: <Cloudy size={15} strokeWidth={1.6} />,
+                    keywords: "clouds sky eclipse sun weather",
+                    run: () => s.setSettings({ solarClouds: settings.solarClouds === false }),
+                  },
+                ]
+              : []),
             ...(settings.scene === "rain"
               ? [
                   {

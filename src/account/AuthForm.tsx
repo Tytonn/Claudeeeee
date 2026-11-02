@@ -128,8 +128,9 @@ export function AuthForm({ onDone, intro, initialMode = "in" }: { onDone?: () =>
     const y = r.top + r.height / 2;
     const rim = { x: x + r.width * 0.3, y: y - r.height * 0.3 };
     fx.flareUp(1);
-    // In the rain, you arrive with the lightning.
+    // In the rain, you arrive with the lightning; under the eclipse, with the diamond ring.
     if (fx.rain) fx.strike({ bolt: true, power: 1, x });
+    if (fx.solar) fx.diamondRing();
     fx.flash(rim.x, rim.y, 140, { dur: 600, alpha: 0.95 });
     fx.flash(x, y, Math.max(innerWidth, innerHeight) * 0.5, { dur: 1000, alpha: 0.28, color: fx.accent });
     fx.ring(x, y, r.width * 0.4, r.width * 2.6, { dur: 900, width: 2 });

@@ -8,10 +8,10 @@
 
 ## What's inside
 
-**The light show**
+**The light show** *(the Galaxy scene — the default; see also Solar eclipse and Rain below)*
 - A living sky behind everything (WebGL): a drifting nebula with glowing filaments and dark dust lanes, three depths of twinkling stars that shift with your cursor, and shooting stars — now and then a fireball or a little meteor shower.
 - The editor is the moon in a total eclipse. A solar corona pours out from behind it in long, flowing streamers, swings toward your cursor, and throws off coronal loops. The side panels are smoked glass, so you see the sky through them.
-- Your cursor is a light source: panels catch a rim of light where it passes, countdown cards tilt toward it and cast shadows away from it. (**Settings → Cursor light** turns it off, in either scene.)
+- Your cursor is a light source: panels catch a rim of light where it passes, countdown cards tilt toward it and cast shadows away from it. (**Settings → Cursor light** turns it off, in any scene.)
 - Writing: a caret made of light, letters that land white-hot and cool to ink, erased letters that fall away as ash, and a sunburst every 100 words. While you type, the sky calms down so it never gets in the way.
 - **New note:** the diamond ring — a blinding flash on the moon's rim, lens flare, a shockwave through the sky.
 - **Delete the open note:** the burning edge of the moon sweeps across the page, eating the old words, and the next note comes up out of the shadow behind it. The glass and the sky never change underneath. Anything else you delete dissolves into embers.
@@ -21,7 +21,17 @@
 - **Settings → Effects:** *Max* (everything), *Subtle* (a calm sky and small flourishes) or *Off*. If your system asks for reduced motion, umbra uses *Subtle* automatically.
 - **Settings → Background:** *Dark* (smoked glass), *Glass* (more sky), *Clear* (the sky almost fully, with a soft shade behind your words), *Crystal* (no glass at all — just outlines over the open sky, with a crisp little drop shadow behind every word) or *Bare* (nothing at all: no panels, no outlines, no shade — the sky's light even carries on behind your words instead of stopping at the page's edge). Also in the command palette: *Show more of the sky*.
 
-**Rain** *(Settings → Scene → Rain; the eclipse stays the default)*
+**Solar eclipse** *(Settings → Scene → Solar eclipse)*
+- A real total solar eclipse, seen from the ground, drawn live on the GPU: a black moon edged with fire, the pearly corona streaming out around it in long, fine-combed blades, pink prominences standing up off the rim, and a dusky sky with a sunset glowing all the way round the horizon — the way it really looks at totality. Venus and a few stars come out in the dark.
+- It hangs low on the right, just above the clouds: over the right-hand column when that's open, settling in the clear sky below your countdowns and to-dos (and drifting down out of the way as the list grows). On a friend's shared page it hangs over the note like a banner.
+- **Clouds** *(toggle)*: a bank of cumulus drifting slowly by underneath — dark in the moon's shadow, warm where the horizon glow catches their undersides, lying low under the sun so they frame it. Now and then a thin veil of high cloud crosses the sun and lights up, with a faint shimmer of color.
+- **New note: the diamond ring.** The moon slips a hair off the sun: Baily's beads flicker along its mountainous edge, then the sunlight bursts out at one point — blinding, with a six-pointed star, a long lens streak, a rainbow halo and ghosts marching across the screen. The clouds light up gold, the corona dims in the glare, and it all fades as the moon slides back over.
+- Left alone, it lives: Baily's beads glimmer along the edge now and then, a prominence lifts off and erupts into space, and flocks of birds cross the glow, heading home to roost (they think it's evening).
+- **The intro** plays the real thing in the middle of the screen: a strange, dimming daylight and a blinding crescent; the moon creeps over it; the beads, the diamond ring — totality, the corona blooming out, *umbra* below it. Then the sun drifts off to its place as the page comes up.
+- Choosing it opens the scene out from the sun itself, and greets you with the diamond ring. Command palette: *Scene: Solar eclipse*, and *Clear the clouds away*.
+- The clouds are soft, so they're drawn at half resolution and only 30 times a second; the eclipse is drawn sharp on top. It's lighter on the GPU than the galaxy.
+
+**Rain** *(Settings → Scene → Rain)*
 - A night city seen through a rain-streaked window, all drawn live on the GPU — no images or video. The city is out of focus, the way it is when your eyes are on the glass: bokeh from windows, streetlamps, neon signs (one in your accent color), traffic sliding along a wet street with its reflections smeared down the road, blinking warning lights on the towers, mist, and rain falling through the lamplight.
 - On the glass: beads of rain that land and slowly shrink away, and drops that gather, break free and run down in fits and starts — leaving a clear, glistening trail dotted with tiny beads. Every drop is a little lens: it shows the city upside down, small and sharp, with dark edges. The rest of the pane is fogged.
 - Your cursor is a warm light held near the glass: drops glint as it passes and the fog glows around it.
@@ -31,7 +41,7 @@
 - **Blur:** how out of focus the city is — from crisp bokeh to a soft, dreamy glow (fully blurred by default). It's real defocus, worked out for every pixel (not a blurred picture), so it stays smooth at any setting; the rain outside softens a little less, and the drops on the glass always stay sharp.
 - Drawn sharp: the glass at up to twice your screen's pixel density, the city at about its full resolution (and only 30 times a second, since it barely moves), the rain as fine anti-aliased streaks.
 - Everything else goes wet too: a new note brings the lightning close; checking a to-do is a splash (ripples, a crown of droplets); erased letters run off the page like drips; deleting a note washes it away from the top; other things you delete are rinsed off in drops; sharing calls down a bolt; the intro writes *umbra* into the fogged glass; and the little sounds become drips and bubbles.
-- It switches over with a sheet of rain running down the screen. Command palette: *Make it rain*, *Back to the eclipse*, and toggles for lightning and city lights.
+- It switches over with a sheet of rain running down the screen. Command palette: *Make it rain*, *Scene: Galaxy*, and toggles for lightning and city lights.
 - Like the eclipse, it pauses completely when the tab is hidden and lowers its resolution on its own if a device struggles — but it keeps falling at full frame rate while you type.
 
 **Notes**
@@ -156,7 +166,7 @@ npm run typecheck
 - **Name:** the wordmark is plain text — search for `umbra` in `index.html`, `src/`, and `public/manifest.webmanifest`.
 - **Default accent / settings:** `DEFAULT_SETTINGS` in [`src/store/app.ts`](src/store/app.ts); the palette lives in [`src/lib/theme.ts`](src/lib/theme.ts).
 - **Design tokens** (colors, type, radii, motion): the top of [`src/styles/base.css`](src/styles/base.css).
-- **The sky and effects:** the WebGL sky (nebula, stars, corona) is one shader in [`src/fx/shaders.ts`](src/fx/shaders.ts); the rain is two passes in [`src/fx/rain.ts`](src/fx/rain.ts) (the city into a mipmapped texture, then the glass); everything else (meteors, flares, lightning timing, splashes, particles, trails) is in [`src/fx/engine.ts`](src/fx/engine.ts). Each accent's nebula color is in [`src/lib/theme.ts`](src/lib/theme.ts).
+- **The sky and effects:** the WebGL sky (nebula, stars, corona) is one shader in [`src/fx/shaders.ts`](src/fx/shaders.ts); the rain is two passes in [`src/fx/rain.ts`](src/fx/rain.ts) (the city into a mipmapped texture, then the glass); the solar eclipse is two passes in [`src/fx/solar.ts`](src/fx/solar.ts) (the clouds into a small texture, then the sky and the eclipse); everything else (meteors, flares, lightning timing, splashes, particles, trails) is in [`src/fx/engine.ts`](src/fx/engine.ts). Each accent's nebula color is in [`src/lib/theme.ts`](src/lib/theme.ts).
 
 ## Project layout
 
@@ -174,7 +184,7 @@ src/
     widgets/                   to-dos, countdowns, date picker
     overlays/                  command palette, settings, share sheet, the PIN pad, toasts
     ui/                        primitives (tooltip, popover, menu, switch, eclipse…)
-  fx/                          the light engine: WebGL sky (eclipse + rain), effects overlay, intro, light caret
+  fx/                          the light engine: WebGL sky (galaxy, solar eclipse, rain), effects overlay, intro, light caret
   collab/                      live co-editing: sync engine, owner sessions, title binding
   account/                     accounts, the sign-in eclipse, cross-device sync
   share/ShareView.tsx          what your friend sees

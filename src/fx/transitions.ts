@@ -81,7 +81,8 @@ function curtain(k: number) {
 
 /**
  * Changing the scene. Rain comes down over everything like a sheet of water running down
- * the window; the eclipse opens out from where you clicked, like the accent does.
+ * the window; the galaxy opens out from where you clicked, like the accent does; the solar
+ * eclipse opens out from the sun itself — and greets you with the diamond ring.
  */
 export function changeScene(id: SceneId, x = innerWidth / 2, y = innerHeight / 2) {
   const s = useApp.getState();
@@ -90,7 +91,10 @@ export function changeScene(id: SceneId, x = innerWidth / 2, y = innerHeight / 2
   const start = viewTransitions();
   if (!start) {
     set();
-    if (fx.active) fx.fadeSky();
+    if (fx.active) {
+      fx.fadeSky();
+      if (fx.solar) window.setTimeout(() => fx.diamondRing(), 650);
+    }
     return;
   }
   const root = document.documentElement;
@@ -110,6 +114,19 @@ export function changeScene(id: SceneId, x = innerWidth / 2, y = innerHeight / 2
             pseudoElement: "::view-transition-new(root)",
           },
         );
+      } else if (fx.solar) {
+        const sun = fx.sunSpot;
+        root.animate(
+          {
+            clipPath: [`circle(${sun.r}px at ${sun.x}px ${sun.y}px)`, `circle(${coverRadius(sun.x, sun.y)}px at ${sun.x}px ${sun.y}px)`],
+          },
+          {
+            duration: 1150,
+            easing: "cubic-bezier(0.45, 0, 0.2, 1)",
+            pseudoElement: "::view-transition-new(root)",
+          },
+        );
+        window.setTimeout(() => fx.diamondRing(), 700);
       } else {
         root.animate(
           {

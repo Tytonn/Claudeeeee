@@ -20,6 +20,7 @@ export const DEFAULT_SETTINGS: Settings = {
   cityLights: true,
   rainAmount: "rain",
   cityBlur: 1,
+  solarClouds: true,
   cursorLight: true,
   clockMs: false,
   clockMsDigits: 3,

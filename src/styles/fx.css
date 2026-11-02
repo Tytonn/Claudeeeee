@@ -1078,6 +1078,48 @@ html:is([data-backdrop="clear"], [data-backdrop="crystal"], [data-backdrop="bare
   filter: blur(10px);
 }
 
+/* Intro, under the solar eclipse: the sky itself plays it, so the page stays hidden until it's
+   over — then comes up as the sun drifts off to its place. The name appears below the sun. */
+html.intro-solar .app {
+  opacity: 0;
+}
+html.intro-solar-out .app {
+  animation: page-up 1100ms cubic-bezier(0.3, 0.7, 0.2, 1) both;
+}
+@keyframes page-up {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+}
+.intro.solar {
+  place-items: start center;
+  background: none;
+}
+.intro.solar .intro-stage {
+  margin-top: var(--word-top, 60vh);
+}
+.intro.solar .intro-word {
+  margin-top: 0;
+  font-size: 64px;
+  color: rgb(255 246 236 / 0.95);
+  text-shadow:
+    0 0 28px rgb(255 196 140 / 0.3),
+    0 1px 2px rgb(0 0 0 / 0.5);
+}
+.intro.solar .intro-tag {
+  color: rgb(255 236 220 / 0.55);
+  animation-delay: 2.45s;
+}
+.intro.solar.is-out .intro-stage {
+  transform: translateY(-8px) scale(1.04);
+  filter: blur(8px);
+  opacity: 0;
+}
+.intro.solar.is-out {
+  transition-duration: 700ms;
+}
+
 /* No moon hangs over a friend's page in the rain, so the note sits higher. */
 html[data-scene="rain"]:is([data-fx="cosmic"], [data-fx="subtle"]) .viewer-main {
   padding-top: max(7vh, 56px);

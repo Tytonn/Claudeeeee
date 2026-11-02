@@ -49,7 +49,8 @@ async function boot() {
     const amount = RAIN_AMOUNT[s.rainAmount] ?? 0.5;
     const blur = typeof s.cityBlur === "number" ? Math.min(1, Math.max(0, s.cityBlur)) : 1;
     fx.setRain({ lightning: s.lightning !== false, city: s.cityLights !== false, amount, blur });
-    fx.setScene(s.scene === "rain" ? "rain" : "eclipse", first);
+    fx.setScene(s.scene === "rain" || s.scene === "solar" ? s.scene : "eclipse", first);
+    fx.setSolar({ clouds: s.solarClouds !== false });
     setSoundTheme(fx.rain && s.effects !== "off" ? "rain" : "eclipse");
     fx.setOpen(s.backdrop === "bare");
     if (fx.cursorLight !== (s.cursorLight !== false)) {
