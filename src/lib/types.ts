@@ -61,8 +61,8 @@ export type Settings = {
   /** Rain: the blurred lights of the city behind the glass. */
   cityLights: boolean;
   rainAmount: RainAmountId;
-  /** Rain: how out of focus the city is, 0..1. */
-  rainBlur: number;
+  /** Rain: how out of focus the city is, 0..1 (fully, by default). */
+  cityBlur: number;
   /** Rain: the sound of it (off by default; this device only). */
   rainSound: boolean;
   /** 0..1 */

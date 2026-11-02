@@ -32,7 +32,7 @@ const SYNCED_SETTINGS = [
   "lightning",
   "cityLights",
   "rainAmount",
-  "rainBlur",
+  "cityBlur",
 ] as const;
 type SyncedSettings = Pick<Settings, (typeof SYNCED_SETTINGS)[number]>;
 

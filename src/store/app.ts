@@ -20,7 +20,7 @@ export const DEFAULT_SETTINGS: Settings = {
   lightning: true,
   cityLights: true,
   rainAmount: "rain",
-  rainBlur: 0.25,
+  cityBlur: 1,
   rainSound: false,
   rainVolume: 0.6,
   name: "",

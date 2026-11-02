@@ -59,8 +59,8 @@ function RainArt() {
           <stop offset="0.55" stopColor="#120f17" />
           <stop offset="1" stopColor="#1c1411" />
         </linearGradient>
-        <filter id="sc-soft" x="-20%" y="-20%" width="140%" height="140%">
-          <feGaussianBlur stdDeviation="0.45" />
+        <filter id="sc-soft" filterUnits="userSpaceOnUse" x="-20" y="-20" width="280" height="112">
+          <feGaussianBlur stdDeviation="2.1" />
         </filter>
         <radialGradient id="sc-drop" cx="0.38" cy="0.34" r="0.7">
           <stop offset="0" stopColor="#fff" />
@@ -72,9 +72,9 @@ function RainArt() {
       <rect width="240" height="72" fill="url(#sc-sky)" />
       <g filter="url(#sc-soft)">
         {RAIN_BOKEH.map(([x, y, r, c, o], i) => (
-          <circle key={i} cx={x} cy={y} r={r} fill={c} fillOpacity={o} stroke={c} strokeOpacity={Math.min(1, o * 1.6)} strokeWidth={0.5} />
+          <circle key={i} cx={x} cy={y} r={r * 1.25} fill={c} fillOpacity={Math.min(0.85, o * 1.35)} />
         ))}
-        <circle cx={140} cy={44} r={5.5} style={{ fill: "var(--accent)", stroke: "var(--accent)" }} fillOpacity={0.32} strokeOpacity={0.55} strokeWidth={0.5} />
+        <circle cx={140} cy={44} r={6.8} style={{ fill: "var(--accent)" }} fillOpacity={0.45} />
       </g>
       <g stroke="#d4e2ff" strokeLinecap="round">
         {RAIN_STREAKS.map(([x1, y1, x2, y2, o, w], i) => (
@@ -118,9 +118,9 @@ function ScenePicker() {
 
 /** How out of focus the city behind the rain is. The drops on the glass always stay sharp. */
 function RainBlur() {
-  const blur = useApp((s) => s.settings.rainBlur);
+  const blur = useApp((s) => s.settings.cityBlur);
   const setSettings = useApp((s) => s.setSettings);
-  const v = typeof blur === "number" ? blur : 0.25;
+  const v = typeof blur === "number" ? blur : 1;
   return (
     <input
       type="range"
@@ -131,7 +131,7 @@ function RainBlur() {
       value={v}
       aria-label="Blur"
       style={{ "--v": `${v * 100}%` } as React.CSSProperties}
-      onChange={(e) => setSettings({ rainBlur: Number(e.target.value) })}
+      onChange={(e) => setSettings({ cityBlur: Number(e.target.value) })}
     />
   );
 }

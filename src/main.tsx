@@ -46,7 +46,7 @@ async function boot() {
     const accent = ACCENTS[s.accent] ?? ACCENTS.iris;
     fx.setAccent(accent.color, accent.nebula);
     const amount = RAIN_AMOUNT[s.rainAmount] ?? 0.5;
-    const blur = typeof s.rainBlur === "number" ? Math.min(1, Math.max(0, s.rainBlur)) : 0.25;
+    const blur = typeof s.cityBlur === "number" ? Math.min(1, Math.max(0, s.cityBlur)) : 1;
     fx.setRain({ lightning: s.lightning !== false, city: s.cityLights !== false, amount, blur });
     fx.setScene(s.scene === "rain" ? "rain" : "eclipse", first);
     const raining = fx.rain && s.effects !== "off";

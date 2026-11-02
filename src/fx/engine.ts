@@ -147,8 +147,8 @@ class FxEngine {
 
   /** Which sky: the eclipse, or rain on the window. */
   scene: SceneId = "eclipse";
-  private rainOpts: RainOptions = { lightning: true, city: true, amount: 0.5, blur: 0.25 };
-  private blurK = 0.25;
+  private rainOpts: RainOptions = { lightning: true, city: true, amount: 0.5, blur: 1 };
+  private blurK = 1;
   private wet = 1;
   private sceneFade = 1;
   private cityK = 1;
