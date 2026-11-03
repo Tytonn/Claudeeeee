@@ -111,7 +111,7 @@ export type Settings = {
   showVersion: boolean;
   /** The cursor as a light: the glow on the glass and panel edges that follows it. */
   cursorLight: boolean;
-  /** Ink: each letter you type lands soft and dark and sharpens as it soaks into the paper. */
+  /** Ink: each letter you type lands in wet, blue-black ink and dries to the page's own tone. */
   inkSettle: boolean;
   /** Show milliseconds on the clock (off by default)… */
   clockMs: boolean;

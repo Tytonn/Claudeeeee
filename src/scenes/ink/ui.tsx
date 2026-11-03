@@ -86,7 +86,7 @@ function InkSettings() {
   const on = useApp((s) => s.settings.inkSettle !== false);
   const setSettings = useApp((s) => s.setSettings);
   return (
-    <Row label="Ink settling letters" desc="Each letter you type lands soft and dark, then sharpens as it soaks into the paper.">
+    <Row label="Ink settling letters" desc="Each letter you type lands in wet, blue-black ink and dries as you write on.">
       <Switch checked={on} onChange={(v) => setSettings({ inkSettle: v })} label="Ink settling letters" />
     </Row>
   );
@@ -101,7 +101,7 @@ export const inkUI: SceneUI = {
       id: "ink-settle",
       label: settings.inkSettle !== false ? "Turn settling letters off" : "Turn settling letters on",
       icon: <Type size={15} strokeWidth={1.6} />,
-      keywords: "ink letters typing soak settle blur effect",
+      keywords: "ink letters typing wet dry soak settle bleed fountain pen effect",
       run: () => set({ inkSettle: settings.inkSettle === false }),
     },
   ],
