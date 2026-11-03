@@ -919,9 +919,11 @@ html[data-typing] .topbar:hover {
     opacity 200ms var(--ease-out),
     visibility 0s linear 460ms;
 }
+/* Room under the status bar, as the list has: iPhones soften whatever sits right below it.
+   (Only where there is a status bar to clear: min() makes it nothing elsewhere.) */
 .app.is-mobile .topbar {
-  padding-top: env(safe-area-inset-top);
-  height: calc(52px + env(safe-area-inset-top));
+  padding-top: calc(env(safe-area-inset-top) + min(14px, env(safe-area-inset-top)));
+  height: calc(52px + env(safe-area-inset-top) + min(14px, env(safe-area-inset-top)));
 }
 .app.is-mobile .canvas::before {
   display: none;

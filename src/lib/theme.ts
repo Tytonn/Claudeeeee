@@ -85,6 +85,8 @@ export function setBarColors(top: string | null, bottom: string | null) {
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta && meta.getAttribute("content") !== (top ?? "#08090a")) meta.setAttribute("content", top ?? "#08090a");
   document.documentElement.style.backgroundColor = bottom ?? "";
+  // (an iPhone may fill any space below the page with the body's colour: the sky's, then)
+  if (document.body) document.body.style.backgroundColor = bottom ?? "";
 }
 
 export const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent);

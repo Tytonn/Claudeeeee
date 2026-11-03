@@ -716,7 +716,7 @@
     padding: 12px;
   }
   .overlay.top {
-    padding-top: max(12px, env(safe-area-inset-top));
+    padding-top: max(12px, calc(env(safe-area-inset-top) + min(12px, env(safe-area-inset-top))));
   }
 }
 
