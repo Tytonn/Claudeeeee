@@ -236,9 +236,9 @@ vec4 bank(vec2 p, float cell, float tall, float seed, bool hq, out float cover) 
 
 /* High cirrus: long wisps combed out by the wind, in patches that come and go. */
 float veil(vec2 c, float sunY) {
-  vec2 v = vec2(c.x * .8 + uTime * .006, c.y * 2.4);
+  vec2 v = vec2(c.x * .8 + uTime * .009, c.y * 2.4);
   float n = fbm(v * 2.3 + vec2(fbm3(v * 1.2 + 3.) * 1.4, 0.));
-  float patches = smoothstep(.45, .72, fbm3(vec2(c.x * .7 + uTime * .0045, c.y * 1.1 + 5.)));
+  float patches = smoothstep(.4, .68, fbm3(vec2(c.x * .7 + uTime * .006, c.y * 1.1 + 5.)));
   return smoothstep(.46, .8, n) * patches * smoothstep(sunY - .3, sunY - .08, c.y);
 }
 
@@ -286,16 +286,16 @@ void main() {
 
   // ── High, thin cloud: veils that drift across the sun now and then and catch its light ──
   vec2 c = frag / uView.y;
-  if (r < 7.5 && uv.y > .3) {
+  if (r < 7.5 && c.y > S.y / uView.y - .3) {
     float v = veil(c, S.y / uView.y);
     if (v > 0.) {
       float rr = max(r, 1.);
       float lit = uCorona * (exp(-(rr - 1.) / .9) * .55 + exp(-(rr - 1.) / 3.2) * .12) + glare * (exp(-(rr - 1.) / 1.5) * 2.2 + .25);
       lit *= mix(.22, 1., smoothstep(.4, 1., r)) * smoothstep(7.5, 5.5, r);
       rgb += vec3(1., .9, .8) * v * lit;
-      // and where the light is just right, a faint shimmer of colour (cloud iridescence)
-      float band = exp(-pow((r - 2.6) / 1.3, 2.));
-      rgb += (.5 + .5 * cos(TAU * (v * 1.8 + r * .3 + vec3(0., .33, .67)))) * v * band * (.07 * uCorona + .35 * glare);
+      // and along its thin edges near the sun, a faint shimmer of colour (cloud iridescence)
+      float edges = v * (1. - v) * 4. * exp(-(rr - 1.) / 1.6);
+      rgb += (.5 + .5 * cos(TAU * (v * 2.6 + vec3(0., .33, .67)))) * edges * (.05 * uCorona + .3 * glare);
       a = v * .45 * smoothstep(1.6, 1., r);
     }
   }
@@ -377,46 +377,86 @@ ${HELPERS}
 /* ── the corona ────────────────────────────────────────────────────────── */
 
 /* One of the long streamers: broad at its base, narrowing to a blade far out, bent a little
-   toward the sun's equator the further out it goes. */
-float blade(float th, float r, float at, float w, float len, float bend) {
+   toward the sun's equator the further out it goes. Its base stays put while its far end sways
+   slowly, like hair in a current — and knots of brighter plasma keep flowing out along it. */
+float streamer(float th, float r, float lr, float at, float w, float len, float bend, float ph) {
+  float t = uTime;
   float k = r - 1.;
-  float d = adiff(th, at + bend * (1. - exp(-k / .8)));
-  float width = w * (.2 + .8 * exp(-k / .55));
-  return exp(-d * d / (width * width)) * exp(-k / len) * smoothstep(0., .05, k);
+  float sway = (.06 * sin(t * .11 + ph) + .035 * sin(t * .27 + ph * 2.3) + .03 * sin(lr * 4. - t * .35 + ph)) * min(1., k * 1.2);
+  float d = adiff(th, at + sway + bend * (1. - exp(-k / .8)));
+  float width = w * (.2 + .8 * exp(-k / .55)) * (1. + .12 * sin(t * .19 + ph * 1.7));
+  float knots = .5 + .7 * pow(.5 + .5 * sin(lr * 6.3 - t * .44 + ph * 4.), 2.5);
+  return exp(-d * d / (width * width)) * exp(-k / len) * smoothstep(0., .05, k) * knots;
 }
 
-vec3 corona(float r, float th) {
+vec3 corona(float r, float th, vec2 u) {
   float k = r - 1.;
   float t = uTime;
   float lr = log(r);
   float a = th / TAU;
-  // Fine structure: hair-thin rays combed out along the field lines, drifting slowly outward.
-  float fine = pfbm(vec2(a * 40., lr * 2.6 - t * .016), 40.);
-  float rays = pow(fine, 2.2) * 2.3;
-  if (uQuality > .5 && r < 3.5) rays += pow(pfbm(vec2(a * 136. + 5., lr * 5. - t * .028), 136.), 3.) * 1.7 * smoothstep(3.5, 2.5, r);
+  // Fine structure: hair-thin rays combed out along the field lines. They stream outward all the
+  // time (the solar wind), and sway a little as they go.
+  float sway = sin(lr * 3.3 - t * .31 + sin(th * 2.) * .7) * .45;
+  // (far out, where it's faint, the fine detail isn't worth working out)
+  float rays = .62;
+  if (r < 5.) rays = mix(pow(pfbm(vec2(a * 40. + sway, lr * 2.4 - t * .16), 40.), 2.2) * 2.4, .62, smoothstep(4., 5., r));
+  if (uQuality > .5 && r < 3.5) rays += pow(pfbm(vec2(a * 136. + 5. + sway * 3.4, lr * 4.6 - t * .3), 136.), 3.) * 1.8 * smoothstep(3.5, 2.5, r);
   // The sun's poles sit a little off vertical; the big helmet streamers lie along its equator.
-  float pole = 1.98;
+  // The whole of it turns, very slowly, so its shape keeps changing over the minutes.
+  float pole = 1.98 + t * .0035 + .07 * sin(t * .025);
   float st = 0.;
-  st += blade(th, r, pole - 1.5708 + .1, .42, 1.5, -.14) * 1.25;
-  st += blade(th, r, pole - 1.5708 - .55, .28, 1., .12) * .8;
-  st += blade(th, r, pole + 1.5708 - .08, .46, 1.7, .12) * 1.2;
-  st += blade(th, r, pole + 1.5708 + .62, .26, .95, -.1) * .75;
-  st += blade(th, r, pole + .85, .18, .7, .2) * .45;
-  st += blade(th, r, pole - 2.4, .2, .8, -.2) * .5;
-  // A slow swell that wanders round the corona, so it never quite sits still.
-  st *= .8 + .35 * sin(th * 2. + t * .07) * sin(th * 3. - t * .05 + 1.3);
+  st += streamer(th, r, lr, pole - 1.5708 + .1, .42, 1.7, -.14, 0.) * 1.3;
+  st += streamer(th, r, lr, pole - 1.5708 - .55, .28, 1.1, .12, 1.7) * .85;
+  st += streamer(th, r, lr, pole + 1.5708 - .08, .46, 1.9, .12, 3.1) * 1.25;
+  st += streamer(th, r, lr, pole + 1.5708 + .62, .26, 1., -.1, 4.4) * .8;
+  st += streamer(th, r, lr, pole + .85, .18, .75, .2, 5.6) * .5;
+  st += streamer(th, r, lr, pole - 2.4, .2, .85, -.2, 6.9) * .55;
+  // A swell of brightness that wanders slowly round the corona, so it never sits still.
+  float swell = 1. + .4 * pow(.5 + .5 * sin(th - t * .12), 6.) + .28 * pow(.5 + .5 * sin(2. * th + t * .085 + 1.3), 8.);
+  // and it leans, just a little, toward your cursor's light
+  vec2 toMouse = normalize(uMouse - uSun.xy + vec2(1e-3));
+  swell *= 1. + .16 * uCursor * dot(u, toMouse);
   // Polar plumes: short, fine brush strokes standing straight up off the poles.
   float pl = exp(-pow(adiff(th, pole) / .5, 2.)) + exp(-pow(adiff(th, pole + 3.1415927) / .5, 2.));
-  float plumes = r < 2.5 ? pl * pow(pfbm(vec2(a * 90. + 2., lr * 1.2), 90.), 3.) * 2.2 * exp(-k / .45) : 0.;
-  // The brilliant inner ring, then the K-corona falling away fast.
-  float inner = exp(-k / .03) * 1.6 + exp(-k / .12) * 1.;
+  float plumes = r < 2.6 ? pl * pow(pfbm(vec2(a * 90. + 2. + sway * 2.2, lr * 1.2 - t * .08), 90.), 3.) * 2.2 * exp(-k / .45) * smoothstep(2.6, 1.8, r) : 0.;
+  // The ring: brilliant, golden right at the edge, breathing very slightly — then the K-corona
+  // falling away fast, and a warm bloom round it all.
+  float breath = 1. + .07 * sin(t * .5) + .04 * sin(t * .83 + 1.);
+  float inner = (exp(-k / .028) * 1.5 + exp(-k / .11) * 1.) * breath;
   float body = pow(r, -3.6) * .5;
-  float I = inner * (.72 + .4 * rays) + body * (.55 + .8 * rays) + st * (.35 + .9 * rays) * .7 + plumes;
-  vec3 warm = vec3(1., .9, .76);
-  vec3 cool = vec3(.84, .88, 1.);
-  vec3 c = mix(warm, cool, smoothstep(1.05, 2.6, r));
+  float bloom = (exp(-k / .4) * .22 + exp(-k / 1.5) * .06) * breath;
+  float I = inner * (.72 + .4 * rays) + body * (.55 + .8 * rays) * swell + st * (.35 + .9 * rays) * .72 * swell + plumes;
+  vec3 gold = vec3(1., .76, .45);
+  vec3 c = mix(gold, vec3(1., .93, .82), smoothstep(1., 1.14, r));
+  c = mix(c, vec3(.84, .88, 1.), smoothstep(1.2, 2.6, r));
   c = mix(c, uA * 1.1 + .08, .18 * smoothstep(1.25, 3., r));
-  return c * I * smoothstep(1., 1.004, r) * smoothstep(7., 4.2, r);
+  return (c * I + gold * bloom) * smoothstep(1., 1.004, r) * smoothstep(7., 4.2, r);
+}
+
+/* A coronal mass ejection: a vast bubble of plasma bursting out through the corona, its bright
+   leading edge spreading and fading as it goes. (It follows an erupting prominence out.) */
+vec3 cme(vec2 q, float r) {
+  float p = uErupt.y;
+  vec2 dir = vec2(cos(uErupt.x), sin(uErupt.x));
+  float e = 1. - pow(1. - p, 2.2);
+  float s = mix(.1, uErupt.z * 2.3, e);
+  vec2 dq = q - dir * (1. + s * .95);
+  float rr = s * .8;
+  float d = length(dq);
+  vec2 n = dq / max(d, 1e-4);
+  // bright along its leading edge, fading away round the sides to nothing behind
+  float lead = dot(n, dir);
+  float front = pow(clamp(lead * .5 + .5, 0., 1.), 2.6);
+  float width = rr * .2 + .04;
+  float shell = exp(-pow((d - rr) / width, 2.)) * front;
+  // a fainter second front just inside, and the dark cavity behind it, with a glowing core
+  shell += exp(-pow((d - rr * .78) / (width * 1.4), 2.)) * front * .35;
+  float core = exp(-pow(d / (rr * .35), 2.)) * .18 * smoothstep(-.2, .6, lead + .4);
+  // fibres combed along the front
+  vec2 tng = vec2(-n.y, n.x);
+  float fib = .6 + .6 * vnoise(vec2(dot(dq, tng) * 9., (d - rr) * 3.) + uTime * .15);
+  float fade = smoothstep(0., .12, p) * pow(1. - p, 1.3);
+  return vec3(.97, .95, 1.) * (shell * fib + core) * fade * uErupt.w * .95 * smoothstep(1., 1.25, r);
 }
 
 /* Prominences: tongues and loops of glowing pink gas standing up off the rim. They sit in front
@@ -426,7 +466,7 @@ vec4 prominences(float r, float th) {
   if (k > .4 && uErupt.y <= 0.) return vec4(0.);
   float t = uTime;
   float a = th / TAU;
-  float tex = pfbm(vec2(a * 84., k * 34. - t * .3), 84.);
+  float tex = pfbm(vec2(a * 84., k * 34. - t * .85), 84.);
   float acc = 0.;
   int n = uQuality > .5 ? 5 : 3;
   for (int i = 0; i < 5; i++) {
@@ -434,26 +474,32 @@ vec4 prominences(float r, float th) {
     float fi = float(i);
     float at = hash11(fi * 7.31 + 1.7) * TAU;
     float w = mix(.045, .12, hash11(fi * 3.17 + 2.9));
-    float h = mix(.085, .2, hash11(fi * 5.13 + 4.1)) * (.85 + .25 * sin(t * .11 + fi * 2.));
-    float d = adiff(th, at + .02 * sin(t * .07 + fi));
+    float h = mix(.085, .2, hash11(fi * 5.13 + 4.1)) * (.82 + .22 * sin(t * .33 + fi * 2.) + .08 * sin(t * 1.1 + fi));
+    float d = adiff(th, at + .025 * sin(t * .21 + fi));
     float shape = exp(-pow(d / w, 2.)) * smoothstep(h, h * .15, k);
     acc += shape * smoothstep(.25, .7, tex + (1. - k / h) * .4);
   }
-  // one great arch
+  // one great arch, with bright knots of plasma raining down its legs
   float d = adiff(th, 2.75);
-  float e = length(vec2(d * r / .13, k / .13));
-  acc += exp(-pow(e - 1., 2.) / .035) * step(0., k) * (.55 + .6 * tex);
+  vec2 ae = vec2(d * r / .13, k / .13);
+  float e = length(ae);
+  float along = atan(ae.y, abs(ae.x));
+  float rain = .6 + .7 * pow(.5 + .5 * sin(along * 9. + t * 1.4), 4.);
+  acc += exp(-pow(e - 1., 2.) / .035) * step(0., k) * (.55 + .6 * tex) * rain;
   // …and sometimes one lifts off and erupts into space
   if (uErupt.y > 0.) {
     float p = uErupt.y;
-    float s = mix(.06, uErupt.z, sqrt(p));
+    float s = mix(.06, uErupt.z * .75, sqrt(p));
     float de = adiff(th, uErupt.x);
-    float ee = length(vec2(de * r / (s * 1.25), k / s));
+    vec2 pe = vec2(de * r / (s * 1.2), k / s);
+    float ee = length(pe);
+    // twisted strands of glowing gas, unwinding as the loop rises
+    float strands = .55 + .55 * sin(atan(pe.y, abs(pe.x)) * 14. + (ee - 1.) * 30. - t * 2.);
     float fade = (1. - p) * (1. - p) * smoothstep(0., .08, p);
-    acc += exp(-pow(ee - 1., 2.) / (.05 + p * .1)) * step(0., k) * (.5 + .8 * tex) * fade * uErupt.w * 1.6;
+    acc += exp(-pow(ee - 1., 2.) / (.012 + p * .03)) * step(0., k) * (.45 + .8 * tex) * strands * fade * uErupt.w * 1.7;
   }
   // and right along the rim, the chromosphere: a whisker of pink fire peeking out round the moon
-  acc += exp(-abs(r - (MOON + .005)) / .008) * (.45 + .3 * pnoise(vec2(a * 160., t * .4), 160.));
+  acc += exp(-abs(r - (MOON + .005)) / .008) * (.42 + .38 * pnoise(vec2(a * 160., t * 1.6), 160.));
   acc = clamp(acc, 0., 1.6);
   return vec4((vec3(1., .2, .32) * 2.6 + vec3(1., .55, .6) * acc * .8) * acc, clamp(acc, 0., 1.) * .8);
 }
@@ -475,9 +521,10 @@ void main() {
   float glare = uGlare.z;
   vec3 col = skyColor(uv);
 
-  // The light of the corona, scattered through the air all around it.
+  // The light of the corona, scattered through the air all around it (it breathes with it).
   float rr = max(r, 1.);
-  col += vec3(.9, .78, .7) * (.07 * uCorona * exp(-(rr - 1.) / 2.6) + .03 * uCorona * exp(-(rr - 1.) / 9.));
+  float aura = 1. + .08 * sin(uTime * .5) + .05 * sin(uTime * .83 + 1.);
+  col += vec3(.9, .78, .7) * (.075 * uCorona * exp(-(rr - 1.) / 2.6) + .032 * uCorona * exp(-(rr - 1.) / 9.)) * aura;
 
   // A few stars, and the planets, come out in the dark.
   float dark = smoothstep(.25, .9, uv.y) * (1. - clamp(uLight * 3. + glare * .5, 0., 1.));
@@ -502,7 +549,8 @@ void main() {
   }
 
   if (moon < 1. && r < 7.) {
-    vec3 light = corona(r, th) * uCorona;
+    vec3 light = corona(r, th, u) * uCorona;
+    if (uErupt.y > 0.) light += cme(q, r) * uCorona;
     if (r < 1.4 || (uErupt.y > 0. && r < 1. + uErupt.z * 1.6)) {
       vec4 pr = prominences(r, th);
       light = light * (1. - pr.a) + pr.rgb;
@@ -575,7 +623,8 @@ void main() {
   col = 1. - exp(-col * 1.08);
   col *= 1. - .24 * pow(length(uv - .5) * 1.2, 2.4);
   col *= uFade;
-  col += (hash12(frag + fract(uTime * 7.)) - .5) / 255.;
+  // Dither (two noises: a triangle distribution), so the soft dark glows never band into rings.
+  col += (hash12(frag + fract(uTime * 7.)) + hash12(frag.yx + fract(uTime * 5.3) + 17.) - 1.) / 255.;
   gl_FragColor = vec4(max(col, 0.), 1.);
 }
 `;

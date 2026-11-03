@@ -7,7 +7,7 @@ import { viewportHeight } from "../lib/platform";
  *  - the sky (WebGL): nebula dust, stars, and the solar corona around the editor panel —
  *    or, in the rain scene, a night city seen through a wet window, with lightning — or a
  *    total solar eclipse, seen from the ground, over a bank of cloud
- *  - dust (2D, behind the UI): motes drifting through the corona light (birds, in the eclipse)
+ *  - dust (2D, behind the UI): motes drifting through the corona light
  *  - overlay (2D, above the UI): sunbursts, flares, embers, light trails — splashes and drips in the rain
  * Everything is in CSS pixels; effects are fire-and-forget.
  */
@@ -65,9 +65,7 @@ type Glyph = Timed & { ch: string; x: number; y: number; font: string; ash: bool
 type Strike = { t0: number; pulses: { at: number; amp: number; tau: number }[]; x: number; seed: number; bolt: boolean };
 export type RainOptions = { lightning: boolean; city: boolean; amount: number; blur: number };
 /** The moon nudged a hair off the sun and back — [ms, offset in sun radii] keys. A diamond ring, or just a glimmer of Baily's beads. */
-type Nudge = { t0: number; dir: { x: number; y: number }; keys: [number, number][] };
-/** Birds heading home to roost: the eclipse has fooled them into thinking it's evening. */
-type Flock = { t0: number; dur: number; x0: number; y0: number; x1: number; y1: number; birds: { ox: number; oy: number; phase: number; rate: number; size: number }[] };
+type Nudge = { t0: number; dir: { x: number; y: number }; keys: [number, number][]; spin?: number };
 
 const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -225,12 +223,18 @@ class FxEngine {
   private eruptNow: [number, number, number, number] = [0, 0, 0, 0];
   private nextGlint = 30000;
   private nextErupt = 45000;
-  private nextFlock = 25000;
-  private flock: Flock | null = null;
-  private solarOpts = { clouds: true };
-  /** Where the widgets in the right-hand column end (CSS px), measured now and then. */
+  private nextDiamond = 90000;
+  /** How strongly the moon wanders (eased down while it's being nudged). */
+  private wanderK = 1;
+  /** size: the Distance setting, 0 (far off) .. 1 (close), 0.5 by default. */
+  private solarOpts = { clouds: true, size: 0.5 };
+  /** The Background setting ("dark" frosts the panels, so the sun keeps to the clearer right-hand column). */
+  private backdrop = "dark";
+  /** Where your writing ends, where the right-hand column starts and where its widgets end (CSS px), measured now and then. */
+  private textRight = 0;
+  private railLeft = 0;
   private railBottom = 0;
-  private railAt = -1e9;
+  private layoutAt = -1e9;
   private cloudsK = 1;
 
   // ── lifecycle ────────────────────────────────────────────────────────────
@@ -369,7 +373,7 @@ class FxEngine {
     }
     if (this.scene === "solar") {
       // The clouds are drawn small anyway; the moon wants a crisp edge.
-      return Math.min(devicePixelRatio || 1, this.small ? 1.25 : 1.5) * (this.effective === "subtle" ? 0.7 : 1);
+      return Math.min(devicePixelRatio || 1, this.small ? 1.25 : 1.35) * (this.effective === "subtle" ? 0.7 : 1);
     }
     return this.small ? 0.55 : Math.min(devicePixelRatio || 1, 1.25) * (this.effective === "subtle" ? 0.6 : 1);
   }
@@ -420,11 +424,10 @@ class FxEngine {
       this.solarFade = instant ? 1 : 0.55;
       this.nudges = [];
       this.eruption = null;
-      this.flock = null;
       this.coronaK = 1;
-      this.nextGlint = this.clock + rand(25000, 45000);
-      this.nextErupt = this.clock + rand(35000, 70000);
-      this.nextFlock = this.clock + rand(15000, 40000);
+      this.nextGlint = this.clock + rand(12000, 25000);
+      this.nextErupt = this.clock + rand(20000, 40000);
+      this.nextDiamond = this.clock + rand(50000, 90000);
       // Straight to its spot (so a view transition's snapshot already has it there).
       this.sunPlaced = this.started;
       if (this.started) this.sun = this.sunHome();
@@ -432,9 +435,18 @@ class FxEngine {
     if (this.started) this.sizeSky();
   }
 
-  setSolar(o: Partial<{ clouds: boolean }>) {
+  setSolar(o: Partial<{ clouds: boolean; size: number }>) {
     this.solarOpts = { ...this.solarOpts, ...o };
     if (!this.started) this.cloudsK = this.solarOpts.clouds ? 1 : 0;
+  }
+
+  setBackdrop(id: string) {
+    this.backdrop = id;
+  }
+
+  /** How much nearer (or further) than usual the eclipse looks, from the Distance setting: 0.62 .. 1.62. */
+  get sunScale() {
+    return Math.pow(2, (Math.min(1, Math.max(0, this.solarOpts.size)) - 0.5) * 1.4);
   }
 
   /** Where the sun is (CSS px), for things that start from it. */
@@ -716,33 +728,59 @@ class FxEngine {
   // ── the solar eclipse ────────────────────────────────────────────────────
 
   /**
-   * Where the sun hangs: low in the sky, just above the clouds, on the right — over the
-   * right-hand column when it's open, settling in the clear sky below the widgets there (it
-   * drifts down out of the way as the list grows, as far as the clouds).
+   * Where the sun hangs. With room beside your writing (and panels you can see through), right
+   * there in the open sky, a little above the middle of the screen. Otherwise over the right-hand
+   * column, in the clear sky below its widgets (drifting down as the list grows). On a phone, low
+   * on the right; on a friend's page, high over the note. The Distance setting brings it closer
+   * or sends it further off.
    */
   private sunHome() {
     const W = this.W;
     const H = this.H;
     const m = Math.min(W, H);
+    const near = this.sunScale;
+    const fit = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
     if (this.panelCircle) {
-      // A friend's page: high over the note, like a banner.
-      const r = Math.max(34, Math.min(76, m * 0.075));
-      return { x: W / 2, y: Math.max(r * 2.4, H * 0.14), r };
+      const r = fit(m * 0.08 * near, 30, 130);
+      return { x: W / 2, y: Math.max(r * 2.3, H * 0.15), r };
     }
-    const p = this.panel;
-    const right = W - (p.x + p.w);
-    if (!this.small && this.panelEl && right > 220) {
-      const r = Math.max(36, Math.min(70, right * 0.19, m * 0.066));
-      const t = performance.now();
-      if (t - this.railAt > 400) {
-        this.railAt = t;
-        const last = document.querySelector<HTMLElement>(".app.has-rail .rail-inner")?.lastElementChild;
-        this.railBottom = last ? last.getBoundingClientRect().bottom : 0;
+    if (this.small) {
+      const r = fit(W * 0.12 * near, 28, 110);
+      return { x: W * 0.62, y: H * 0.56, r };
+    }
+    const r0 = m * 0.088 * near;
+    if (this.panelEl) {
+      this.measureLayout();
+      const gap = this.railLeft - this.textRight;
+      if (this.backdrop !== "dark" && gap > Math.min(r0, 70) * 3.2) {
+        // It keeps its bright inner ring clear of your words — unless you've asked for it closer,
+        // when only the moon itself has to fit.
+        const room = gap / (3.1 - 0.8 * Math.max(0, this.solarOpts.size - 0.5) * 2);
+        return { x: this.textRight + gap / 2, y: H * 0.4, r: fit(Math.min(r0, room), 32, 170) };
       }
-      return { x: p.x + p.w + right / 2, y: Math.min(H * 0.74, Math.max(H * 0.5, this.railBottom + r * 2.5)), r };
+      const p = this.panel;
+      const right = W - (p.x + p.w);
+      if (right > 220) {
+        const r = fit(Math.min(r0, right * 0.3), 34, 120);
+        return { x: p.x + p.w + right / 2, y: fit(this.railBottom + r * 2.4, H * 0.42, H * 0.72), r };
+      }
     }
-    const r = Math.max(32, Math.min(68, m * (this.small ? 0.1 : 0.064)));
-    return { x: W * (this.small ? 0.7 : 0.8), y: H * (this.small ? 0.62 : 0.56), r };
+    return { x: W * 0.76, y: H * 0.4, r: fit(r0, 32, 150) };
+  }
+
+  /** Where your writing ends and the right-hand column begins (and its widgets end), every so often. */
+  private measureLayout() {
+    const t = performance.now();
+    if (t - this.layoutAt < 400) return;
+    this.layoutAt = t;
+    let right = 0;
+    for (const el of document.querySelectorAll<HTMLElement>(".canvas .note-title, .canvas .prose")) right = Math.max(right, el.getBoundingClientRect().right);
+    // no note open: about where one would be
+    this.textRight = right || this.panel.x + this.panel.w / 2 + 330;
+    const rail = document.querySelector<HTMLElement>(".app.has-rail .rail-inner");
+    this.railLeft = rail ? rail.getBoundingClientRect().left : this.W;
+    const last = rail?.lastElementChild;
+    this.railBottom = last ? last.getBoundingClientRect().bottom : 0;
   }
 
   /** Something's moving in the solar sky, so it should be drawn every frame. */
@@ -779,16 +817,28 @@ class FxEngine {
     let oy = 0;
     this.nudges = this.nudges.filter((n) => {
       const t = now - n.t0;
-      if (t >= n.keys[n.keys.length - 1][0]) return false;
+      const end = n.keys[n.keys.length - 1][0];
+      if (t >= end) return false;
       // its edge creeps unevenly, so the beads along it flicker
       const v = Math.max(0, keyed(n.keys, t) + Math.sin(t * 0.047 + n.t0) * 0.0009 + Math.sin(t * 0.031) * 0.0006);
-      ox -= n.dir.x * v;
-      oy -= n.dir.y * v;
+      // and it may slide along the sun's edge as it goes, so the beads light up one after another
+      const turn = (n.spin ?? 0) * (t / end - 0.5);
+      const c = Math.cos(turn);
+      const sn = Math.sin(turn);
+      ox -= (n.dir.x * c - n.dir.y * sn) * v;
+      oy -= (n.dir.x * sn + n.dir.y * c) * v;
       return true;
     });
     if (this.approach) {
       ox += this.approach.x;
       oy += this.approach.y;
+    } else {
+      // It never sits quite still: it wanders a hair to and fro over the sun, so the pink rim of
+      // fire slides slowly round its edge. (Less so while it's being nudged.)
+      this.wanderK += ((this.nudges.length ? 0.25 : 1) - this.wanderK) * Math.min(1, dt * 2);
+      const lt = this.time;
+      ox += (0.0068 * Math.sin(lt * 0.13) + 0.0028 * Math.sin(lt * 0.41 + 1.3)) * this.wanderK;
+      oy += (0.0068 * Math.cos(lt * 0.097) + 0.0028 * Math.cos(lt * 0.37 + 0.4)) * this.wanderK;
     }
     this.moonNow = { x: ox, y: oy };
     const d = Math.hypot(ox, oy);
@@ -805,37 +855,43 @@ class FxEngine {
     if (e && ep >= 1) this.eruption = null;
     this.eruptNow = e && ep < 1 ? [e.angle, Math.max(0, ep), e.size, 1] : [0, 0, 0, 0];
 
-    // Left be: now and then a glimmer of Baily's beads, a prominence erupting, birds going to roost.
-    if (this.full && !this.calm && !document.hidden && !this.sunHold) {
+    // Now and then: a glimmer of Baily's beads (gentle enough to come while you write, too —
+    // just less often); a prominence erupting, with a great bubble of corona bursting out behind
+    // it; and, once you've left it alone for a while, the full diamond ring.
+    if (this.full && !document.hidden && !this.sunHold) {
       if (now > this.nextGlint) {
         this.glint();
-        this.nextGlint = now + rand(40000, 95000) * (idle ? 0.6 : 1);
+        this.nextGlint = now + rand(16000, 36000) * (this.calm ? 2 : idle ? 0.7 : 1);
       }
-      if (now > this.nextErupt) {
+      if (!this.calm && now > this.nextErupt) {
         this.erupt();
-        this.nextErupt = now + rand(50000, 120000) * (idle ? 0.6 : 1);
+        this.nextErupt = now + rand(28000, 60000) * (idle ? 0.6 : 1);
       }
-      if (now > this.nextFlock) {
-        this.birds();
-        this.nextFlock = now + rand(70000, 170000) * (idle ? 0.7 : 1);
+      if (idle && !this.calm && now > this.nextDiamond) {
+        this.solarDiamond(0.8);
+        this.nextDiamond = now + rand(70000, 140000);
       }
     }
   }
 
-  /** A glimmer: the moon's edge drifts a hair off the sun, and Baily's beads flicker along it for a moment. */
+  /**
+   * A glimmer: the moon's edge drifts a hair off the sun and slides along it, so Baily's beads
+   * light up one after another — a shimmer of light running round the rim — and go out again.
+   */
   glint() {
     if (!this.solar || !this.active) return;
     const a = rand(0, Math.PI * 2);
     this.nudges.push({
       t0: this.clock,
       dir: { x: Math.cos(a), y: Math.sin(a) },
+      spin: rand(0.5, 0.9) * (Math.random() < 0.5 ? -1 : 1),
       keys: [
         [0, 0],
         [600, 0.02],
-        [1500, 0.0262],
-        [2500, 0.0255],
-        [3400, 0.012],
-        [3900, 0],
+        [1400, 0.0266],
+        [2600, 0.0268],
+        [3500, 0.012],
+        [4000, 0],
       ],
     });
   }
@@ -843,58 +899,7 @@ class FxEngine {
   /** A prominence lifts off the sun's edge and erupts into space, slowly. */
   erupt() {
     if (!this.solar || !this.full) return;
-    this.eruption = { t0: this.clock, dur: rand(9000, 13000), angle: rand(0, Math.PI * 2), size: rand(0.8, 1.4) };
-  }
-
-  /** A flock of birds crosses the sky, dark against the glow. */
-  birds() {
-    if (!this.solar || !this.full) return;
-    const s = this.sun;
-    const ltr = Math.random() < 0.5;
-    // across the glow round the sun, where they show up dark against it
-    const y0 = s.y + rand(-1.3, 1.1) * s.r;
-    const n = 5 + ((Math.random() * 7) | 0);
-    const birds = Array.from({ length: n }, (_, i) => {
-      const row = Math.ceil(i / 2);
-      return {
-        ox: -row * rand(11, 15) + rand(-3, 3),
-        oy: (i % 2 ? -1 : 1) * row * rand(5, 7) + rand(-2, 2),
-        phase: rand(0, Math.PI * 2),
-        rate: rand(7.5, 10),
-        size: rand(4.6, 6.8),
-      };
-    });
-    this.flock = { t0: this.clock, dur: rand(16000, 24000), x0: ltr ? -80 : this.W + 80, y0, x1: ltr ? this.W + 80 : -80, y1: y0 + rand(-0.05, 0.1) * this.H, birds };
-  }
-
-  private drawFlock(ctx: CanvasRenderingContext2D) {
-    const f = this.flock;
-    if (!f) return;
-    const k = (this.clock - f.t0) / f.dur;
-    if (k >= 1) {
-      this.flock = null;
-      return;
-    }
-    const dir = Math.sign(f.x1 - f.x0);
-    const bx = f.x0 + (f.x1 - f.x0) * k;
-    const by = f.y0 + (f.y1 - f.y0) * k + Math.sin(k * 7) * 7;
-    const t = this.clock / 1000;
-    ctx.globalCompositeOperation = "source-over";
-    ctx.strokeStyle = "rgba(9, 7, 10, 0.88)";
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    for (const b of f.birds) {
-      const x = bx + b.ox * dir + Math.sin(t * 0.7 + b.phase) * 3;
-      const y = by + b.oy + Math.sin(t * 0.9 + b.phase * 2) * 2;
-      const w = b.size;
-      const lift = Math.sin(t * b.rate + b.phase) * w * 0.6;
-      ctx.lineWidth = Math.max(1.2, w * 0.3);
-      ctx.beginPath();
-      ctx.moveTo(x - w, y - lift);
-      ctx.quadraticCurveTo(x - w * 0.42, y - lift * 0.15 - w * 0.2, x, y);
-      ctx.quadraticCurveTo(x + w * 0.42, y - lift * 0.15 - w * 0.2, x + w, y - lift);
-      ctx.stroke();
-    }
+    this.eruption = { t0: this.clock, dur: rand(10000, 14000), angle: rand(0, Math.PI * 2), size: rand(0.85, 1.4) };
   }
 
   /**
@@ -1143,12 +1148,6 @@ class FxEngine {
   private drawDust(dt: number) {
     const ctx = this.dctx;
     if (!ctx) return;
-    if (this.solar && this.flock) {
-      this.wipe(ctx);
-      this.drawFlock(ctx);
-      this.dustClear = true;
-      return;
-    }
     if (this.rain || this.solar) {
       if (this.dustClear) this.wipe(ctx);
       this.dustClear = false;

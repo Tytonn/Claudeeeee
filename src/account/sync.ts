@@ -41,6 +41,7 @@ const SYNCED_SETTINGS = [
   "cityLights",
   "rainAmount",
   "solarClouds",
+  "solarSize",
   "cityBlur",
   "cursorLight",
   "clockMs",

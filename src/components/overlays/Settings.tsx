@@ -204,6 +204,26 @@ function ScenePicker() {
   );
 }
 
+/** How close the solar eclipse looks: further off (smaller) to closer (bigger). */
+function SunDistance() {
+  const size = useApp((s) => s.settings.solarSize);
+  const setSettings = useApp((s) => s.setSettings);
+  const v = typeof size === "number" ? size : 0.5;
+  return (
+    <input
+      type="range"
+      className="range wide"
+      min={0}
+      max={1}
+      step={0.01}
+      value={v}
+      aria-label="Distance"
+      style={{ "--v": `${v * 100}%` } as React.CSSProperties}
+      onChange={(e) => setSettings({ solarSize: Number(e.target.value) })}
+    />
+  );
+}
+
 /** How out of focus the city behind the rain is. The drops on the glass always stay sharp. */
 function RainBlur() {
   const blur = useApp((s) => s.settings.cityBlur);
@@ -397,9 +417,14 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
               </>
             )}
             {settings.effects !== "off" && settings.scene === "solar" && (
-              <Row label="Clouds" desc="A bank of cloud drifting by below the sun — and now and then a thin veil across it.">
-                <Switch checked={settings.solarClouds !== false} onChange={(v) => setSettings({ solarClouds: v })} label="Clouds" />
-              </Row>
+              <>
+                <Row label="Distance" desc="How close the eclipse looks. Slide right to bring it nearer.">
+                  <SunDistance />
+                </Row>
+                <Row label="Clouds" desc="A bank of cloud drifting by below the sun — and now and then a thin veil across it.">
+                  <Switch checked={settings.solarClouds !== false} onChange={(v) => setSettings({ solarClouds: v })} label="Clouds" />
+                </Row>
+              </>
             )}
             <Row label="Accent" desc="Tints the caret, checkmarks and the glow.">
               <Swatches />

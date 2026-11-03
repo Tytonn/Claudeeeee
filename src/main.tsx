@@ -50,7 +50,8 @@ async function boot() {
     const blur = typeof s.cityBlur === "number" ? Math.min(1, Math.max(0, s.cityBlur)) : 1;
     fx.setRain({ lightning: s.lightning !== false, city: s.cityLights !== false, amount, blur });
     fx.setScene(s.scene === "rain" || s.scene === "solar" ? s.scene : "eclipse", first);
-    fx.setSolar({ clouds: s.solarClouds !== false });
+    fx.setSolar({ clouds: s.solarClouds !== false, size: typeof s.solarSize === "number" ? Math.min(1, Math.max(0, s.solarSize)) : 0.5 });
+    fx.setBackdrop(s.backdrop);
     setSoundTheme(fx.rain && s.effects !== "off" ? "rain" : "eclipse");
     fx.setOpen(s.backdrop === "bare");
     if (fx.cursorLight !== (s.cursorLight !== false)) {

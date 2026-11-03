@@ -86,6 +86,8 @@ export type Settings = {
   cityBlur: number;
   /** Solar eclipse: the clouds drifting below it (and the thin high ones that cross it). */
   solarClouds: boolean;
+  /** Solar eclipse: how close it looks, 0 (far off) .. 1 (close); 0.5 by default. */
+  solarSize: number;
   /** The cursor as a light: the glow on the glass and panel edges that follows it. */
   cursorLight: boolean;
   /** Show milliseconds on the clock (off by default)… */

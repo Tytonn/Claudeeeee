@@ -44,7 +44,7 @@ export function Intro({ onDone }: { onDone: () => void }) {
   const [stage, setStage] = useState<"rise" | "total" | "out">("rise");
   const [spot] = useState(() => {
     const m = Math.min(innerWidth, innerHeight);
-    return { x: innerWidth / 2, y: innerHeight * 0.4, r: Math.max(40, Math.min(96, m * 0.105)) };
+    return { x: innerWidth / 2, y: innerHeight * 0.4, r: Math.max(40, Math.min(140, m * 0.105 * fx.sunScale)) };
   });
   const done = useRef(false);
   const onDoneRef = useRef(onDone);
