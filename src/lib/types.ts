@@ -57,6 +57,10 @@ export type Countdown = {
 };
 
 export type AccentId = "iris" | "moon" | "sky" | "mint" | "corona" | "ember" | "rose";
+/** The note title's typeface. */
+export type TitleFontId = "display" | "italic" | "serif" | "sans" | "mono";
+/** The solar eclipse's corona: Pearl is its natural light. */
+export type SolarTintId = "pearl" | "gold" | "ember" | "rose" | "violet" | "ice" | "mint";
 export type FontId = "sans" | "serif" | "mono";
 export type SizeId = "s" | "m" | "l";
 export type EffectsId = "cosmic" | "subtle" | "off";
@@ -69,6 +73,8 @@ export type RainAmountId = "drizzle" | "rain" | "downpour";
 export type Settings = {
   accent: AccentId;
   font: FontId;
+  /** The typeface of every note's title. */
+  titleFont: TitleFontId;
   size: SizeId;
   todos: boolean;
   countdowns: boolean;
@@ -90,6 +96,8 @@ export type Settings = {
   solarSize: number;
   /** Solar eclipse: the pearly corona in a dusky sky, or a golden ring of fire with the diamond ring blazing, in a warm, smoky sky. */
   solarLook: "corona" | "golden";
+  /** Solar eclipse (Corona look): the colour of the corona. */
+  solarTint: SolarTintId;
   /** The cursor as a light: the glow on the glass and panel edges that follows it. */
   cursorLight: boolean;
   /** Show milliseconds on the clock (off by default)… */

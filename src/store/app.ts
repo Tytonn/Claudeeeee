@@ -8,6 +8,7 @@ import { isBlank } from "../lib/text";
 export const DEFAULT_SETTINGS: Settings = {
   accent: "iris",
   font: "sans",
+  titleFont: "display",
   size: "m",
   todos: true,
   countdowns: true,
@@ -23,6 +24,7 @@ export const DEFAULT_SETTINGS: Settings = {
   solarClouds: true,
   solarSize: 0.5,
   solarLook: "corona",
+  solarTint: "pearl",
   cursorLight: true,
   clockMs: false,
   clockMsDigits: 3,

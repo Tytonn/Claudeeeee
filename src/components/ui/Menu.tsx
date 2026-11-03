@@ -12,6 +12,8 @@ export type MenuItem =
       kbd?: string;
       hint?: string;
       danger?: boolean;
+      /** Set in the accent colour, to stand out (like danger, but friendly). */
+      accent?: boolean;
       disabled?: boolean;
       /** Shows a check mark (the current choice in a list). */
       checked?: boolean;
@@ -140,7 +142,7 @@ export function Menu({ items, onClose, autoFocus = true }: Props) {
                 aria-checked={it.checked}
                 aria-haspopup={it.submenu ? "menu" : undefined}
                 disabled={it.disabled}
-                className={`menu-item ${it.danger ? "danger" : ""}`}
+                className={`menu-item ${it.danger ? "danger" : it.accent ? "accent" : ""}`}
                 onMouseEnter={() => !it.disabled && setActive(i)}
                 onClick={() => run(i)}
                 tabIndex={-1}

@@ -1,4 +1,4 @@
-import type { AccentId, FontId, RainAmountId, Settings, SizeId, TodoColor } from "./types";
+import type { AccentId, FontId, RainAmountId, Settings, SizeId, SolarTintId, TitleFontId, TodoColor } from "./types";
 
 /** `nebula` is a second hue the sky blends with the accent, so space never looks flat. */
 export const ACCENTS: Record<AccentId, { name: string; color: string; nebula: string }> = {
@@ -10,6 +10,23 @@ export const ACCENTS: Record<AccentId, { name: string; color: string; nebula: st
   ember: { name: "Ember", color: "oklch(0.76 0.145 46)", nebula: "oklch(0.5 0.17 355)" },
   rose: { name: "Rose", color: "oklch(0.79 0.115 356)", nebula: "oklch(0.5 0.15 300)" },
 };
+
+/** The corona's colours in the solar eclipse. Pearl is the real thing; the rest are for fun. */
+export const SOLAR_TINTS: Record<SolarTintId, { name: string; color: string }> = {
+  pearl: { name: "Pearl", color: "#f3eee6" },
+  gold: { name: "Gold", color: "#ffcf7a" },
+  ember: { name: "Ember", color: "#ff8f5e" },
+  rose: { name: "Rose", color: "#ff93be" },
+  violet: { name: "Violet", color: "#b59cff" },
+  ice: { name: "Ice", color: "#8fc8ff" },
+  mint: { name: "Mint", color: "#86efc6" },
+};
+
+/** "#rrggbb" → 0..1 */
+export function hexRgb(hex: string): [number, number, number] {
+  const n = parseInt(hex.slice(1), 16);
+  return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+}
 
 /** The colors a to-do can wear: bright enough to read on the dark glass, soft enough to sit together. */
 export const TODO_COLORS: Record<TodoColor, { name: string; color: string }> = {
@@ -30,13 +47,22 @@ export const FONTS: Record<FontId, { name: string; stack: string }> = {
   mono: { name: "Mono", stack: `"Geist Mono Variable", "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace` },
 };
 
+/** The typefaces a note's title can wear (all already loaded: nothing new to download). */
+export const TITLE_FONTS: Record<TitleFontId, { name: string; stack: string; italic?: boolean }> = {
+  display: { name: "Display", stack: `"Instrument Serif", "Iowan Old Style", Georgia, serif` },
+  italic: { name: "Display italic", stack: `"Instrument Serif", "Iowan Old Style", Georgia, serif`, italic: true },
+  serif: { name: "Serif", stack: `"Newsreader Variable", "Newsreader", "Iowan Old Style", Georgia, serif` },
+  sans: { name: "Sans", stack: `"Geist Variable", "Geist", ui-sans-serif, system-ui, sans-serif` },
+  mono: { name: "Mono", stack: `"Geist Mono Variable", "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace` },
+};
+
 export const SIZES: Record<SizeId, { name: string; px: number }> = {
   s: { name: "Small", px: 15 },
   m: { name: "Medium", px: 16.5 },
   l: { name: "Large", px: 18.5 },
 };
 
-export function applyTheme(s: Pick<Settings, "accent" | "font" | "size"> & Partial<Pick<Settings, "backdrop">>) {
+export function applyTheme(s: Pick<Settings, "accent" | "font" | "size"> & Partial<Pick<Settings, "backdrop" | "titleFont">>) {
   const root = document.documentElement;
   root.dataset.backdrop = s.backdrop === "dark" || s.backdrop === "glass" || s.backdrop === "crystal" || s.backdrop === "bare" ? s.backdrop : "clear";
   root.style.setProperty("--accent", ACCENTS[s.accent]?.color ?? ACCENTS.iris.color);
@@ -46,8 +72,19 @@ export function applyTheme(s: Pick<Settings, "accent" | "font" | "size"> & Parti
   const adjust = s.font === "serif" ? 1.08 : s.font === "mono" ? 0.92 : 1;
   root.style.setProperty("--editor-size", `${(base * adjust).toFixed(2)}px`);
   root.dataset.font = s.font;
+  root.dataset.titleFont = s.titleFont && s.titleFont in TITLE_FONTS ? s.titleFont : "display";
+}
+
+/**
+ * The colours a phone paints around the page: its status bar (and toolbar) at the top, from
+ * theme-color, and the strip under the gesture bar at the bottom, from the page's background.
+ * Matched to the edges of the sky while it's showing, so the sky seems to run right to the edge
+ * of the screen; the plain dark otherwise.
+ */
+export function setBarColors(top: string | null, bottom: string | null) {
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute("content", "#08090a");
+  if (meta && meta.getAttribute("content") !== (top ?? "#08090a")) meta.setAttribute("content", top ?? "#08090a");
+  document.documentElement.style.backgroundColor = bottom ?? "";
 }
 
 export const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent);

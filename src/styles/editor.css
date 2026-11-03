@@ -17,16 +17,45 @@
   resize: none;
   overflow: hidden;
   field-sizing: content;
-  font-family: var(--font-display);
-  font-size: clamp(36px, 4.3vw, 48px);
-  font-weight: 400;
-  line-height: 1.08;
-  letter-spacing: -0.016em;
+  font-family: var(--title-font, var(--font-display));
+  font-size: calc(clamp(36px, 4.3vw, 48px) * var(--title-scale, 1));
+  font-style: var(--title-style, normal);
+  font-weight: var(--title-weight, 400);
+  line-height: var(--title-leading, 1.08);
+  letter-spacing: var(--title-tracking, -0.016em);
   color: var(--fg-1);
   text-wrap: balance;
 }
 .note-title::placeholder {
   color: var(--fg-5);
+}
+
+/* The title's typeface (Settings → Title font, or right-click a title). Each one is sized and
+   spaced to sit the way the tall, narrow display face does. */
+html[data-title-font="italic"] {
+  --title-style: italic;
+  --title-tracking: -0.01em;
+}
+html[data-title-font="serif"] {
+  --title-font: "Newsreader Variable", "Newsreader", "Iowan Old Style", Georgia, serif;
+  --title-scale: 0.86;
+  --title-weight: 500;
+  --title-leading: 1.1;
+  --title-tracking: -0.022em;
+}
+html[data-title-font="sans"] {
+  --title-font: var(--font-sans);
+  --title-scale: 0.76;
+  --title-weight: 600;
+  --title-leading: 1.12;
+  --title-tracking: -0.034em;
+}
+html[data-title-font="mono"] {
+  --title-font: var(--font-mono);
+  --title-scale: 0.68;
+  --title-weight: 500;
+  --title-leading: 1.16;
+  --title-tracking: -0.045em;
 }
 .note-title.static {
   margin-bottom: 30px;
@@ -578,9 +607,22 @@ html[data-font="mono"] .prose blockquote p {
   margin: 1.5em 0;
   outline: none;
 }
-.note-image-frame {
+/* The picture's size: its own (no wider than the page, no taller than most of the screen), or the
+   share of the page you've given it. */
+.note-image-box {
   position: relative;
   width: min(100%, var(--w, 100%), calc(72vh * var(--ratio, 1.5)));
+  transition: width 280ms var(--ease);
+}
+.note-image.is-sized .note-image-box {
+  width: min(100%, var(--size, 100%));
+}
+.note-image.is-resizing .note-image-box {
+  transition: none;
+}
+.note-image-frame {
+  position: relative;
+  width: 100%;
   aspect-ratio: var(--ratio, 1.5);
   overflow: hidden;
   border-radius: 12px;
@@ -682,6 +724,142 @@ html[data-font="mono"] .prose blockquote p {
     opacity: 0.9;
   }
 }
+/* Resizing (only while writing): a handle on each side to drag, and a bar of sizes on a
+   selected picture. Bigger handles for a finger. */
+.note-image-handle {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 64px;
+  margin-top: -32px;
+  cursor: ew-resize;
+  touch-action: none;
+  opacity: 0;
+  transition: opacity 160ms var(--ease);
+}
+.note-image-handle.is-left {
+  left: -12px;
+}
+.note-image-handle.is-right {
+  right: -12px;
+}
+.note-image-handle::before {
+  content: "";
+  width: 6px;
+  height: 42px;
+  border-radius: 4px;
+  background: rgb(255 255 255 / 0.92);
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 0.35),
+    0 4px 14px rgb(0 0 0 / 0.5);
+  transition:
+    transform 160ms var(--ease),
+    background-color 160ms var(--ease);
+}
+.note-image-handle:hover::before,
+.note-image.is-resizing .note-image-handle::before {
+  background: var(--accent);
+  transform: scaleY(1.08);
+}
+.prose[contenteditable="true"] .note-image:hover .note-image-handle,
+.prose[contenteditable="true"] .note-image.is-selected .note-image-handle,
+.note-image.is-resizing .note-image-handle {
+  opacity: 1;
+}
+@media (pointer: coarse) {
+  .note-image-handle {
+    width: 36px;
+    height: 84px;
+    margin-top: -42px;
+  }
+  .note-image-handle.is-left {
+    left: -18px;
+  }
+  .note-image-handle.is-right {
+    right: -18px;
+  }
+}
+.note-image-badge {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  z-index: 3;
+  padding: 3px 9px;
+  border-radius: 99px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: #fff;
+  background: rgb(8 9 12 / 0.66);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  opacity: 0;
+  transform: translateX(-50%);
+  transition: opacity 120ms var(--ease);
+  pointer-events: none;
+}
+.note-image.is-resizing .note-image-badge {
+  opacity: 1;
+}
+.note-image-sizes {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  z-index: 3;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 11px;
+  background: rgb(8 9 12 / 0.72);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.12),
+    0 8px 24px -8px rgb(0 0 0 / 0.7);
+  opacity: 0;
+  transform: translateX(-50%) translateY(4px);
+  transition:
+    opacity 160ms var(--ease),
+    transform 160ms var(--ease);
+  pointer-events: none;
+}
+.prose[contenteditable="true"] .note-image.is-selected .note-image-sizes {
+  opacity: 1;
+  transform: translateX(-50%);
+  pointer-events: auto;
+}
+.note-image.is-resizing .note-image-sizes {
+  opacity: 0;
+}
+.note-image-sizes button {
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  white-space: nowrap;
+  color: var(--fg-2);
+  transition:
+    background-color 140ms var(--ease),
+    color 140ms var(--ease);
+}
+.note-image-sizes button:hover {
+  color: var(--fg-1);
+  background: rgb(255 255 255 / 0.08);
+}
+.note-image-sizes button[aria-pressed="true"] {
+  color: var(--fg-1);
+  background: rgb(255 255 255 / 0.15);
+}
+@media (pointer: coarse) {
+  .note-image-sizes button {
+    height: 32px;
+    padding: 0 12px;
+    font-size: 13px;
+  }
+}
+
 /* Reading (a shared page you can't edit): a click opens it. */
 .prose[contenteditable="false"] .note-image[data-state="ready"] .note-image-img {
   cursor: zoom-in;

@@ -1,6 +1,7 @@
-import { mixRgb, oklchToRgb, to255, type RGB } from "./color";
+import { goldenShift, mixRgb, oklchToRgb, to255, type RGB } from "./color";
 import { Sky, type SceneId } from "./sky";
 import { viewportHeight } from "../lib/platform";
+import { ACCENTS, setBarColors } from "../lib/theme";
 
 /**
  * umbra's light engine. One animation loop drives three layers:
@@ -227,8 +228,10 @@ class FxEngine {
   /** How strongly the moon wanders (eased down while it's being nudged). */
   private wanderK = 1;
   /** size: the Distance setting, 0 (far off) .. 1 (close), 0.5 by default. */
-  private solarOpts = { clouds: true, size: 0.5, golden: false };
+  private solarOpts: { clouds: boolean; size: number; golden: boolean; tint: [number, number, number] | null } = { clouds: true, size: 0.5, golden: false, tint: null };
   private goldK = 0;
+  /** The corona's chosen colour as it is right now (rgb), and how much of it (it eases in and out). */
+  private tintNow: [number, number, number, number] = [1, 1, 1, 0];
   /** The Background setting ("dark" frosts the panels, so the sun keeps to the clearer right-hand column). */
   private backdrop = "clear";
   /** Where your writing ends, where the right-hand column starts and where its widgets end (CSS px), measured now and then. */
@@ -405,6 +408,7 @@ class FxEngine {
     if (scene === this.scene) return;
     this.scene = scene;
     document.documentElement.dataset.scene = scene;
+    this.barsSoon();
     if (scene !== "eclipse") {
       this.cmes = [];
       this.meteors = [];
@@ -436,12 +440,16 @@ class FxEngine {
     if (this.started) this.sizeSky();
   }
 
-  setSolar(o: Partial<{ clouds: boolean; size: number; golden: boolean }>) {
+  setSolar(o: Partial<{ clouds: boolean; size: number; golden: boolean; tint: [number, number, number] | null }>) {
+    const before = this.solarOpts;
     this.solarOpts = { ...this.solarOpts, ...o };
+    if (before.golden !== this.solarOpts.golden || before.tint?.join() !== this.solarOpts.tint?.join()) this.barsSoon();
     // Changes only ease in while you're watching; otherwise they're simply in place next time.
     if (!this.started || !this.solar) {
       this.cloudsK = this.solarOpts.clouds ? 1 : 0;
       this.goldK = this.solarOpts.golden ? 1 : 0;
+      const t = this.solarOpts.tint;
+      this.tintNow = t ? [t[0], t[1], t[2], 1] : [this.tintNow[0], this.tintNow[1], this.tintNow[2], 0];
     }
   }
 
@@ -550,6 +558,10 @@ class FxEngine {
       this.raf = 0;
       this.clearAll();
     }
+    if (!on) {
+      this.barTop = this.barBottom = "";
+      setBarColors(null, null);
+    } else this.barsSoon();
   }
 
   private clearAll() {
@@ -573,8 +585,13 @@ class FxEngine {
   }
 
   setAccent(accent: string, secondary: string) {
+    const was = this.aTo?.join();
     this.aTo = oklchToRgb(accent);
     this.bTo = oklchToRgb(secondary);
+    if (was !== this.aTo.join()) this.barsSoon();
+    const g = goldenShift(accent, ACCENTS.corona.color);
+    this.shiftTo = [g.angle, g.sat];
+    if (!this.started) this.shiftNow = [g.angle, g.sat];
     if (!this.started) {
       this.a = [...this.aTo];
       this.b = [...this.bTo];
@@ -727,8 +744,49 @@ class FxEngine {
         fade: this.solarFade,
         clouds: this.cloudsK,
         gold: this.goldK,
+        tint: this.tintNow,
+        goldShift: this.goldShift(),
       },
     });
+    this.matchBars(now);
+  }
+
+  // ── the phone's bars ─────────────────────────────────────────────────────
+
+  /** The Golden look turned to the accent's colours: where it's heading, and where it is (it eases). */
+  private shiftTo: [number, number] = [0, 1];
+  private shiftNow: [number, number] = [0, 1];
+  private goldShift(): [number, number] {
+    return this.shiftNow;
+  }
+
+  /** When to look at the sky's edges next, and what the bars were last given. */
+  private barsAt = 0;
+  private barTop = "";
+  private barBottom = "";
+
+  /** Look at the edges again shortly (the scene, its look or the accent changed). */
+  barsSoon() {
+    this.barsAt = Math.min(this.barsAt, performance.now() + 900);
+  }
+
+  /**
+   * Now and then, the colour along the top and bottom edges of the sky goes to the phone's status
+   * bar and to the strip under its gesture bar, so the sky seems to run right to the screen's
+   * edges. (Two thin reads every few seconds: nothing you'd notice.)
+   */
+  private matchBars(now: number) {
+    if (now < this.barsAt || !this.sky || document.hidden) return;
+    this.barsAt = now + 3000;
+    const e = this.sky.edgeColors();
+    if (!e) return;
+    const hex = (c: [number, number, number]) => "#" + c.map((v) => Math.round(Math.min(255, Math.max(0, v))).toString(16).padStart(2, "0")).join("");
+    const top = hex(e.top);
+    const bottom = hex(e.bottom);
+    if (top === this.barTop && bottom === this.barBottom) return;
+    this.barTop = top;
+    this.barBottom = bottom;
+    setBarColors(top, bottom);
   }
 
   // ── the solar eclipse ────────────────────────────────────────────────────
@@ -799,7 +857,10 @@ class FxEngine {
         this.solarFade < 0.995 ||
         this.sunHold !== null ||
         (this.cloudsK > 0 && this.cloudsK < 1) ||
-        (this.goldK > 0 && this.goldK < 1))
+        (this.goldK > 0 && this.goldK < 1) ||
+        (this.tintNow[3] > 0 && this.tintNow[3] < 1) ||
+        this.shiftNow[0] !== this.shiftTo[0] ||
+        this.shiftNow[1] !== this.shiftTo[1])
     );
   }
 
@@ -811,6 +872,24 @@ class FxEngine {
     const goldTo = this.solarOpts.golden ? 1 : 0;
     this.goldK += (goldTo - this.goldK) * Math.min(1, dt * 1.4);
     if (Math.abs(this.goldK - goldTo) < 0.002) this.goldK = goldTo;
+    // a new accent turns the Golden look round to its colours (the short way round)
+    {
+      const [ta, ts] = this.shiftTo;
+      const sn = this.shiftNow;
+      let da = ta - sn[0];
+      da = Math.atan2(Math.sin(da), Math.cos(da));
+      const kk = Math.min(1, dt * 2.2);
+      sn[0] += da * kk;
+      sn[1] += (ts - sn[1]) * kk;
+      if (Math.abs(da) < 1e-3 && Math.abs(ts - sn[1]) < 1e-3) this.shiftNow = [ta, ts];
+    }
+    // and a new corona colour washes in the same way
+    const tt = this.solarOpts.tint;
+    const tk = Math.min(1, dt * 1.6);
+    const tn = this.tintNow;
+    const tTo: [number, number, number, number] = tt ? [tt[0], tt[1], tt[2], 1] : [tn[0], tn[1], tn[2], 0];
+    for (let i = 0; i < 4; i++) tn[i] += (tTo[i] - tn[i]) * tk;
+    if (Math.abs(tn[3] - tTo[3]) < 0.002) tn[3] = tTo[3];
     const to = this.sunHold ?? this.sunHome();
     // The first time there's a page to hang it by, it goes straight there; after that it glides.
     const anchor = this.panelCircle ? "moon" : this.panelEl ? "panel" : "none";

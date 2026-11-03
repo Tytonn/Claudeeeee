@@ -251,6 +251,24 @@
   border-radius: 50%;
   box-shadow: inset 0 0 0 1.5px var(--fg-1);
 }
+/* Title font: each name set in its own face (the tall display face a touch larger). */
+.title-font-opt {
+  font-size: 13px;
+  line-height: 1;
+}
+.title-font-opt:is(.is-display, .is-italic) {
+  font-size: 16px;
+}
+/* …and in the right-click menu, an "Aa" in each. */
+.title-font-aa {
+  display: inline-block;
+  width: 22px;
+  font-size: 15px;
+  line-height: 1;
+  text-align: center;
+  color: var(--fg-1);
+}
+
 .font-opt {
   display: inline-flex;
   align-items: center;

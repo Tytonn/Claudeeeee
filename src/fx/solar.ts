@@ -18,7 +18,7 @@
 
 const SHARED = ["uRes", "uView", "uTime", "uScale", "uQuality", "uSun", "uLight", "uGlare", "uCorona", "uMouse", "uA", "uB", "uGold"];
 export const SOLAR_CLOUD_UNIFORMS = [...SHARED, "uCloudy"];
-export const SOLAR_SKY_UNIFORMS = [...SHARED, "uMoon", "uErupt", "uCursor", "uDim", "uFade", "uClouds"];
+export const SOLAR_SKY_UNIFORMS = [...SHARED, "uMoon", "uErupt", "uCursor", "uDim", "uFade", "uClouds", "uTint", "uGoldShift"];
 
 const HELPERS = /* glsl */ `
 const float TAU = 6.2831853;
@@ -386,6 +386,8 @@ uniform float uCursor;    // the cursor's light, 0..1
 uniform float uDim;
 uniform float uFade;      // fades the scene up from black
 uniform sampler2D uClouds;
+uniform vec4 uTint;       // the corona's chosen colour (rgb) and how much of it (Pearl: none)
+uniform vec2 uGoldShift;  // the Golden look in the accent's colours: angle round the gray axis, colourfulness (0, 1: as it is)
 ${HELPERS}
 /* ── the corona ────────────────────────────────────────────────────────── */
 
@@ -400,6 +402,50 @@ float streamer(float th, float r, float lr, float at, float w, float len, float 
   float width = w * (.2 + .8 * exp(-k / .55)) * (1. + .12 * sin(t * .19 + ph * 1.7));
   float knots = .5 + .7 * pow(.5 + .5 * sin(lr * 6.3 - t * .44 + ph * 4.), 2.5);
   return exp(-d * d / (width * width)) * exp(-k / len) * smoothstep(0., .05, k) * knots;
+}
+
+/* OKLab, roughly (display-referred in, display-referred out): turning a colour's hue here keeps
+   how light it looks exactly. */
+vec3 toOklab(vec3 c) {
+  vec3 l = pow(max(c, 0.), vec3(2.2));
+  vec3 lms = pow(vec3(
+    .4122214708 * l.r + .5363325363 * l.g + .0514459929 * l.b,
+    .2119034982 * l.r + .6806995451 * l.g + .1073969566 * l.b,
+    .0883024619 * l.r + .2817188376 * l.g + .6299787005 * l.b), vec3(1. / 3.));
+  return vec3(
+    .2104542553 * lms.x + .7936177850 * lms.y - .0040720468 * lms.z,
+    1.9779984951 * lms.x - 2.4285922050 * lms.y + .4505937099 * lms.z,
+    .0259040371 * lms.x + .7827717662 * lms.y - .8086757660 * lms.z);
+}
+vec3 fromOklab(vec3 o) {
+  vec3 q = vec3(
+    o.x + .3963377774 * o.y + .2158037573 * o.z,
+    o.x - .1055613458 * o.y - .0638541728 * o.z,
+    o.x - .0894841775 * o.y - 1.2914855480 * o.z);
+  q = q * q * q;
+  vec3 l = vec3(
+    4.0767416621 * q.x - 3.3077115913 * q.y + .2309699292 * q.z,
+    -1.2684380046 * q.x + 2.6097574011 * q.y - .3413193965 * q.z,
+    -.0041960863 * q.x - .7034186147 * q.y + 1.7076147010 * q.z);
+  return pow(max(l, 0.), vec3(1. / 2.2));
+}
+/* The Golden look in another accent's colours: every colour turned round by th and made s times
+   as colourful, exactly as light as it was. */
+vec3 regrade(vec3 c, float th, float s) {
+  vec3 o = toOklab(c);
+  float ca = cos(th);
+  float sa = sin(th);
+  o.yz = vec2(o.y * ca - o.z * sa, o.y * sa + o.z * ca) * s;
+  return fromOklab(o);
+}
+
+/* The corona in the colour you've chosen: its light keeps its brightness and takes the hue.
+   (Never in the Golden look, which has its own colours.) */
+vec3 tinted(vec3 c, float k) {
+  float a = uTint.a * (1. - uGold) * k;
+  if (a <= 0.) return c;
+  vec3 t = uTint.rgb / max(dot(uTint.rgb, vec3(.299, .587, .114)), .05);
+  return mix(c, t * dot(c, vec3(.299, .587, .114)), a);
 }
 
 vec3 corona(float r, float th, vec2 u) {
@@ -443,7 +489,9 @@ vec3 corona(float r, float th, vec2 u) {
   vec3 c = mix(gold, vec3(1., .93, .82), smoothstep(1., 1.14, r));
   c = mix(c, vec3(.84, .88, 1.), smoothstep(1.2, 2.6, r));
   c = mix(c, uA * 1.1 + .08, .18 * smoothstep(1.25, 3., r));
-  return (c * I + gold * bloom) * smoothstep(1., 1.004, r) * smoothstep(7., 4.2, r);
+  // a colour of your own: right through the streamers, a little less in the white-hot heart
+  c = tinted(c, mix(.62, .96, smoothstep(1.02, 1.45, r)));
+  return (c * I + tinted(gold, .7) * bloom) * smoothstep(1., 1.004, r) * smoothstep(7., 4.2, r);
 }
 
 /* A coronal mass ejection: a vast bubble of plasma bursting out through the corona, its bright
@@ -470,7 +518,7 @@ vec3 cme(vec2 q, float r) {
   float fib = .6 + .6 * vnoise(vec2(dot(dq, tng) * 9., (d - rr) * 3.) + uTime * .15);
   float fade = smoothstep(0., .12, p) * pow(1. - p, 1.3);
   // (and it's gone before r = 7, past which none of this is drawn)
-  return mix(vec3(.97, .95, 1.), vec3(1., .78, .56) * .5, uGold) * (shell * fib + core) * fade * uErupt.w * .95 * smoothstep(1., 1.25, r) * smoothstep(7., 5.6, r);
+  return mix(tinted(vec3(.97, .95, 1.), .8), vec3(1., .78, .56) * .5, uGold) * (shell * fib + core) * fade * uErupt.w * .95 * smoothstep(1., 1.25, r) * smoothstep(7., 5.6, r);
 }
 
 /* Prominences: tongues and loops of glowing pink gas standing up off the rim. They sit in front
@@ -578,7 +626,7 @@ void main() {
   // The light of the corona, scattered through the air all around it (it breathes with it).
   float rr = max(r, 1.);
   float aura = 1. + .08 * sin(uTime * .5) + .05 * sin(uTime * .83 + 1.);
-  vec3 airglow = vec3(.9, .78, .7) * (.075 * uCorona * exp(-(rr - 1.) / 2.6) + .032 * uCorona * exp(-(rr - 1.) / 9.));
+  vec3 airglow = tinted(vec3(.9, .78, .7), .75) * (.075 * uCorona * exp(-(rr - 1.) / 2.6) + .032 * uCorona * exp(-(rr - 1.) / 9.));
   vec3 goldglow = vec3(1., .58, .32) * (.22 * exp(-(rr - 1.) / 1.8) + .07 * exp(-(rr - 1.) / 6.));
   col += mix(airglow, goldglow, uGold) * aura;
 
@@ -682,6 +730,8 @@ void main() {
   col *= mix(vec3(1.), vec3(1.06, .94, .8), uGold);
   // Film: highlights roll off softly into white, like an exposure.
   col = 1. - exp(-col * 1.08);
+  // The Golden look in your accent's colours (the gold accent leaves it exactly as it is).
+  if (uGold > 0. && (uGoldShift.x != 0. || uGoldShift.y != 1.)) col = mix(col, regrade(col, uGoldShift.x, uGoldShift.y), uGold);
   col *= 1. - mix(.24, .42, uGold) * pow(length(uv - .5) * 1.2, 2.4);
   col *= uFade;
   // Dither (two noises: a triangle distribution), so the soft dark glows never band into rings.

@@ -65,7 +65,7 @@ import { navigate } from "../lib/router";
 import { toast } from "../store/toasts";
 
 export function noteMenuItems(note: Note, opts: { share?: boolean } = {}): MenuItem[] {
-  const groups = useApp.getState().groups;
+  const { groups, ui } = useApp.getState();
   const moveTo: MenuItem[] = [
     ...groups.map((g) => ({ label: g.name, icon: <Folder size={15} />, checked: note.groupId === g.id, onSelect: () => moveNote(note.id, g.id) }) as MenuItem),
     ...(note.groupId ? [{ label: "No group", icon: <FolderMinus size={15} />, onSelect: () => moveNote(note.id, null) } as MenuItem] : []),
@@ -77,9 +77,14 @@ export function noteMenuItems(note: Note, opts: { share?: boolean } = {}): MenuI
     ...(opts.share !== false ? [{ label: "Share…", icon: <Link2 size={15} />, onSelect: () => openShare(note.id) } as MenuItem] : []),
     { label: "Duplicate", icon: <Copy size={15} />, onSelect: () => duplicateNote(note.id) },
     ...(note.hidden ? [] : [{ label: "Move to group", icon: <FolderInput size={15} />, submenu: moveTo } as MenuItem]),
-    note.hidden
-      ? { label: "Unhide", icon: <Eye size={15} />, onSelect: () => unhideNote(note.id) }
-      : { label: "Hide note", icon: <EyeOff size={15} />, onSelect: () => hideNote(note.id) },
+    // Hiding is only on offer while the hidden notes are unlocked (in the accent, so it's easy to spot).
+    ...(!ui.unlocked
+      ? []
+      : [
+          note.hidden
+            ? ({ label: "Unhide", icon: <Eye size={15} />, accent: true, onSelect: () => unhideNote(note.id) } as MenuItem)
+            : ({ label: "Hide note", icon: <EyeOff size={15} />, accent: true, onSelect: () => hideNote(note.id) } as MenuItem),
+        ]),
     "divider",
     { label: "Copy as Markdown", icon: <FileText size={15} />, onSelect: () => void copyMarkdown(note.id) },
     { label: "Download .md", icon: <Download size={15} />, onSelect: () => downloadMarkdown(note.id) },

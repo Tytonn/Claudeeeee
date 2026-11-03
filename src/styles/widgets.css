@@ -169,6 +169,24 @@
   background: var(--active);
 }
 
+/* On a touch screen: the words don't take the finger until you're editing them, so holding a
+   finger on a to-do opens its menu (a phone's right-click) rather than the text magnifier. A tap
+   still starts editing, right where you tapped. */
+@media (hover: none) {
+  .todo:not(:focus-within) .todo-text {
+    pointer-events: none;
+  }
+  .todo-text-wrap,
+  .todo-text.static {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .todo.is-menu {
+    background: rgb(255 255 255 / 0.05);
+  }
+}
+
 /* ── To-do colors ────────────────────────────────────────────────────────── */
 
 .tag-dot {

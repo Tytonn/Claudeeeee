@@ -16,6 +16,10 @@ import { useCollabSession, userFor } from "../../collab/manager";
 import { useYText } from "../../collab/useYText";
 import { TITLE } from "../../collab/fields";
 import { Presence } from "../Presence";
+import { Menu } from "../ui/Menu";
+import { Popover, pointAnchor } from "../ui/Popover";
+import { TITLE_FONTS, isMac } from "../../lib/theme";
+import type { TitleFontId } from "../../lib/types";
 
 const supportsFieldSizing = typeof CSS !== "undefined" && CSS.supports?.("field-sizing", "content");
 
@@ -31,6 +35,8 @@ export function NoteEditor({ noteId, scroller }: Props) {
   const isShared = useApp((s) => Boolean(s.shares[noteId]));
   const updateNote = useApp((s) => s.updateNote);
   const titleRef = useRef<HTMLTextAreaElement>(null);
+  const [titleMenu, setTitleMenu] = useState<{ x: number; y: number } | null>(null);
+  const titlePress = useRef<{ mouse: boolean; selected: boolean } | null>(null);
   const [noteEl, setNoteEl] = useState<HTMLDivElement | null>(null);
   const wordsRef = useRef<HTMLSpanElement>(null);
   const milestone = useRef<number | null>(null);
@@ -195,6 +201,25 @@ export function NoteEditor({ noteId, scroller }: Props) {
     >
       <textarea
         ref={titleRef}
+        onPointerDownCapture={(e) => {
+          const el = e.currentTarget;
+          titlePress.current = { mouse: e.pointerType === "mouse", selected: document.activeElement === el && el.selectionStart !== el.selectionEnd };
+        }}
+        onMouseDown={(e) => {
+          // Don't let the right-click move the caret (or select a word) on its way to the menu.
+          const p = titlePress.current;
+          if ((e.button === 2 || (isMac && e.button === 0 && e.ctrlKey)) && !p?.selected) e.preventDefault();
+        }}
+        onContextMenu={(e) => {
+          const p = titlePress.current;
+          titlePress.current = null;
+          if (p && (!p.mouse || p.selected)) return;
+          e.preventDefault();
+          const r = e.currentTarget.getBoundingClientRect();
+          // From the keyboard (no pointer), it opens under the title.
+          const fromKeys = e.clientX === 0 && e.clientY === 0;
+          setTitleMenu({ x: fromKeys ? r.left + 8 : e.clientX, y: fromKeys ? r.bottom : e.clientY });
+        }}
         className="note-title display"
         rows={1}
         value={liveTitle ?? note.title}
@@ -219,6 +244,7 @@ export function NoteEditor({ noteId, scroller }: Props) {
           }
         }}
       />
+      <TitleFontMenu at={titleMenu} onClose={() => setTitleMenu(null)} />
       <div className="note-meta mono">
         <span>{formatDate(new Date(note.createdAt), { weekday: false })}</span>
         <span className="sep" />
@@ -246,5 +272,31 @@ export function NoteEditor({ noteId, scroller }: Props) {
       {editor && <BubbleBar editor={editor} />}
       <SlashMenu />
     </div>
+  );
+}
+
+/** Right-click a title: its typeface, each one shown in itself. */
+function TitleFontMenu({ at, onClose }: { at: { x: number; y: number } | null; onClose: () => void }) {
+  const current = useApp((s) => s.settings.titleFont ?? "display");
+  const anchor = useMemo(() => (at ? pointAnchor(at.x, at.y) : null), [at]);
+  return (
+    <Popover open={Boolean(at)} onClose={onClose} anchor={anchor} placement="bottom-start" offsetPx={4} role="menu">
+      <Menu
+        items={(Object.keys(TITLE_FONTS) as TitleFontId[]).map((id) => ({
+          label: TITLE_FONTS[id].name,
+          icon: (
+            <span className="title-font-aa" style={{ fontFamily: TITLE_FONTS[id].stack, fontStyle: TITLE_FONTS[id].italic ? "italic" : undefined }}>
+              Aa
+            </span>
+          ),
+          checked: current === id,
+          onSelect: () => {
+            useApp.getState().setSettings({ titleFont: id });
+            play("pop");
+          },
+        }))}
+        onClose={onClose}
+      />
+    </Popover>
   );
 }

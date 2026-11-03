@@ -22,7 +22,7 @@ import { loadAll, startPersistence, storageOk } from "./store/persist";
 import { toast } from "./store/toasts";
 import { startShareSync } from "./store/shareSync";
 import { startSync, syncNow } from "./account/sync";
-import { ACCENTS, RAIN_AMOUNT, applyTheme } from "./lib/theme";
+import { ACCENTS, RAIN_AMOUNT, SOLAR_TINTS, applyTheme, hexRgb } from "./lib/theme";
 import type { Settings } from "./lib/types";
 import { fx } from "./fx/engine";
 import { refreshPointerLight, startPointerLight } from "./fx/dom";
@@ -54,6 +54,7 @@ async function boot() {
       clouds: s.solarClouds !== false,
       size: typeof s.solarSize === "number" ? Math.min(1, Math.max(0, s.solarSize)) : 0.5,
       golden: s.solarLook === "golden",
+      tint: s.solarTint && s.solarTint !== "pearl" && SOLAR_TINTS[s.solarTint] ? hexRgb(SOLAR_TINTS[s.solarTint].color) : null,
     });
     fx.setBackdrop(s.backdrop);
     setSoundTheme(fx.rain && s.effects !== "off" ? "rain" : "eclipse");

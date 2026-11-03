@@ -29,3 +29,20 @@ export function oklchToRgb(input: string): RGB {
 export const to255 = (c: RGB): RGB => [Math.round(c[0] * 255), Math.round(c[1] * 255), Math.round(c[2] * 255)];
 
 export const mixRgb = (a: RGB, b: RGB, t: number): RGB => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+
+/** The Golden look's own hue (its warm orange), in OKLCH degrees. */
+const GOLDEN_HUE = 55;
+
+/**
+ * How the Golden look turns to another accent's colours: a turn of hue (radians, in OKLab, so
+ * its own orange lands on the accent's hue) and how colourful it is next to the gold. The gold
+ * accent itself gives exactly (0, 1): the look just as it is.
+ */
+export function goldenShift(accent: string, gold: string): { angle: number; sat: number } {
+  if (accent === gold) return { angle: 0, sat: 1 };
+  const m = /oklch\(\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)/i.exec(accent);
+  if (!m) return { angle: 0, sat: 1 };
+  const chroma = Number(m[2]);
+  const d = ((((Number(m[3]) - GOLDEN_HUE) % 360) + 540) % 360) - 180;
+  return { angle: (d * Math.PI) / 180, sat: Math.min(1.15, Math.max(0.12, chroma / 0.115)) };
+}

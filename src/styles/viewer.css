@@ -90,7 +90,7 @@
   position: relative;
 }
 .viewer-note .note-title {
-  font-size: clamp(38px, 6.4vw, 56px);
+  font-size: calc(clamp(38px, 6.4vw, 56px) * var(--title-scale, 1));
 }
 .viewer-note .prose {
   cursor: default;

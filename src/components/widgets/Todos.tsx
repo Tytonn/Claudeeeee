@@ -75,22 +75,68 @@ function TodoMenu({ todo, at, onClose }: { todo: Todo; at: { x: number; y: numbe
 /** A right-click (or, on a Mac, a Control-click). */
 const isContextClick = (e: React.MouseEvent) => e.button === 2 || (isMac && e.button === 0 && e.ctrlKey);
 
+/** How long a finger has to rest on a to-do to open its menu (a phone's right-click). */
+const HOLD_MS = 460;
+
 /**
  * Right-clicking anywhere on a to-do opens its menu — on its words too. Except: with some of
- * the text already selected, you get the usual copy-and-paste menu; and a finger held on the
- * words is for selecting them, as always.
+ * the text already selected, you get the usual copy-and-paste menu. On a phone (no right-click),
+ * holding a finger on a to-do opens it — unless you're in the middle of editing its words, when
+ * a held finger is for selecting them, as always.
  */
 function useRowMenu(row: React.RefObject<HTMLElement | null>) {
   const [menu, setMenu] = useState<{ x: number; y: number; full: boolean } | null>(null);
   const press = useRef<{ mouse: boolean; selected: boolean } | null>(null);
+  const hold = useRef<{ id: number; x: number; y: number; timer: number; fired: boolean } | null>(null);
   const textOf = (target: EventTarget) => (target as HTMLElement).closest?.("input") as HTMLInputElement | null;
   const hasSelection = (el: HTMLInputElement | null) => Boolean(el && document.activeElement === el && el.selectionStart !== el.selectionEnd);
+  const letGo = () => {
+    const h = hold.current;
+    if (!h) return;
+    window.clearTimeout(h.timer);
+    if (!h.fired) hold.current = null;
+    // (once it has opened the menu, it stays a moment longer: to swallow the tap that ends it)
+    else window.setTimeout(() => hold.current === h && (hold.current = null), 450);
+  };
+  useEffect(() => () => window.clearTimeout(hold.current?.timer), []);
   return {
     menu,
     setMenu,
     handlers: {
       onPointerDownCapture: (e: React.PointerEvent) => {
         press.current = { mouse: e.pointerType === "mouse", selected: hasSelection(textOf(e.target)) };
+        if (hold.current) window.clearTimeout(hold.current.timer);
+        hold.current = null;
+        if (e.pointerType === "mouse" || !e.isPrimary) return;
+        const target = e.target as HTMLElement;
+        const words = textOf(target);
+        if ((words && document.activeElement === words) || target.closest("button, .todo-grip")) return;
+        const { clientX: x, clientY: y, pointerId: id } = e;
+        const h = { id, x, y, fired: false, timer: 0 };
+        h.timer = window.setTimeout(() => {
+          if (hold.current !== h) return;
+          h.fired = true;
+          haptic(12);
+          setMenu({ x, y: y + 8, full: true });
+        }, HOLD_MS);
+        hold.current = h;
+      },
+      onPointerMoveCapture: (e: React.PointerEvent) => {
+        const h = hold.current;
+        if (h && !h.fired && e.pointerId === h.id && Math.hypot(e.clientX - h.x, e.clientY - h.y) > 10) letGo();
+      },
+      onPointerUpCapture: letGo,
+      onPointerCancelCapture: letGo,
+      // the tap that ends a hold mustn't also start editing (or tick the box)
+      onClickCapture: (e: React.MouseEvent) => {
+        if (hold.current?.fired) {
+          e.preventDefault();
+          e.stopPropagation();
+          hold.current = null;
+        }
+      },
+      onTouchEnd: (e: React.TouchEvent) => {
+        if (hold.current?.fired && e.cancelable) e.preventDefault();
       },
       onMouseDownCapture: (e: React.MouseEvent) => {
         // Don't let the right-click put the caret in the words (or select one) on its way to the menu.
@@ -98,6 +144,11 @@ function useRowMenu(row: React.RefObject<HTMLElement | null>) {
         if (el && isContextClick(e) && !hasSelection(el)) e.preventDefault();
       },
       onContextMenu: (e: React.MouseEvent) => {
+        // (a phone's own long-press menu, after ours has opened)
+        if (hold.current?.fired) {
+          e.preventDefault();
+          return;
+        }
         const el = textOf(e.target);
         if (el) {
           const p = press.current;
@@ -111,6 +162,42 @@ function useRowMenu(row: React.RefObject<HTMLElement | null>) {
       },
     },
   };
+}
+
+/** Where in a to-do's words a tap landed (as a caret position). */
+let measure: CanvasRenderingContext2D | null = null;
+function caretAt(input: HTMLInputElement, clientX: number): number {
+  measure ??= document.createElement("canvas").getContext("2d");
+  const text = input.value;
+  if (!measure || !text) return text.length;
+  const cs = getComputedStyle(input);
+  measure.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+  const r = input.getBoundingClientRect();
+  const x = clientX - r.left - parseFloat(cs.paddingLeft || "0") + input.scrollLeft;
+  let prev = 0;
+  for (let i = 1; i <= text.length; i++) {
+    const w = measure.measureText(text.slice(0, i)).width;
+    if (w >= x) return x - prev < w - x ? i - 1 : i;
+    prev = w;
+  }
+  return text.length;
+}
+
+/**
+ * On a touch screen a to-do's words don't take the finger until you're editing them (so a held
+ * finger can open the menu instead of the phone's text magnifier). A tap starts editing, with
+ * the caret where you tapped.
+ */
+function tapToEdit(e: React.MouseEvent<HTMLElement>) {
+  const input = e.currentTarget.querySelector<HTMLInputElement>("input.todo-text");
+  if (!input || e.target === input || document.activeElement === input) return;
+  const at = caretAt(input, e.clientX);
+  input.focus({ preventScroll: true });
+  try {
+    input.setSelectionRange(at, at);
+  } catch {
+    /* noop */
+  }
 }
 
 type RowProps = { todo: Todo; prevId?: string; nextId?: string; addInput: React.RefObject<HTMLInputElement | null> };
@@ -207,7 +294,7 @@ function TodoRow({ todo, prevId, nextId, addInput }: RowProps) {
         <GripVertical size={13} strokeWidth={1.8} />
       </span>
       <Checkbox checked={settling} onToggle={onCheck} label={todo.text} />
-      <span className="todo-text-wrap">
+      <span className="todo-text-wrap" onClick={(e) => tapToEdit(e)}>
         <input
           data-todo={todo.id}
           className="todo-text"

@@ -462,6 +462,13 @@
 .menu-item.danger .menu-hl {
   background: var(--danger-1);
 }
+.menu-item.accent,
+.menu-item.accent .menu-icon {
+  color: color-mix(in oklch, var(--accent) 88%, white);
+}
+.menu-item.accent .menu-hl {
+  background: color-mix(in oklch, var(--accent) 15%, transparent);
+}
 .menu-divider {
   height: 1px;
   margin: 5px 8px;

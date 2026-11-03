@@ -31,6 +31,7 @@ import { dataKey, onAccountChange, sessionExpired, useAccount, type AccountUser 
 const SYNCED_SETTINGS = [
   "accent",
   "font",
+  "titleFont",
   "size",
   "todos",
   "countdowns",
@@ -43,6 +44,7 @@ const SYNCED_SETTINGS = [
   "solarClouds",
   "solarSize",
   "solarLook",
+  "solarTint",
   "cityBlur",
   "cursorLight",
   "clockMs",

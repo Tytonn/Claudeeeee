@@ -5,8 +5,8 @@ import { useApp } from "../../store/app";
 import { BOARD, shareUrl, stopShare } from "../../store/shareSync";
 import { exportAll, importBackup } from "../../store/persist";
 import { toast } from "../../store/toasts";
-import { ACCENTS, FONTS } from "../../lib/theme";
-import type { AccentId, BackdropId, EffectsId, FontId, RainAmountId, SceneId, SizeId } from "../../lib/types";
+import { ACCENTS, FONTS, SOLAR_TINTS, TITLE_FONTS } from "../../lib/theme";
+import type { AccentId, BackdropId, EffectsId, FontId, RainAmountId, SceneId, SizeId, SolarTintId, TitleFontId } from "../../lib/types";
 import { displayTitle } from "../../lib/text";
 import { relativeLong } from "../../lib/dates";
 import { download, flushEditor } from "../../lib/actions";
@@ -18,6 +18,7 @@ import { Segmented, SegmentedEpoch } from "../ui/Segmented";
 import { IconButton } from "../ui/IconButton";
 import { Eclipse } from "../ui/Eclipse";
 import { changeAccent, changeScene, changeSolarLook } from "../../fx/transitions";
+import { goldenShift } from "../../fx/color";
 
 function Row({ label, desc, children, htmlFor }: { label: string; desc?: ReactNode; children: ReactNode; htmlFor?: string }) {
   return (
@@ -107,12 +108,17 @@ const SOLAR_PUFFS_BACK: [number, number, number][] = [[2, 58, 12], [16, 50, 11],
 // prettier-ignore
 const SOLAR_PUFFS_FRONT: [number, number, number][] = [[6, 75, 13], [30, 72, 12], [54, 74, 13], [80, 75, 12], [106, 77, 12], [132, 78, 11], [158, 78, 11], [184, 76, 12], [210, 74, 13], [236, 73, 13]];
 
-function SolarArt({ golden = false }: { golden?: boolean }) {
+function SolarArt({ golden = false, tint = "pearl", accent = "corona" }: { golden?: boolean; tint?: SolarTintId; accent?: AccentId }) {
   const { x, y, r } = SUN;
+  // Golden takes on the accent's colours (the gold accent: exactly its own)
+  const shift = golden ? goldenShift(ACCENTS[accent]?.color ?? ACCENTS.corona.color, ACCENTS.corona.color) : null;
+  const filter = shift && (shift.angle !== 0 || shift.sat !== 1) ? `hue-rotate(${((shift.angle * 180) / Math.PI).toFixed(1)}deg) saturate(${shift.sat.toFixed(2)})` : undefined;
+  // the corona in its chosen colour (Pearl is its own white light)
+  const tc = !golden && tint !== "pearl" ? SOLAR_TINTS[tint]?.color : undefined;
   const dx = x + Math.cos(-2.45) * r;
   const dy = y + Math.sin(-2.45) * r;
   return (
-    <svg className="scene-svg" viewBox="0 0 240 72" preserveAspectRatio="xMidYMid slice" aria-hidden>
+    <svg className="scene-svg" viewBox="0 0 240 72" preserveAspectRatio="xMidYMid slice" style={filter ? { filter } : undefined} aria-hidden>
       <defs>
         <linearGradient id="so-sky" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor={golden ? "#1d1213" : "#0b0d1c"} />
@@ -122,9 +128,9 @@ function SolarArt({ golden = false }: { golden?: boolean }) {
         </linearGradient>
         <radialGradient id="so-corona">
           <stop offset="0.3" stopColor={golden ? "#ffcf8a" : "#fff7ec"} stopOpacity="0.95" />
-          <stop offset="0.4" stopColor={golden ? "#ff9a45" : "#fbe8d6"} stopOpacity={golden ? 0.55 : 0.45} />
-          <stop offset="0.65" stopColor={golden ? "#d9692c" : "#efd8ca"} stopOpacity={golden ? 0.16 : 0.12} />
-          <stop offset="1" stopColor={golden ? "#d9692c" : "#efd8ca"} stopOpacity="0" />
+          <stop offset="0.4" stopColor={golden ? "#ff9a45" : (tc ?? "#fbe8d6")} stopOpacity={golden ? 0.55 : tc ? 0.6 : 0.45} />
+          <stop offset="0.65" stopColor={golden ? "#d9692c" : (tc ?? "#efd8ca")} stopOpacity={golden ? 0.16 : tc ? 0.2 : 0.12} />
+          <stop offset="1" stopColor={golden ? "#d9692c" : (tc ?? "#efd8ca")} stopOpacity="0" />
         </radialGradient>
         <radialGradient id="so-glint">
           <stop offset="0" stopColor="#fff" />
@@ -151,7 +157,7 @@ function SolarArt({ golden = false }: { golden?: boolean }) {
       </defs>
       <rect width="240" height="72" fill="url(#so-sky)" />
       <circle cx={x} cy={y} r={r * 3.4} fill="url(#so-corona)" />
-      <g stroke={golden ? "#ffc27a" : "#fff4e8"} strokeOpacity={golden ? 0.35 : 1} strokeLinecap="round" filter="url(#so-soft)">
+      <g stroke={golden ? "#ffc27a" : (tc ?? "#fff4e8")} strokeOpacity={golden ? 0.35 : 1} strokeLinecap="round" filter="url(#so-soft)">
         {SOLAR_RAYS.map(([a, len, o, w], i) => (
           <line key={i} x1={x + Math.cos(a) * r} y1={y + Math.sin(a) * r} x2={x + Math.cos(a) * (r + len)} y2={y + Math.sin(a) * (r + len)} strokeOpacity={o} strokeWidth={w} />
         ))}
@@ -183,6 +189,8 @@ const SCENES: { id: SceneId; name: string; sub: string }[] = [
 function ScenePicker() {
   const scene = useApp((s) => s.settings.scene);
   const golden = useApp((s) => s.settings.solarLook === "golden");
+  const tint = useApp((s) => s.settings.solarTint ?? "pearl");
+  const accent = useApp((s) => s.settings.accent);
   const current = scene === "rain" || scene === "solar" ? scene : "eclipse";
   return (
     <div className="scenes" role="radiogroup" aria-label="Scene">
@@ -191,7 +199,7 @@ function ScenePicker() {
         return (
           <button key={sc.id} type="button" role="radio" aria-checked={on} className={`scene-card is-${sc.id} ${on ? "is-on" : ""}`} onClick={(e) => changeScene(sc.id, e.clientX, e.clientY)}>
             <span className="scene-art" aria-hidden>
-              {sc.id === "eclipse" ? <Eclipse progress={1} size={34} /> : sc.id === "rain" ? <RainArt /> : <SolarArt golden={golden} />}
+              {sc.id === "eclipse" ? <Eclipse progress={1} size={34} /> : sc.id === "rain" ? <RainArt /> : <SolarArt golden={golden} tint={tint} accent={accent} />}
             </span>
             <span className="scene-text">
               <span className="scene-name">{sc.name}</span>
@@ -264,6 +272,32 @@ function Swatches() {
           onClick={(e) => changeAccent(id, e.clientX, e.clientY)}
         >
           {accent === id && <motion.span key={scene} layoutId={`swatch-ring-${scene}`} className="swatch-ring" transition={spring} />}
+          <span className="swatch-core" />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** The corona's colour, in the Corona look. Pearl is the real thing. */
+function CoronaTints() {
+  const tint = useApp((s) => s.settings.solarTint ?? "pearl");
+  const setSettings = useApp((s) => s.setSettings);
+  return (
+    <div className="swatches" role="radiogroup" aria-label="Corona color">
+      {(Object.keys(SOLAR_TINTS) as SolarTintId[]).map((id) => (
+        <button
+          key={id}
+          type="button"
+          role="radio"
+          aria-checked={tint === id}
+          aria-label={SOLAR_TINTS[id].name}
+          title={SOLAR_TINTS[id].name}
+          className="swatch"
+          style={{ "--sw": SOLAR_TINTS[id].color } as React.CSSProperties}
+          onClick={() => setSettings({ solarTint: id })}
+        >
+          {tint === id && <motion.span layoutId="corona-tint-ring" className="swatch-ring" transition={spring} />}
           <span className="swatch-core" />
         </button>
       ))}
@@ -422,7 +456,7 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
               <>
                 <Row
                   label="Look"
-                  desc={settings.solarLook === "golden" ? "A ring of fire, the diamond ring blazing, in a warm, smoky sky. The accent turns gold to match." : "The pearly corona streaming out, in a dusky sky."}
+                  desc={settings.solarLook === "golden" ? "A ring of fire and the diamond ring blazing, in a warm, smoky sky. It sets the accent to gold — pick another accent to recolour the whole thing." : "The pearly corona streaming out, in a dusky sky."}
                 >
                   <SegmentedEpoch.Provider value={settings.scene}>
                     <Segmented<"corona" | "golden">
@@ -437,6 +471,11 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
                     />
                   </SegmentedEpoch.Provider>
                 </Row>
+                {settings.solarLook !== "golden" && (
+                  <Row label="Corona color" desc="The colour of the light streaming out round the moon. Pearl is how it really looks.">
+                    <CoronaTints />
+                  </Row>
+                )}
                 <Row label="Distance" desc="How close the eclipse looks. Slide right to bring it nearer.">
                   <SunDistance />
                 </Row>
@@ -450,6 +489,23 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
             </Row>
             <Row label="Writing font">
               <Segmented label="Writing font" value={settings.font} options={fontOptions} onChange={(font) => setSettings({ font })} />
+            </Row>
+            <Row label="Title font" desc="For every note's title. You can also right-click a title to change it.">
+              <Segmented<TitleFontId>
+                label="Title font"
+                size="sm"
+                value={settings.titleFont && settings.titleFont in TITLE_FONTS ? settings.titleFont : "display"}
+                options={(Object.keys(TITLE_FONTS) as TitleFontId[]).map((id) => ({
+                  value: id,
+                  title: TITLE_FONTS[id].name,
+                  label: (
+                    <span className={`title-font-opt is-${id}`} style={{ fontFamily: TITLE_FONTS[id].stack, fontStyle: TITLE_FONTS[id].italic ? "italic" : undefined }}>
+                      {id === "italic" ? "Italic" : TITLE_FONTS[id].name}
+                    </span>
+                  ),
+                }))}
+                onChange={(titleFont) => setSettings({ titleFont })}
+              />
             </Row>
             <Row label="Text size">
               <Segmented<SizeId>

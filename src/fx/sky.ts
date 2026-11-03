@@ -44,6 +44,10 @@ export type SolarFrame = {
   clouds: number;
   /** The Golden look, 0..1. */
   gold: number;
+  /** The corona's chosen colour (rgb) and how much of it, 0..1. */
+  tint: [number, number, number, number];
+  /** The Golden look turned to the accent's colours: an angle round the gray axis, and colourfulness (0, 1: as it is). */
+  goldShift: [number, number];
 };
 
 export type SkyFrame = {
@@ -388,6 +392,38 @@ export class Sky {
     this.gl.viewport(0, 0, w, h);
   }
 
+  /**
+   * The colour along the top and bottom edges of the frame just drawn (for the phone's bars).
+   * Two one-pixel rows, read straight after drawing.
+   */
+  edgeColors(): { top: [number, number, number]; bottom: [number, number, number] } | null {
+    if (this.lost) return null;
+    const gl = this.gl;
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+    if (w < 4 || h < 4) return null;
+    try {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      const row = new Uint8Array(w * 4);
+      const avg = (y: number): [number, number, number] => {
+        gl.readPixels(0, y, w, 1, gl.RGBA, gl.UNSIGNED_BYTE, row);
+        let r = 0;
+        let g = 0;
+        let b = 0;
+        for (let i = 0; i < w; i++) {
+          r += row[i * 4];
+          g += row[i * 4 + 1];
+          b += row[i * 4 + 2];
+        }
+        return [r / w, g / w, b / w];
+      };
+      // (GL counts rows from the bottom.)
+      return { top: avg(h - 1), bottom: avg(0) };
+    } catch {
+      return null;
+    }
+  }
+
   render(f: SkyFrame) {
     if (this.lost || !this.eclipse) return;
     if (f.scene === "rain" && this.ensureRain() && this.ensureTarget()) this.renderRain(f);
@@ -569,6 +605,8 @@ export class Sky {
     gl.useProgram(S.prog);
     shared(L, W, H);
     gl.uniform2f(L.uMoon, s.moon.x, -s.moon.y);
+    gl.uniform4f(L.uTint, s.tint[0], s.tint[1], s.tint[2], s.tint[3]);
+    gl.uniform2f(L.uGoldShift, s.goldShift[0], s.goldShift[1]);
     gl.uniform4f(L.uErupt, -s.erupt[0], s.erupt[1], s.erupt[2], s.erupt[3]);
     gl.uniform1f(L.uCursor, f.cursor);
     gl.uniform1f(L.uDim, f.dim);
