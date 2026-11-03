@@ -762,11 +762,19 @@ html[data-fx="cosmic"] .viewer-todos {
 html[data-fx="cosmic"] .viewer-main,
 html[data-fx="subtle"] .viewer-main {
   padding-top: max(7vh, calc(0.36 * max(46vw, 380px) - 14px));
-  background: radial-gradient(closest-side, rgb(3 3 6 / 0.42), rgb(3 3 6 / 0.26) 62%, transparent);
+  background: radial-gradient(
+    closest-side,
+    rgb(3 3 6 / 0.420) 0%, rgb(3 3 6 / 0.419) 5%, rgb(3 3 6 / 0.417) 10%, rgb(3 3 6 / 0.412) 15%,
+    rgb(3 3 6 / 0.404) 20%, rgb(3 3 6 / 0.394) 25%, rgb(3 3 6 / 0.382) 30%, rgb(3 3 6 / 0.367) 35%,
+    rgb(3 3 6 / 0.349) 40%, rgb(3 3 6 / 0.328) 45%, rgb(3 3 6 / 0.305) 50%, rgb(3 3 6 / 0.280) 55%,
+    rgb(3 3 6 / 0.252) 60%, rgb(3 3 6 / 0.222) 65%, rgb(3 3 6 / 0.190) 70%, rgb(3 3 6 / 0.157) 75%,
+    rgb(3 3 6 / 0.123) 80%, rgb(3 3 6 / 0.088) 85%, rgb(3 3 6 / 0.054) 90%, rgb(3 3 6 / 0.023) 95%,
+    rgb(3 3 6 / 0.000) 100%
+  );
 }
 
 /* ── Background: how much of the sky shows through ─────────────────────────
-   Dark (default) is the smoked glass above. Glass lets the sky in; Clear shows it
+   Dark is the smoked glass above. Glass lets the sky in; Clear (the default) shows it
    almost completely — a soft column of shade sits behind the words, text gets a
    faint halo, and quiet grays brighten, so everything stays easy to read. */
 
@@ -785,9 +793,20 @@ html[data-backdrop="clear"]:is([data-fx="cosmic"], [data-fx="subtle"]) {
   --fg-5: #5c5c66;
   --line: rgb(255 255 255 / 0.1);
 }
+/* (The column of shade is one smooth curve, sampled finely: a gradient with only a few stops
+   bends at each of them, and the eye sees every bend as a faint dark line down the page.) */
 html[data-backdrop="clear"]:is([data-fx="cosmic"], [data-fx="subtle"]) .canvas {
   background:
-    linear-gradient(90deg, transparent 2%, rgb(3 4 7 / 0.3) 20%, rgb(3 4 7 / 0.4) 50%, rgb(3 4 7 / 0.3) 80%, transparent 98%),
+    linear-gradient(
+      90deg,
+      rgb(3 4 7 / 0.000) 0%, rgb(3 4 7 / 0.050) 4%, rgb(3 4 7 / 0.099) 8%, rgb(3 4 7 / 0.147) 12%,
+      rgb(3 4 7 / 0.193) 16%, rgb(3 4 7 / 0.235) 20%, rgb(3 4 7 / 0.274) 24%, rgb(3 4 7 / 0.308) 28%,
+      rgb(3 4 7 / 0.338) 32%, rgb(3 4 7 / 0.362) 36%, rgb(3 4 7 / 0.380) 40%, rgb(3 4 7 / 0.393) 44%,
+      rgb(3 4 7 / 0.399) 48%, rgb(3 4 7 / 0.399) 52%, rgb(3 4 7 / 0.393) 56%, rgb(3 4 7 / 0.380) 60%,
+      rgb(3 4 7 / 0.362) 64%, rgb(3 4 7 / 0.338) 68%, rgb(3 4 7 / 0.308) 72%, rgb(3 4 7 / 0.274) 76%,
+      rgb(3 4 7 / 0.235) 80%, rgb(3 4 7 / 0.193) 84%, rgb(3 4 7 / 0.147) 88%, rgb(3 4 7 / 0.099) 92%,
+      rgb(3 4 7 / 0.050) 96%, rgb(3 4 7 / 0.000) 100%
+    ),
     rgb(5 6 9 / 0.12);
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
@@ -815,10 +834,26 @@ html[data-backdrop="clear"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(.pros
 
 /* The friend's page follows their own choice too. */
 html[data-backdrop="glass"]:is([data-fx="cosmic"], [data-fx="subtle"]) .viewer-main {
-  background: radial-gradient(closest-side, rgb(3 3 6 / 0.3), rgb(3 3 6 / 0.16) 62%, transparent);
+  background: radial-gradient(
+    closest-side,
+    rgb(3 3 6 / 0.300) 0%, rgb(3 3 6 / 0.299) 5%, rgb(3 3 6 / 0.298) 10%, rgb(3 3 6 / 0.294) 15%,
+    rgb(3 3 6 / 0.289) 20%, rgb(3 3 6 / 0.282) 25%, rgb(3 3 6 / 0.273) 30%, rgb(3 3 6 / 0.262) 35%,
+    rgb(3 3 6 / 0.249) 40%, rgb(3 3 6 / 0.235) 45%, rgb(3 3 6 / 0.218) 50%, rgb(3 3 6 / 0.200) 55%,
+    rgb(3 3 6 / 0.180) 60%, rgb(3 3 6 / 0.159) 65%, rgb(3 3 6 / 0.136) 70%, rgb(3 3 6 / 0.112) 75%,
+    rgb(3 3 6 / 0.088) 80%, rgb(3 3 6 / 0.063) 85%, rgb(3 3 6 / 0.039) 90%, rgb(3 3 6 / 0.016) 95%,
+    rgb(3 3 6 / 0.000) 100%
+  );
 }
 html[data-backdrop="clear"]:is([data-fx="cosmic"], [data-fx="subtle"]) .viewer-main {
-  background: radial-gradient(closest-side, rgb(3 3 6 / 0.22), rgb(3 3 6 / 0.1) 62%, transparent);
+  background: radial-gradient(
+    closest-side,
+    rgb(3 3 6 / 0.220) 0%, rgb(3 3 6 / 0.220) 5%, rgb(3 3 6 / 0.218) 10%, rgb(3 3 6 / 0.216) 15%,
+    rgb(3 3 6 / 0.212) 20%, rgb(3 3 6 / 0.207) 25%, rgb(3 3 6 / 0.200) 30%, rgb(3 3 6 / 0.192) 35%,
+    rgb(3 3 6 / 0.183) 40%, rgb(3 3 6 / 0.172) 45%, rgb(3 3 6 / 0.160) 50%, rgb(3 3 6 / 0.147) 55%,
+    rgb(3 3 6 / 0.132) 60%, rgb(3 3 6 / 0.116) 65%, rgb(3 3 6 / 0.100) 70%, rgb(3 3 6 / 0.082) 75%,
+    rgb(3 3 6 / 0.064) 80%, rgb(3 3 6 / 0.046) 85%, rgb(3 3 6 / 0.028) 90%, rgb(3 3 6 / 0.012) 95%,
+    rgb(3 3 6 / 0.000) 100%
+  );
 }
 
 /* Crystal: no glass at all — the panels are just their outlines over the open sky.

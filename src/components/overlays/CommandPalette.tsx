@@ -45,7 +45,7 @@ import { download } from "../../lib/actions";
 import { spring } from "../../lib/motion";
 import { Modal } from "../ui/Modal";
 import { Kbd } from "../ui/Kbd";
-import { changeScene } from "../../fx/transitions";
+import { changeScene, changeSolarLook } from "../../fx/transitions";
 
 type Item = {
   id: string;
@@ -219,7 +219,7 @@ function useItems(query: string): Item[] {
                     label: settings.solarLook === "golden" ? "Eclipse look: Corona" : "Eclipse look: Golden",
                     icon: <Eclipse size={15} strokeWidth={1.6} />,
                     keywords: "eclipse look golden gold orange ring of fire diamond corona silver style sun",
-                    run: () => s.setSettings({ solarLook: settings.solarLook === "golden" ? "corona" : "golden" }),
+                    run: () => changeSolarLook(settings.solarLook === "golden" ? "corona" : "golden"),
                   },
                   {
                     id: "clouds",

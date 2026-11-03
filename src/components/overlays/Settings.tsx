@@ -17,7 +17,7 @@ import { Switch } from "../ui/Switch";
 import { Segmented, SegmentedEpoch } from "../ui/Segmented";
 import { IconButton } from "../ui/IconButton";
 import { Eclipse } from "../ui/Eclipse";
-import { changeAccent, changeScene } from "../../fx/transitions";
+import { changeAccent, changeScene, changeSolarLook } from "../../fx/transitions";
 
 function Row({ label, desc, children, htmlFor }: { label: string; desc?: ReactNode; children: ReactNode; htmlFor?: string }) {
   return (
@@ -248,7 +248,7 @@ function RainBlur() {
 
 function Swatches() {
   const accent = useApp((s) => s.settings.accent);
-  const scene = useApp((s) => s.settings.scene);
+  const scene = useApp((s) => `${s.settings.scene}:${s.settings.solarLook}`);
   return (
     <div className="swatches" role="radiogroup" aria-label="Accent color">
       {(Object.keys(ACCENTS) as AccentId[]).map((id) => (
@@ -372,7 +372,7 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
   }));
 
   return (
-    <SegmentedEpoch.Provider value={settings.scene}>
+    <SegmentedEpoch.Provider value={`${settings.scene}:${settings.solarLook}`}>
       <div className="settings-body">
         <header className="settings-head">
           <h2 className="display">Settings</h2>
@@ -420,17 +420,22 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
             )}
             {settings.effects !== "off" && settings.scene === "solar" && (
               <>
-                <Row label="Look" desc={settings.solarLook === "golden" ? "A ring of fire, the diamond ring blazing, in a warm, smoky sky." : "The pearly corona streaming out, in a dusky sky."}>
-                  <Segmented<"corona" | "golden">
-                    label="Look"
-                    size="sm"
-                    value={settings.solarLook === "golden" ? "golden" : "corona"}
-                    options={[
-                      { value: "corona", label: "Corona" },
-                      { value: "golden", label: "Golden" },
-                    ]}
-                    onChange={(solarLook) => setSettings({ solarLook })}
-                  />
+                <Row
+                  label="Look"
+                  desc={settings.solarLook === "golden" ? "A ring of fire, the diamond ring blazing, in a warm, smoky sky. The accent turns gold to match." : "The pearly corona streaming out, in a dusky sky."}
+                >
+                  <SegmentedEpoch.Provider value={settings.scene}>
+                    <Segmented<"corona" | "golden">
+                      label="Look"
+                      size="sm"
+                      value={settings.solarLook === "golden" ? "golden" : "corona"}
+                      options={[
+                        { value: "corona", label: "Corona" },
+                        { value: "golden", label: "Golden" },
+                      ]}
+                      onChange={changeSolarLook}
+                    />
+                  </SegmentedEpoch.Provider>
                 </Row>
                 <Row label="Distance" desc="How close the eclipse looks. Slide right to bring it nearer.">
                   <SunDistance />

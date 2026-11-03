@@ -84,10 +84,24 @@ function curtain(k: number) {
  * the window; the galaxy opens out from where you clicked, like the accent does; the solar
  * eclipse opens out from the sun itself — and greets you with the diamond ring.
  */
+/** The accent that goes with the Golden eclipse: Corona, the warm yellow gold. */
+export const GOLDEN_ACCENT: AccentId = "corona";
+
+/**
+ * The solar eclipse's look. Choosing Golden always turns the accent gold to match — every time,
+ * even if it's chosen again — and you're free to pick another accent after.
+ */
+export function changeSolarLook(look: "corona" | "golden") {
+  const s = useApp.getState();
+  if (look === "golden") s.setSettings({ solarLook: look, accent: GOLDEN_ACCENT });
+  else if (s.settings.solarLook !== look) s.setSettings({ solarLook: look });
+}
+
 export function changeScene(id: SceneId, x = innerWidth / 2, y = innerHeight / 2) {
   const s = useApp.getState();
   if (s.settings.scene === id) return;
-  const set = () => s.setSettings({ scene: id });
+  // The Golden eclipse comes with its own colour: the accent turns gold (you can change it after).
+  const set = () => s.setSettings(id === "solar" && s.settings.solarLook === "golden" ? { scene: id, accent: GOLDEN_ACCENT } : { scene: id });
   const start = viewTransitions();
   if (!start) {
     set();
