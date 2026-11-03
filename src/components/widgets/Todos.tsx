@@ -4,7 +4,7 @@ import { Ban, ChevronRight, GripVertical, Layers, PenLine, Plus, Sparkles, Trash
 import { useApp } from "../../store/app";
 import { toast } from "../../store/toasts";
 import type { Todo, TodoColor } from "../../lib/types";
-import { TODO_COLORS } from "../../lib/theme";
+import { TODO_COLORS, isMac } from "../../lib/theme";
 import { TODO_COLORS as COLOR_ORDER } from "../../lib/sanitize";
 import { Menu, type MenuItem } from "../ui/Menu";
 import { Popover, pointAnchor } from "../ui/Popover";
@@ -55,6 +55,64 @@ function colorItems(todo: Todo, labels: Partial<Record<TodoColor, string>>): Men
   ];
 }
 
+/** A to-do's menu: its colors (and, from a right-click, Delete). Opens at a point on screen. */
+function TodoMenu({ todo, at, onClose }: { todo: Todo; at: { x: number; y: number; full: boolean } | null; onClose: () => void }) {
+  const labels = useApp((s) => s.settings.todoLabels);
+  const anchor = useMemo(() => (at ? pointAnchor(at.x, at.y) : null), [at]);
+  return (
+    <Popover open={Boolean(at)} onClose={onClose} anchor={anchor} placement="bottom-start" offsetPx={4} role="menu">
+      <Menu
+        items={[
+          ...colorItems(todo, labels),
+          ...(at?.full ? (["divider", { label: "Delete", icon: <Trash2 size={14} />, danger: true, onSelect: () => removeWithUndo(todo.id) }] as MenuItem[]) : []),
+        ]}
+        onClose={onClose}
+      />
+    </Popover>
+  );
+}
+
+/** A right-click (or, on a Mac, a Control-click). */
+const isContextClick = (e: React.MouseEvent) => e.button === 2 || (isMac && e.button === 0 && e.ctrlKey);
+
+/**
+ * Right-clicking anywhere on a to-do opens its menu — on its words too. Except: with some of
+ * the text already selected, you get the usual copy-and-paste menu; and a finger held on the
+ * words is for selecting them, as always.
+ */
+function useRowMenu(row: React.RefObject<HTMLElement | null>) {
+  const [menu, setMenu] = useState<{ x: number; y: number; full: boolean } | null>(null);
+  const press = useRef<{ mouse: boolean; selected: boolean } | null>(null);
+  const textOf = (target: EventTarget) => (target as HTMLElement).closest?.("input") as HTMLInputElement | null;
+  const hasSelection = (el: HTMLInputElement | null) => Boolean(el && document.activeElement === el && el.selectionStart !== el.selectionEnd);
+  return {
+    menu,
+    setMenu,
+    handlers: {
+      onPointerDownCapture: (e: React.PointerEvent) => {
+        press.current = { mouse: e.pointerType === "mouse", selected: hasSelection(textOf(e.target)) };
+      },
+      onMouseDownCapture: (e: React.MouseEvent) => {
+        // Don't let the right-click put the caret in the words (or select one) on its way to the menu.
+        const el = textOf(e.target);
+        if (el && isContextClick(e) && !hasSelection(el)) e.preventDefault();
+      },
+      onContextMenu: (e: React.MouseEvent) => {
+        const el = textOf(e.target);
+        if (el) {
+          const p = press.current;
+          if (!p || !p.mouse || p.selected) return;
+        }
+        e.preventDefault();
+        const r = row.current?.getBoundingClientRect();
+        // From the keyboard (no pointer position), it opens under the row instead.
+        const fromKeys = e.clientX === 0 && e.clientY === 0 && r;
+        setMenu({ x: fromKeys ? r.left + 28 : e.clientX, y: fromKeys ? r.bottom : e.clientY, full: true });
+      },
+    },
+  };
+}
+
 type RowProps = { todo: Todo; prevId?: string; nextId?: string; addInput: React.RefObject<HTMLInputElement | null> };
 
 function TodoRow({ todo, prevId, nextId, addInput }: RowProps) {
@@ -63,9 +121,7 @@ function TodoRow({ todo, prevId, nextId, addInput }: RowProps) {
   const timer = useRef<number | undefined>(undefined);
   const row = useRef<HTMLLIElement>(null);
   const updateTodo = useApp((s) => s.updateTodo);
-  const labels = useApp((s) => s.settings.todoLabels);
-  const [menu, setMenu] = useState<{ x: number; y: number; full: boolean } | null>(null);
-  const menuAnchor = useMemo(() => (menu ? pointAnchor(menu.x, menu.y) : null), [menu]);
+  const { menu, setMenu, handlers } = useRowMenu(row);
 
   const commitDone = () => {
     const openCount = useApp.getState().todos.filter((t) => !t.done).length;
@@ -127,11 +183,7 @@ function TodoRow({ todo, prevId, nextId, addInput }: RowProps) {
       dragControls={controls}
       className={`todo ${settling ? "is-settling" : ""} ${todo.color ? "has-tag" : ""} ${menu ? "is-menu" : ""}`}
       style={tagStyle(todo.color)}
-      onContextMenu={(e: React.MouseEvent) => {
-        if ((e.target as HTMLElement).closest("input")) return;
-        e.preventDefault();
-        setMenu({ x: e.clientX, y: e.clientY, full: true });
-      }}
+      {...handlers}
       layout="position"
       initial={{ opacity: 0, y: -6, filter: "blur(3px)" }}
       animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
@@ -215,15 +267,7 @@ function TodoRow({ todo, prevId, nextId, addInput }: RowProps) {
       <button type="button" className="todo-del" aria-label="Delete to-do" onClick={() => removeWithUndo(todo.id)}>
         <X size={13} strokeWidth={1.8} />
       </button>
-      <Popover open={Boolean(menu)} onClose={() => setMenu(null)} anchor={menuAnchor} placement="bottom-start" offsetPx={4} role="menu">
-        <Menu
-          items={[
-            ...colorItems(todo, labels),
-            ...(menu?.full ? (["divider", { label: "Delete", icon: <Trash2 size={14} />, danger: true, onSelect: () => removeWithUndo(todo.id) }] as MenuItem[]) : []),
-          ]}
-          onClose={() => setMenu(null)}
-        />
-      </Popover>
+      <TodoMenu todo={todo} at={menu} onClose={() => setMenu(null)} />
     </Reorder.Item>
   );
 }
@@ -329,11 +373,15 @@ function TodoSection({
 }
 
 function DoneRow({ todo }: { todo: Todo }) {
+  const row = useRef<HTMLLIElement>(null);
+  const { menu, setMenu, handlers } = useRowMenu(row);
   return (
     <motion.li
+      ref={row}
       layout="position"
-      className={`todo is-done ${todo.color ? "has-tag" : ""}`}
+      className={`todo is-done ${todo.color ? "has-tag" : ""} ${menu ? "is-menu" : ""}`}
       style={tagStyle(todo.color)}
+      {...handlers}
       initial={{ opacity: 0, y: -4 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, transition: { duration: 0.14 } }}
@@ -357,6 +405,7 @@ function DoneRow({ todo }: { todo: Todo }) {
       <button type="button" className="todo-del" aria-label="Delete to-do" onClick={() => removeWithUndo(todo.id)}>
         <X size={13} strokeWidth={1.8} />
       </button>
+      <TodoMenu todo={todo} at={menu} onClose={() => setMenu(null)} />
     </motion.li>
   );
 }
