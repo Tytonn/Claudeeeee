@@ -32,6 +32,7 @@ import {
   Type,
   Volume2,
   VolumeX,
+  Monitor,
 } from "lucide-react";
 import { sortedNotes, useApp } from "../../store/app";
 import { displayTitle, fuzzyScore, snippet } from "../../lib/text";
@@ -46,6 +47,8 @@ import { spring } from "../../lib/motion";
 import { Modal } from "../ui/Modal";
 import { Kbd } from "../ui/Kbd";
 import { changeScene, changeSolarLook } from "../../fx/transitions";
+import { screenInfo } from "../../lib/platform";
+import { toast } from "../../store/toasts";
 
 type Item = {
   id: string;
@@ -171,6 +174,18 @@ function useItems(query: string): Item[] {
       { id: "rail", group: "Actions", label: settings.rail ? "Hide side panel" : "Show side panel", icon: <PanelRight size={15} strokeWidth={1.6} />, kbd: `${MOD} .`, run: toggle("rail") },
       { id: "settings", group: "Actions", label: "Settings", icon: <Settings2 size={15} strokeWidth={1.6} />, kbd: `${MOD} ,`, keywords: "preferences options", run: () => s.setUI({ settings: true }) },
       { id: "shortcuts", group: "Actions", label: "Keyboard shortcuts", icon: <Keyboard size={15} strokeWidth={1.6} />, kbd: "?", keywords: "keys help", run: () => s.setUI({ shortcuts: true }) },
+      {
+        id: "screen-info",
+        group: "Actions",
+        label: "Screen info",
+        icon: <Monitor size={15} strokeWidth={1.6} />,
+        keywords: "screen viewport size debug phone display info",
+        run: () => {
+          const info = screenInfo();
+          void navigator.clipboard?.writeText(info).catch(() => {});
+          toast(info, { duration: 20000 });
+        },
+      },
       { id: "trash", group: "Actions", label: "Open trash", icon: <Trash2 size={15} strokeWidth={1.6} />, keywords: "deleted restore", run: () => s.setUI({ view: "trash", mobile: "editor" }) },
       {
         id: "sounds",
