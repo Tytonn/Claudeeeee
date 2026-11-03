@@ -107,7 +107,7 @@ const SOLAR_PUFFS_BACK: [number, number, number][] = [[2, 58, 12], [16, 50, 11],
 // prettier-ignore
 const SOLAR_PUFFS_FRONT: [number, number, number][] = [[6, 75, 13], [30, 72, 12], [54, 74, 13], [80, 75, 12], [106, 77, 12], [132, 78, 11], [158, 78, 11], [184, 76, 12], [210, 74, 13], [236, 73, 13]];
 
-function SolarArt() {
+function SolarArt({ golden = false }: { golden?: boolean }) {
   const { x, y, r } = SUN;
   const dx = x + Math.cos(-2.45) * r;
   const dy = y + Math.sin(-2.45) * r;
@@ -115,16 +115,16 @@ function SolarArt() {
     <svg className="scene-svg" viewBox="0 0 240 72" preserveAspectRatio="xMidYMid slice" aria-hidden>
       <defs>
         <linearGradient id="so-sky" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#0b0d1c" />
-          <stop offset="0.45" stopColor="#24161f" />
-          <stop offset="0.78" stopColor="#5e2c1f" />
-          <stop offset="1" stopColor="#9a4d28" />
+          <stop offset="0" stopColor={golden ? "#1d1213" : "#0b0d1c"} />
+          <stop offset="0.45" stopColor={golden ? "#3b2520" : "#24161f"} />
+          <stop offset="0.78" stopColor={golden ? "#5a3424" : "#5e2c1f"} />
+          <stop offset="1" stopColor={golden ? "#7d4a30" : "#9a4d28"} />
         </linearGradient>
         <radialGradient id="so-corona">
-          <stop offset="0.3" stopColor="#fff7ec" stopOpacity="0.95" />
-          <stop offset="0.4" stopColor="#fbe8d6" stopOpacity="0.45" />
-          <stop offset="0.65" stopColor="#efd8ca" stopOpacity="0.12" />
-          <stop offset="1" stopColor="#efd8ca" stopOpacity="0" />
+          <stop offset="0.3" stopColor={golden ? "#ffcf8a" : "#fff7ec"} stopOpacity="0.95" />
+          <stop offset="0.4" stopColor={golden ? "#ff9a45" : "#fbe8d6"} stopOpacity={golden ? 0.55 : 0.45} />
+          <stop offset="0.65" stopColor={golden ? "#d9692c" : "#efd8ca"} stopOpacity={golden ? 0.16 : 0.12} />
+          <stop offset="1" stopColor={golden ? "#d9692c" : "#efd8ca"} stopOpacity="0" />
         </radialGradient>
         <radialGradient id="so-glint">
           <stop offset="0" stopColor="#fff" />
@@ -151,14 +151,14 @@ function SolarArt() {
       </defs>
       <rect width="240" height="72" fill="url(#so-sky)" />
       <circle cx={x} cy={y} r={r * 3.4} fill="url(#so-corona)" />
-      <g stroke="#fff4e8" strokeLinecap="round" filter="url(#so-soft)">
+      <g stroke={golden ? "#ffc27a" : "#fff4e8"} strokeOpacity={golden ? 0.35 : 1} strokeLinecap="round" filter="url(#so-soft)">
         {SOLAR_RAYS.map(([a, len, o, w], i) => (
           <line key={i} x1={x + Math.cos(a) * r} y1={y + Math.sin(a) * r} x2={x + Math.cos(a) * (r + len)} y2={y + Math.sin(a) * (r + len)} strokeOpacity={o} strokeWidth={w} />
         ))}
       </g>
-      <circle cx={x} cy={y} r={r} fill="#0a080b" />
-      <circle cx={x} cy={y} r={r + 0.3} fill="none" stroke="#fff" strokeOpacity="0.55" strokeWidth="0.6" />
-      <circle cx={dx} cy={dy} r={7} fill="url(#so-glint)" />
+      <circle cx={x} cy={y} r={r} fill={golden ? "#1c100c" : "#0a080b"} />
+      <circle cx={x} cy={y} r={r + 0.3} fill="none" stroke={golden ? "#ffb35c" : "#fff"} strokeOpacity={golden ? 0.95 : 0.55} strokeWidth={golden ? 0.9 : 0.6} />
+      <circle cx={dx} cy={dy} r={golden ? 10 : 7} fill="url(#so-glint)" />
       <rect x={dx - 46} y={dy - 0.3} width={92} height={0.6} fill="url(#so-streak)" />
       <circle cx={dx} cy={dy} r={1.5} fill="#fff" />
       <circle cx={x - 26} cy={y + 13} r={0.8} fill="#fff" fillOpacity="0.85" />
@@ -182,6 +182,7 @@ const SCENES: { id: SceneId; name: string; sub: string }[] = [
 
 function ScenePicker() {
   const scene = useApp((s) => s.settings.scene);
+  const golden = useApp((s) => s.settings.solarLook === "golden");
   const current = scene === "rain" || scene === "solar" ? scene : "eclipse";
   return (
     <div className="scenes" role="radiogroup" aria-label="Scene">
@@ -190,7 +191,7 @@ function ScenePicker() {
         return (
           <button key={sc.id} type="button" role="radio" aria-checked={on} className={`scene-card is-${sc.id} ${on ? "is-on" : ""}`} onClick={(e) => changeScene(sc.id, e.clientX, e.clientY)}>
             <span className="scene-art" aria-hidden>
-              {sc.id === "eclipse" ? <Eclipse progress={1} size={34} /> : sc.id === "rain" ? <RainArt /> : <SolarArt />}
+              {sc.id === "eclipse" ? <Eclipse progress={1} size={34} /> : sc.id === "rain" ? <RainArt /> : <SolarArt golden={golden} />}
             </span>
             <span className="scene-text">
               <span className="scene-name">{sc.name}</span>
@@ -418,6 +419,18 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
             )}
             {settings.effects !== "off" && settings.scene === "solar" && (
               <>
+                <Row label="Look" desc={settings.solarLook === "golden" ? "A ring of fire, the diamond ring blazing, in a warm, smoky sky." : "The pearly corona streaming out, in a dusky sky."}>
+                  <Segmented<"corona" | "golden">
+                    label="Look"
+                    size="sm"
+                    value={settings.solarLook === "golden" ? "golden" : "corona"}
+                    options={[
+                      { value: "corona", label: "Corona" },
+                      { value: "golden", label: "Golden" },
+                    ]}
+                    onChange={(solarLook) => setSettings({ solarLook })}
+                  />
+                </Row>
                 <Row label="Distance" desc="How close the eclipse looks. Slide right to bring it nearer.">
                   <SunDistance />
                 </Row>

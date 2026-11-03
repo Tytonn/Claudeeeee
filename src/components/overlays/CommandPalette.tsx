@@ -214,6 +214,14 @@ function useItems(query: string): Item[] {
             ...(settings.scene === "solar"
               ? [
                   {
+                    id: "solar-look",
+                    group: "Appearance",
+                    label: settings.solarLook === "golden" ? "Eclipse look: Corona" : "Eclipse look: Golden",
+                    icon: <Eclipse size={15} strokeWidth={1.6} />,
+                    keywords: "eclipse look golden gold orange ring of fire diamond corona silver style sun",
+                    run: () => s.setSettings({ solarLook: settings.solarLook === "golden" ? "corona" : "golden" }),
+                  },
+                  {
                     id: "clouds",
                     group: "Appearance",
                     label: settings.solarClouds !== false ? "Clear the clouds away" : "Bring the clouds back",

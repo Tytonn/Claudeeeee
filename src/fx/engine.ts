@@ -227,7 +227,8 @@ class FxEngine {
   /** How strongly the moon wanders (eased down while it's being nudged). */
   private wanderK = 1;
   /** size: the Distance setting, 0 (far off) .. 1 (close), 0.5 by default. */
-  private solarOpts = { clouds: true, size: 0.5 };
+  private solarOpts = { clouds: true, size: 0.5, golden: false };
+  private goldK = 0;
   /** The Background setting ("dark" frosts the panels, so the sun keeps to the clearer right-hand column). */
   private backdrop = "dark";
   /** Where your writing ends, where the right-hand column starts and where its widgets end (CSS px), measured now and then. */
@@ -435,9 +436,13 @@ class FxEngine {
     if (this.started) this.sizeSky();
   }
 
-  setSolar(o: Partial<{ clouds: boolean; size: number }>) {
+  setSolar(o: Partial<{ clouds: boolean; size: number; golden: boolean }>) {
     this.solarOpts = { ...this.solarOpts, ...o };
-    if (!this.started) this.cloudsK = this.solarOpts.clouds ? 1 : 0;
+    // Changes only ease in while you're watching; otherwise they're simply in place next time.
+    if (!this.started || !this.solar) {
+      this.cloudsK = this.solarOpts.clouds ? 1 : 0;
+      this.goldK = this.solarOpts.golden ? 1 : 0;
+    }
   }
 
   setBackdrop(id: string) {
@@ -721,6 +726,7 @@ class FxEngine {
         erupt: this.eruptNow,
         fade: this.solarFade,
         clouds: this.cloudsK,
+        gold: this.goldK,
       },
     });
   }
@@ -787,7 +793,13 @@ class FxEngine {
   private get solarBusy() {
     return (
       this.solar &&
-      (this.nudges.length > 0 || this.approach !== null || this.eruption !== null || this.solarFade < 0.995 || this.sunHold !== null || (this.cloudsK > 0 && this.cloudsK < 1))
+      (this.nudges.length > 0 ||
+        this.approach !== null ||
+        this.eruption !== null ||
+        this.solarFade < 0.995 ||
+        this.sunHold !== null ||
+        (this.cloudsK > 0 && this.cloudsK < 1) ||
+        (this.goldK > 0 && this.goldK < 1))
     );
   }
 
@@ -795,6 +807,10 @@ class FxEngine {
     this.solarFade += (1 - this.solarFade) * Math.min(1, dt * 1.6);
     this.cloudsK += ((this.solarOpts.clouds ? 1 : 0) - this.cloudsK) * Math.min(1, dt * 1.8);
     if (Math.abs(this.cloudsK - (this.solarOpts.clouds ? 1 : 0)) < 0.002) this.cloudsK = this.solarOpts.clouds ? 1 : 0;
+    // switching looks is a slow change of light, not a cut
+    const goldTo = this.solarOpts.golden ? 1 : 0;
+    this.goldK += (goldTo - this.goldK) * Math.min(1, dt * 1.4);
+    if (Math.abs(this.goldK - goldTo) < 0.002) this.goldK = goldTo;
     const to = this.sunHold ?? this.sunHome();
     // The first time there's a page to hang it by, it goes straight there; after that it glides.
     const anchor = this.panelCircle ? "moon" : this.panelEl ? "panel" : "none";
@@ -909,8 +925,9 @@ class FxEngine {
    */
   private solarDiamond(strength = 1) {
     const s = this.sun;
-    // It breaks out on the side facing the middle of the screen, more or less.
-    const a = Math.atan2(this.H * 0.45 - s.y, this.W * 0.5 - s.x) + rand(-0.55, 0.55);
+    // It breaks out on the side facing the middle of the screen, more or less — or, in the Golden
+    // look, right where the sun is already blazing (up and to the left).
+    const a = this.solarOpts.golden ? Math.atan2(-0.571, -0.821) : Math.atan2(this.H * 0.45 - s.y, this.W * 0.5 - s.x) + rand(-0.55, 0.55);
     const dir = { x: Math.cos(a), y: Math.sin(a) };
     const peak = 0.034 + 0.026 * strength;
     const burst = 520;

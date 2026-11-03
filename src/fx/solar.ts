@@ -16,7 +16,7 @@
  * over them, and the glare of the sun in the lens over everything.
  */
 
-const SHARED = ["uRes", "uView", "uTime", "uScale", "uQuality", "uSun", "uLight", "uGlare", "uCorona", "uMouse", "uA", "uB"];
+const SHARED = ["uRes", "uView", "uTime", "uScale", "uQuality", "uSun", "uLight", "uGlare", "uCorona", "uMouse", "uA", "uB", "uGold"];
 export const SOLAR_CLOUD_UNIFORMS = [...SHARED, "uCloudy"];
 export const SOLAR_SKY_UNIFORMS = [...SHARED, "uMoon", "uErupt", "uCursor", "uDim", "uFade", "uClouds"];
 
@@ -119,6 +119,13 @@ vec3 skyColor(vec2 uv) {
   vec3 c = mix(hor, low, smoothstep(0., .17, h));
   c = mix(c, mid, smoothstep(.08, .56, h));
   c = mix(c, zen, smoothstep(.5, 1.08, h));
+  if (uGold > 0.) {
+    // Golden: the sky of a photograph taken at the diamond ring — warm, smoky rose and umber.
+    vec3 g = mix(vec3(.34, .2, .14), vec3(.23, .135, .105), smoothstep(0., .18, h));
+    g = mix(g, vec3(.145, .088, .084), smoothstep(.1, .55, h));
+    g = mix(g, vec3(.07, .043, .048), smoothstep(.5, 1.1, h));
+    c = mix(c, g, uGold);
+  }
   // Before totality it's daylight still — a strange, dimming kind.
   vec3 day = mix(vec3(.6, .57, .55), vec3(.2, .33, .6), smoothstep(0., .95, h));
   return mix(c, day, clamp(uLight * 1.6, 0., 1.));
@@ -160,6 +167,7 @@ uniform float uCorona;    // how much of the corona shows, 0..1 (sunlight drowns
 uniform vec2 uMouse;      // screen buffer px, y up
 uniform vec3 uA;          // accent
 uniform vec3 uB;          // second hue
+uniform float uGold;      // the Golden look, 0..1: a ring of fire and the diamond ring blazing, in a warm, smoky sky
 uniform float uCloudy;    // 1 = clouds, 0 = a clear sky (they can be turned off)
 ${HELPERS}
 /* ── clouds ────────────────────────────────────────────────────────────── */
@@ -260,12 +268,13 @@ vec3 shadeCloud(vec4 s, vec2 p, vec2 toSun, float sunLit, float rimLit, vec3 amb
   float sun = clamp((dot(N, Ls) + .3) / 1.3, 0., 1.);
   float low = clamp((dot(N, Lh) + .25) / 1.25, 0., 1.);
   float up = .5 + .5 * N.y;
-  vec3 c = vec3(.026, .022, .028) + amb * (.2 + .45 * up);
+  vec3 c = mix(vec3(.026, .022, .028), vec3(.03, .016, .013), uGold) + amb * mix(.2 + .45 * up, .1 + .4 * up, uGold);
   c += vec3(.85, .4, .17) * low * low * hor;
-  c += vec3(1., .86, .68) * sun * sun * sunLit;
+  vec3 tint = mix(vec3(1., .86, .68), vec3(1., .74, .58), uGold);
+  c += tint * sun * sun * sunLit;
   // thin edges against the light shine (the silver lining)
   float rim = pow(1. - N.z, 2.) * (1. - s.w);
-  c += vec3(1., .88, .72) * rim * rimLit;
+  c += mix(vec3(1., .88, .72), vec3(1., .78, .6), uGold) * rim * rimLit;
   c *= 1. - s.w * .55;
   return c;
 }
@@ -292,7 +301,8 @@ void main() {
       float rr = max(r, 1.);
       float lit = uCorona * (exp(-(rr - 1.) / .9) * .55 + exp(-(rr - 1.) / 3.2) * .12) + glare * (exp(-(rr - 1.) / 1.5) * 2.2 + .25);
       lit *= mix(.22, 1., smoothstep(.4, 1., r)) * smoothstep(7.5, 5.5, r);
-      rgb += vec3(1., .9, .8) * v * lit;
+      lit += uGold * (exp(-(rr - 1.) / 1.6) * .45 + .05) * smoothstep(.9, 1.1, r);
+      rgb += mix(vec3(1., .9, .8), vec3(1., .66, .4), uGold) * v * lit;
       // and along its thin edges near the sun, a faint shimmer of colour (cloud iridescence)
       float edges = v * (1. - v) * 4. * exp(-(rr - 1.) / 1.6);
       rgb += (.5 + .5 * cos(TAU * (v * 2.6 + vec3(0., .33, .67)))) * edges * (.05 * uCorona + .3 * glare);
@@ -304,7 +314,7 @@ void main() {
   float wind = uTime * .0045;
   vec2 sunC = S / uView.y;
   // How brightly the eclipse lights them: hardly at all at totality, gloriously when it breaks out.
-  float sunLit = .04 * uCorona + uLight * 1.4 + glare * .85;
+  float sunLit = .04 * uCorona + uLight * 1.4 + glare * .85 + uGold * .95;
   vec3 skyAmb = skyColor(vec2(uv.x, .55)) * 1.1;
 
   // far bank, low along the horizon
@@ -333,7 +343,7 @@ void main() {
     if (cover > 0.) {
       vec2 toSun = normalize(sunC - p);
       float near = exp(-length(sunC - p) / .45);
-      float rimLit = (.08 + .25 * near) * uCorona + glare * (.5 + 1.2 * near);
+      float rimLit = (.08 + .25 * near) * uCorona + glare * (.5 + 1.2 * near) + uGold * (.3 + .8 * near);
       vec3 cc = shadeCloud(sn, p, toSun, sunLit, rimLit, skyAmb, .5 * smoothstep(.5, .0, p.y), hq);
       float al = fluff(cover, p);
       rgb = cc * al + rgb * (1. - al);
@@ -367,6 +377,7 @@ uniform float uCorona;    // how much of the corona shows, 0..1 (sunlight drowns
 uniform vec2 uMouse;      // screen buffer px, y up
 uniform vec3 uA;          // accent
 uniform vec3 uB;          // second hue
+uniform float uGold;      // the Golden look, 0..1: a ring of fire and the diamond ring blazing, in a warm, smoky sky
 uniform vec2 uMoon;       // the moon's offset from the sun's center, in sun radii
 uniform vec4 uErupt;      // a prominence erupting: angle, progress 0..1, size (sun radii), brightness
 uniform float uCursor;    // the cursor's light, 0..1
@@ -456,7 +467,7 @@ vec3 cme(vec2 q, float r) {
   vec2 tng = vec2(-n.y, n.x);
   float fib = .6 + .6 * vnoise(vec2(dot(dq, tng) * 9., (d - rr) * 3.) + uTime * .15);
   float fade = smoothstep(0., .12, p) * pow(1. - p, 1.3);
-  return vec3(.97, .95, 1.) * (shell * fib + core) * fade * uErupt.w * .95 * smoothstep(1., 1.25, r);
+  return mix(vec3(.97, .95, 1.), vec3(1., .78, .56) * .5, uGold) * (shell * fib + core) * fade * uErupt.w * .95 * smoothstep(1., 1.25, r);
 }
 
 /* Prominences: tongues and loops of glowing pink gas standing up off the rim. They sit in front
@@ -501,7 +512,47 @@ vec4 prominences(float r, float th) {
   // and right along the rim, the chromosphere: a whisker of pink fire peeking out round the moon
   acc += exp(-abs(r - (MOON + .005)) / .008) * (.42 + .38 * pnoise(vec2(a * 160., t * 1.6), 160.));
   acc = clamp(acc, 0., 1.6);
-  return vec4((vec3(1., .2, .32) * 2.6 + vec3(1., .55, .6) * acc * .8) * acc, clamp(acc, 0., 1.) * .8);
+  return vec4((mix(vec3(1., .2, .32), vec3(1., .4, .12), uGold) * 2.6 + vec3(1., .55, .6) * acc * .8) * acc, clamp(acc, 0., 1.) * .8);
+}
+
+/* Where the sun blazes out in the Golden look: up and to the left, as in the photograph. */
+const vec2 GOLD_DIR = vec2(-.821, .571);
+
+/* The sun breaking out round the moon's edge, as a lens sees it: a blinding core, its bloom and
+   haze, a long streak, the star from the aperture, a faint rainbow halo — or, in the Golden look,
+   warmer light and a fan of thin golden streaks, as in a photograph. dv: from the point, px. */
+vec3 flare(vec2 dv, float R, float gold) {
+  float d = length(dv);
+  float core = exp(-d * d / (R * R * mix(.006, .022, gold))) * 8.;
+  float bloom = exp(-d / (R * mix(.32, .46, gold))) * mix(1.4, 2.3, gold) + exp(-d / (R * 1.4)) * .35;
+  float haze = mix(.3, .16, gold) / (1. + pow(d / (R * 3.), 2.));
+  float reach = exp(-abs(dv.x) / (uRes.x * .2));
+  float streak = exp(-abs(dv.y) / (R * (.016 + .02 * exp(-abs(dv.x) / (R * 2.))))) * reach * 1.3;
+  streak += exp(-abs(dv.y) / (R * .08)) * exp(-abs(dv.x) / (uRes.x * .1)) * .3;
+  // a six-pointed star, from the aperture
+  float spikes = 0.;
+  for (int i = 0; i < 3; i++) {
+    float an = float(i) * 1.0472 + .5236;
+    vec2 dir = vec2(cos(an), sin(an));
+    spikes += exp(-abs(dot(dv, vec2(-dir.y, dir.x))) / (R * .012)) * exp(-abs(dot(dv, dir)) / (R * mix(1.2, .4, gold)));
+  }
+  // the Golden look: thin streaks fanning out at slight angles, reaching right across the sky
+  float fan = 0.;
+  if (gold > 0.) {
+    for (int i = 0; i < 4; i++) {
+      float fi = float(i);
+      float an = (fi - 1.5) * .055;
+      vec2 dir = vec2(cos(an), sin(an));
+      fan += exp(-abs(dot(dv, vec2(-dir.y, dir.x))) / (R * .007)) * exp(-abs(dot(dv, dir)) / (uRes.x * (.1 + .05 * fi))) * (.55 - .1 * abs(fi - 1.5));
+    }
+  }
+  vec3 warm = mix(vec3(1., .9, .76), vec3(1., .78, .5), gold);
+  vec3 g = warm * (core + bloom + haze + spikes * .5);
+  vec3 streakCol = mix(mix(uA * 1.2 + .15, vec3(1., .92, .8), reach * reach), vec3(1., .72, .4), gold);
+  g += streakCol * (streak + fan * gold);
+  float ring = exp(-pow((d - R * 4.6) / (R * .32), 2.)) * .1 * (1. - gold);
+  g += ring * (.5 + .5 * cos(TAU * ((d - R * 4.6) / (R * .9) + vec3(0., .33, .67))));
+  return g;
 }
 
 void main() {
@@ -524,10 +575,12 @@ void main() {
   // The light of the corona, scattered through the air all around it (it breathes with it).
   float rr = max(r, 1.);
   float aura = 1. + .08 * sin(uTime * .5) + .05 * sin(uTime * .83 + 1.);
-  col += vec3(.9, .78, .7) * (.075 * uCorona * exp(-(rr - 1.) / 2.6) + .032 * uCorona * exp(-(rr - 1.) / 9.)) * aura;
+  vec3 airglow = vec3(.9, .78, .7) * (.075 * uCorona * exp(-(rr - 1.) / 2.6) + .032 * uCorona * exp(-(rr - 1.) / 9.));
+  vec3 goldglow = vec3(1., .58, .32) * (.22 * exp(-(rr - 1.) / 1.8) + .07 * exp(-(rr - 1.) / 6.));
+  col += mix(airglow, goldglow, uGold) * aura;
 
   // A few stars, and the planets, come out in the dark.
-  float dark = smoothstep(.25, .9, uv.y) * (1. - clamp(uLight * 3. + glare * .5, 0., 1.));
+  float dark = smoothstep(.25, .9, uv.y) * (1. - clamp(uLight * 3. + glare * .5, 0., 1.)) * (1. - uGold);
   if (dark > .01) {
     vec2 sp = frag - par * uScale * .01;
     vec3 st = starField(sp, 70. * uScale / 900., .955, 3.);
@@ -549,8 +602,22 @@ void main() {
   }
 
   if (moon < 1. && r < 7.) {
-    vec3 light = corona(r, th, u) * uCorona;
+    vec3 light = corona(r, th, u) * uCorona * mix(vec3(1.), vec3(.13, .1, .075), uGold);
     if (uErupt.y > 0.) light += cme(q, r) * uCorona;
+    // The Golden look: a thin ring of fire right round the edge, wavering, with a bright bead low
+    // on the rim — and its orange glow.
+    if (uGold > 0. && r < 2.6) {
+      float k = r - 1.;
+      float a = th / TAU;
+      float wob = pnoise(vec2(a * 40., uTime * .3), 40.);
+      float wob2 = pnoise(vec2(a * 140. + 3., uTime * .7), 140.);
+      float w = .009 + .012 * wob;
+      float fire = exp(-pow((r - MOON - .004) / w, 2.)) * (2. + 1.5 * wob + .7 * wob2);
+      fire += exp(-pow(adiff(th, -1.62) / .045, 2.)) * exp(-pow((r - MOON) / .022, 2.)) * 2.6;
+      float glow = exp(-max(k, 0.) / .05) * 1.5 + exp(-max(k, 0.) / .2) * .55 + exp(-max(k, 0.) / 1.) * .1;
+      float br = 1. + .07 * sin(uTime * .5) + .04 * sin(uTime * .83 + 1.);
+      light += (vec3(1., .66, .3) * fire + vec3(1., .44, .12) * glow) * uGold * br;
+    }
     if (r < 1.4 || (uErupt.y > 0. && r < 1. + uErupt.z * 1.6)) {
       vec4 pr = prominences(r, th);
       light = light * (1. - pr.a) + pr.rgb;
@@ -568,6 +635,11 @@ void main() {
     vec3 behind = skyColor(uv) * .38 + vec3(.0062, .0064, .0078) * (1. - seas * .5);
     // and the brilliant inner corona flares a little way in over its edge, the way it does in a photograph
     behind += vec3(1., .9, .78) * exp(-(MOON - rm) / .018) * .12 * uCorona;
+    if (uGold > 0.) {
+      vec3 umber = skyColor(uv) * .2 + vec3(.04, .02, .014) * (1. - seas * .4);
+      umber += vec3(1., .5, .22) * exp(-(MOON - rm) / .06) * .35;
+      behind = mix(behind, umber, uGold);
+    }
     col = mix(col, behind, moon);
   }
 
@@ -586,32 +658,14 @@ void main() {
   col = col * (1. - cl.a) + cl.rgb * cl.rgb * 4.;
 
   // ── The diamond ring, and the glare of sunlight in the lens ──
-  if (glare > 0.) {
-    vec2 P = S + uGlare.xy * R;
-    vec2 dv = frag - P;
-    float d = length(dv);
-    float core = exp(-d * d / (R * R * .006)) * 8.;
-    float bloom = exp(-d / (R * .32)) * 1.4 + exp(-d / (R * 1.4)) * .35;
-    float haze = .3 / (1. + pow(d / (R * 3.), 2.));
-    float reach = exp(-abs(dv.x) / (uRes.x * .2));
-    float streak = exp(-abs(dv.y) / (R * (.016 + .02 * exp(-abs(dv.x) / (R * 2.))))) * reach * 1.3;
-    streak += exp(-abs(dv.y) / (R * .08)) * exp(-abs(dv.x) / (uRes.x * .1)) * .3;
-    // a six-pointed star, from the aperture
-    float spikes = 0.;
-    for (int i = 0; i < 3; i++) {
-      float an = float(i) * 1.0472 + .5236;
-      vec2 dir = vec2(cos(an), sin(an));
-      float along = dot(dv, dir);
-      float across = dot(dv, vec2(-dir.y, dir.x));
-      spikes += exp(-abs(across) / (R * .012)) * exp(-abs(along) / (R * 1.2));
-    }
-    vec3 g = vec3(1., .9, .76) * (core + bloom + haze + spikes * .5);
-    g += mix(uA * 1.2 + .15, vec3(1., .92, .8), reach * reach) * streak;
-    // a faint rainbow halo
-    float ring = exp(-pow((d - R * 4.6) / (R * .32), 2.)) * .1;
-    g += ring * (.5 + .5 * cos(TAU * ((d - R * 4.6) / (R * .9) + vec3(0., .33, .67))));
-    col += g * glare;
-    col += vec3(1., .78, .55) * glare * .12;   // the whole sky lifts
+  // (In the Golden look the sun is always blazing out a little, up to the left, breathing.)
+  float blaze = uGold * (.74 + .08 * sin(uTime * .6) + .05 * sin(uTime * 1.3 + 1.));
+  if (glare > 0. || blaze > 0.) {
+    vec3 g = vec3(0.);
+    if (glare > 0.) g += flare(frag - (S + uGlare.xy * R), R, uGold) * glare;
+    if (blaze > 0.) g += flare(frag - (S + GOLD_DIR * R), R, 1.) * blaze;
+    col += g;
+    col += mix(vec3(1., .78, .55), vec3(1., .62, .36), uGold) * (glare + blaze * .2) * .12;   // the whole sky lifts
   }
 
   // The cursor: a faint, warm light in the dusk.
@@ -619,9 +673,10 @@ void main() {
   col += vec3(1., .8, .62) * ml * .02 * uCursor;
 
   col *= 1. - uDim * .6;
+  col *= mix(vec3(1.), vec3(1.06, .94, .8), uGold);
   // Film: highlights roll off softly into white, like an exposure.
   col = 1. - exp(-col * 1.08);
-  col *= 1. - .24 * pow(length(uv - .5) * 1.2, 2.4);
+  col *= 1. - mix(.24, .42, uGold) * pow(length(uv - .5) * 1.2, 2.4);
   col *= uFade;
   // Dither (two noises: a triangle distribution), so the soft dark glows never band into rings.
   col += (hash12(frag + fract(uTime * 7.)) + hash12(frag.yx + fract(uTime * 5.3) + 17.) - 1.) / 255.;

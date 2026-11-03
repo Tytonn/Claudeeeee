@@ -42,6 +42,8 @@ export type SolarFrame = {
   fade: number;
   /** How much cloud there is, 0..1 (they can be turned off). */
   clouds: number;
+  /** The Golden look, 0..1. */
+  gold: number;
 };
 
 export type SkyFrame = {
@@ -519,6 +521,7 @@ export class Sky {
       gl.uniform2f(L.uMouse, f.mouse.x * k, fy(f.mouse.y));
       gl.uniform3f(L.uA, f.a[0], f.a[1], f.a[2]);
       gl.uniform3f(L.uB, f.b[0], f.b[1], f.b[2]);
+      gl.uniform1f(L.uGold, s.gold);
     };
 
     // 1 · the clouds, small. They drift slowly, so 30 times a second is plenty — except while
@@ -535,7 +538,16 @@ export class Sky {
         this.cloudsClear = true;
       }
     } else {
-      const fresh = this.cloudsClear || this.cloudsAt < 0 || now - this.cloudsAt > 32 || now < this.cloudsAt || s.glare.v > 0.002 || s.light > 0.0004 || s.fade < 0.999 || s.clouds < 1;
+      const fresh =
+        this.cloudsClear ||
+        this.cloudsAt < 0 ||
+        now - this.cloudsAt > 32 ||
+        now < this.cloudsAt ||
+        s.glare.v > 0.002 ||
+        s.light > 0.0004 ||
+        s.fade < 0.999 ||
+        s.clouds < 1 ||
+        (s.gold > 0.001 && s.gold < 0.999);
       if (fresh) {
         this.cloudsAt = now;
         this.cloudsClear = false;

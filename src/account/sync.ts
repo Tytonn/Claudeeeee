@@ -42,6 +42,7 @@ const SYNCED_SETTINGS = [
   "rainAmount",
   "solarClouds",
   "solarSize",
+  "solarLook",
   "cityBlur",
   "cursorLight",
   "clockMs",

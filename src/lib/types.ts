@@ -88,6 +88,8 @@ export type Settings = {
   solarClouds: boolean;
   /** Solar eclipse: how close it looks, 0 (far off) .. 1 (close); 0.5 by default. */
   solarSize: number;
+  /** Solar eclipse: the pearly corona in a dusky sky, or a golden ring of fire with the diamond ring blazing, in a warm, smoky sky. */
+  solarLook: "corona" | "golden";
   /** The cursor as a light: the glow on the glass and panel edges that follows it. */
   cursorLight: boolean;
   /** Show milliseconds on the clock (off by default)… */

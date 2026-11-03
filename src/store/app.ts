@@ -22,6 +22,7 @@ export const DEFAULT_SETTINGS: Settings = {
   cityBlur: 1,
   solarClouds: true,
   solarSize: 0.5,
+  solarLook: "corona",
   cursorLight: true,
   clockMs: false,
   clockMsDigits: 3,
