@@ -300,11 +300,13 @@ void main() {
     if (v > 0.) {
       float rr = max(r, 1.);
       float lit = uCorona * (exp(-(rr - 1.) / .9) * .55 + exp(-(rr - 1.) / 3.2) * .12) + glare * (exp(-(rr - 1.) / 1.5) * 2.2 + .25);
-      lit *= mix(.22, 1., smoothstep(.4, 1., r)) * smoothstep(7.5, 5.5, r);
-      lit += uGold * (exp(-(rr - 1.) / 1.6) * .45 + .05) * smoothstep(.9, 1.1, r);
+      // (everything here fades right out before r = 7.5, where this stops being worked out)
+      float far = smoothstep(7.5, 5.5, r);
+      lit *= mix(.22, 1., smoothstep(.4, 1., r)) * far;
+      lit += uGold * (exp(-(rr - 1.) / 1.6) * .45 + .05) * smoothstep(.9, 1.1, r) * far;
       rgb += mix(vec3(1., .9, .8), vec3(1., .66, .4), uGold) * v * lit;
       // and along its thin edges near the sun, a faint shimmer of colour (cloud iridescence)
-      float edges = v * (1. - v) * 4. * exp(-(rr - 1.) / 1.6);
+      float edges = v * (1. - v) * 4. * exp(-(rr - 1.) / 1.6) * far;
       rgb += (.5 + .5 * cos(TAU * (v * 2.6 + vec3(0., .33, .67)))) * edges * (.05 * uCorona + .3 * glare);
       a = v * .45 * smoothstep(1.6, 1., r);
     }
@@ -467,7 +469,8 @@ vec3 cme(vec2 q, float r) {
   vec2 tng = vec2(-n.y, n.x);
   float fib = .6 + .6 * vnoise(vec2(dot(dq, tng) * 9., (d - rr) * 3.) + uTime * .15);
   float fade = smoothstep(0., .12, p) * pow(1. - p, 1.3);
-  return mix(vec3(.97, .95, 1.), vec3(1., .78, .56) * .5, uGold) * (shell * fib + core) * fade * uErupt.w * .95 * smoothstep(1., 1.25, r);
+  // (and it's gone before r = 7, past which none of this is drawn)
+  return mix(vec3(.97, .95, 1.), vec3(1., .78, .56) * .5, uGold) * (shell * fib + core) * fade * uErupt.w * .95 * smoothstep(1., 1.25, r) * smoothstep(7., 5.6, r);
 }
 
 /* Prominences: tongues and loops of glowing pink gas standing up off the rim. They sit in front
@@ -605,16 +608,19 @@ void main() {
     vec3 light = corona(r, th, u) * uCorona * mix(vec3(1.), vec3(.13, .1, .075), uGold);
     if (uErupt.y > 0.) light += cme(q, r) * uCorona;
     // The Golden look: a thin ring of fire right round the edge, wavering, with a bright bead low
-    // on the rim — and its orange glow.
-    if (uGold > 0. && r < 2.6) {
-      float k = r - 1.;
-      float a = th / TAU;
-      float wob = pnoise(vec2(a * 40., uTime * .3), 40.);
-      float wob2 = pnoise(vec2(a * 140. + 3., uTime * .7), 140.);
-      float w = .009 + .012 * wob;
-      float fire = exp(-pow((r - MOON - .004) / w, 2.)) * (2. + 1.5 * wob + .7 * wob2);
-      fire += exp(-pow(adiff(th, -1.62) / .045, 2.)) * exp(-pow((r - MOON) / .022, 2.)) * 2.6;
-      float glow = exp(-max(k, 0.) / .05) * 1.5 + exp(-max(k, 0.) / .2) * .55 + exp(-max(k, 0.) / 1.) * .1;
+    // on the rim — and its orange glow, which fades all the way out to nothing (no edge, anywhere).
+    if (uGold > 0.) {
+      float k = max(r - 1., 0.);
+      float glow = exp(-k / .05) * 1.5 + exp(-k / .2) * .55 + exp(-k) * .1 * smoothstep(7., 4.5, r);
+      float fire = 0.;
+      if (r < 1.3) {
+        float a = th / TAU;
+        float wob = pnoise(vec2(a * 40., uTime * .3), 40.);
+        float wob2 = pnoise(vec2(a * 140. + 3., uTime * .7), 140.);
+        float w = .009 + .012 * wob;
+        fire = exp(-pow((r - MOON - .004) / w, 2.)) * (2. + 1.5 * wob + .7 * wob2);
+        fire += exp(-pow(adiff(th, -1.62) / .045, 2.)) * exp(-pow((r - MOON) / .022, 2.)) * 2.6;
+      }
       float br = 1. + .07 * sin(uTime * .5) + .04 * sin(uTime * .83 + 1.);
       light += (vec3(1., .66, .3) * fire + vec3(1., .44, .12) * glow) * uGold * br;
     }
