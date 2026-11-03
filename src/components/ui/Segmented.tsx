@@ -13,8 +13,9 @@ type Props<T extends string> = {
 };
 
 /**
- * Changing this gives the selection pill a new identity, so it simply appears in place rather
- * than sliding over — for when the rows around it move (like switching scenes in Settings).
+ * Changing this gives the selection pill a new identity (a fresh element, not just a new name),
+ * so it simply appears in place rather than sliding over — for when the rows around it move
+ * (like switching scenes in Settings).
  */
 export const SegmentedEpoch = createContext("");
 
@@ -35,7 +36,7 @@ export function Segmented<T extends string>({ value, options, onChange, label, s
             className={`segmented-item ${selected ? "is-selected" : ""}`}
             onClick={() => onChange(o.value)}
           >
-            {selected && <motion.span layoutId={`seg-${id}-${epoch}`} className="segmented-pill" transition={spring} />}
+            {selected && <motion.span key={epoch} layoutId={`seg-${id}-${epoch}`} className="segmented-pill" transition={spring} />}
             <span className="segmented-label">{o.label}</span>
           </button>
         );

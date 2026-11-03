@@ -230,7 +230,7 @@ class FxEngine {
   private solarOpts = { clouds: true, size: 0.5, golden: false };
   private goldK = 0;
   /** The Background setting ("dark" frosts the panels, so the sun keeps to the clearer right-hand column). */
-  private backdrop = "dark";
+  private backdrop = "clear";
   /** Where your writing ends, where the right-hand column starts and where its widgets end (CSS px), measured now and then. */
   private textRight = 0;
   private railLeft = 0;

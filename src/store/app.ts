@@ -14,7 +14,7 @@ export const DEFAULT_SETTINGS: Settings = {
   sounds: true,
   fadeWhileTyping: true,
   effects: "cosmic",
-  backdrop: "dark",
+  backdrop: "clear",
   scene: "eclipse",
   lightning: true,
   cityLights: true,

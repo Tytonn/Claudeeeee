@@ -197,7 +197,7 @@ function ScenePicker() {
               <span className="scene-name">{sc.name}</span>
               <span className="scene-sub">{sc.sub}</span>
             </span>
-            {on && <motion.span layoutId="scene-ring" className="scene-ring" transition={spring} />}
+            {on && <motion.span key={current} layoutId={`scene-ring-${current}`} className="scene-ring" transition={spring} />}
           </button>
         );
       })}
@@ -205,11 +205,13 @@ function ScenePicker() {
   );
 }
 
-/** How close the solar eclipse looks: further off (smaller) to closer (bigger). */
-function SunDistance() {
-  const size = useApp((s) => s.settings.solarSize);
-  const setSettings = useApp((s) => s.setSettings);
-  const v = typeof size === "number" ? size : 0.5;
+/**
+ * A 0..1 slider that always slides. If any text on the page happens to be selected (a stray
+ * double-click is enough), pressing on a slider and moving picks that text up and drags it
+ * instead — the thumb stays put and the cursor turns into a "can't drop here". So: let go of
+ * any selection the moment it's pressed, and never let it start a drag.
+ */
+function Slider({ value, label, onChange }: { value: number; label: string; onChange: (v: number) => void }) {
   return (
     <input
       type="range"
@@ -217,32 +219,31 @@ function SunDistance() {
       min={0}
       max={1}
       step={0.01}
-      value={v}
-      aria-label="Distance"
-      style={{ "--v": `${v * 100}%` } as React.CSSProperties}
-      onChange={(e) => setSettings({ solarSize: Number(e.target.value) })}
+      value={value}
+      aria-label={label}
+      style={{ "--v": `${value * 100}%` } as React.CSSProperties}
+      onPointerDown={() => {
+        const sel = window.getSelection();
+        if (sel && sel.type === "Range") sel.removeAllRanges();
+      }}
+      onDragStart={(e) => e.preventDefault()}
+      onChange={(e) => onChange(Number(e.target.value))}
     />
   );
+}
+
+/** How close the solar eclipse looks: further off (smaller) to closer (bigger). */
+function SunDistance() {
+  const size = useApp((s) => s.settings.solarSize);
+  const setSettings = useApp((s) => s.setSettings);
+  return <Slider label="Distance" value={typeof size === "number" ? size : 0.5} onChange={(solarSize) => setSettings({ solarSize })} />;
 }
 
 /** How out of focus the city behind the rain is. The drops on the glass always stay sharp. */
 function RainBlur() {
   const blur = useApp((s) => s.settings.cityBlur);
   const setSettings = useApp((s) => s.setSettings);
-  const v = typeof blur === "number" ? blur : 1;
-  return (
-    <input
-      type="range"
-      className="range wide"
-      min={0}
-      max={1}
-      step={0.01}
-      value={v}
-      aria-label="Blur"
-      style={{ "--v": `${v * 100}%` } as React.CSSProperties}
-      onChange={(e) => setSettings({ cityBlur: Number(e.target.value) })}
-    />
-  );
+  return <Slider label="Blur" value={typeof blur === "number" ? blur : 1} onChange={(cityBlur) => setSettings({ cityBlur })} />;
 }
 
 function Swatches() {
@@ -262,7 +263,7 @@ function Swatches() {
           style={{ "--sw": ACCENTS[id].color } as React.CSSProperties}
           onClick={(e) => changeAccent(id, e.clientX, e.clientY)}
         >
-          {accent === id && <motion.span layoutId={`swatch-ring-${scene}`} className="swatch-ring" transition={spring} />}
+          {accent === id && <motion.span key={scene} layoutId={`swatch-ring-${scene}`} className="swatch-ring" transition={spring} />}
           <span className="swatch-core" />
         </button>
       ))}

@@ -38,7 +38,7 @@ export const SIZES: Record<SizeId, { name: string; px: number }> = {
 
 export function applyTheme(s: Pick<Settings, "accent" | "font" | "size"> & Partial<Pick<Settings, "backdrop">>) {
   const root = document.documentElement;
-  root.dataset.backdrop = s.backdrop === "glass" || s.backdrop === "clear" || s.backdrop === "crystal" || s.backdrop === "bare" ? s.backdrop : "dark";
+  root.dataset.backdrop = s.backdrop === "dark" || s.backdrop === "glass" || s.backdrop === "crystal" || s.backdrop === "bare" ? s.backdrop : "clear";
   root.style.setProperty("--accent", ACCENTS[s.accent]?.color ?? ACCENTS.iris.color);
   root.style.setProperty("--font-editor", FONTS[s.font]?.stack ?? FONTS.sans.stack);
   // Serif text reads best a touch larger; mono a touch smaller.
