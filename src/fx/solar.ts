@@ -23,6 +23,11 @@ export const SOLAR_SKY_UNIFORMS = [...SHARED, "uMoon", "uErupt", "uCursor", "uDi
 const HELPERS = /* glsl */ `
 const float TAU = 6.2831853;
 
+/* x squared (pow(x, 2.) is undefined for a negative x in GLSL, and NaN on some GPUs) */
+float sq(float x) {
+  return x * x;
+}
+
 float hash11(float p) {
   p = fract(p * .1031);
   p *= p + 33.33;
@@ -183,7 +188,7 @@ vec2 gDip = vec2(0.);
 float ridge(float x, float tall, float seed) {
   float g = smoothstep(.15, .85, vnoise(vec2(x * 2. + seed, seed * 1.7)));
   float g2 = vnoise(vec2(x * 5.3 + seed * 3., seed));
-  float dip = 1. - gDip.y * exp(-pow((x - gDip.x) / .32, 2.));
+  float dip = 1. - gDip.y * exp(-sq((x - gDip.x) / .32));
   return tall * (.3 + .7 * g) * (.7 + .5 * g2) * dip;
 }
 
@@ -476,7 +481,7 @@ vec3 corona(float r, float th, vec2 u) {
   vec2 toMouse = normalize(uMouse - uSun.xy + vec2(1e-3));
   swell *= 1. + .16 * uCursor * dot(u, toMouse);
   // Polar plumes: short, fine brush strokes standing straight up off the poles.
-  float pl = exp(-pow(adiff(th, pole) / .5, 2.)) + exp(-pow(adiff(th, pole + 3.1415927) / .5, 2.));
+  float pl = exp(-sq(adiff(th, pole) / .5)) + exp(-sq(adiff(th, pole + 3.1415927) / .5));
   float plumes = r < 2.6 ? pl * pow(pfbm(vec2(a * 90. + 2. + sway * 2.2, lr * 1.2 - t * .08), 90.), 3.) * 2.2 * exp(-k / .45) * smoothstep(2.6, 1.8, r) : 0.;
   // The ring: brilliant, golden right at the edge, breathing very slightly — then the K-corona
   // falling away fast, and a warm bloom round it all.
@@ -509,10 +514,10 @@ vec3 cme(vec2 q, float r) {
   float lead = dot(n, dir);
   float front = pow(clamp(lead * .5 + .5, 0., 1.), 2.6);
   float width = rr * .2 + .04;
-  float shell = exp(-pow((d - rr) / width, 2.)) * front;
+  float shell = exp(-sq((d - rr) / width)) * front;
   // a fainter second front just inside, and the dark cavity behind it, with a glowing core
-  shell += exp(-pow((d - rr * .78) / (width * 1.4), 2.)) * front * .35;
-  float core = exp(-pow(d / (rr * .35), 2.)) * .18 * smoothstep(-.2, .6, lead + .4);
+  shell += exp(-sq((d - rr * .78) / (width * 1.4))) * front * .35;
+  float core = exp(-sq(d / (rr * .35))) * .18 * smoothstep(-.2, .6, lead + .4);
   // fibres combed along the front
   vec2 tng = vec2(-n.y, n.x);
   float fib = .6 + .6 * vnoise(vec2(dot(dq, tng) * 9., (d - rr) * 3.) + uTime * .15);
@@ -538,7 +543,7 @@ vec4 prominences(float r, float th) {
     float w = mix(.045, .12, hash11(fi * 3.17 + 2.9));
     float h = mix(.085, .2, hash11(fi * 5.13 + 4.1)) * (.82 + .22 * sin(t * .33 + fi * 2.) + .08 * sin(t * 1.1 + fi));
     float d = adiff(th, at + .025 * sin(t * .21 + fi));
-    float shape = exp(-pow(d / w, 2.)) * smoothstep(h, h * .15, k);
+    float shape = exp(-sq(d / w)) * smoothstep(h, h * .15, k);
     acc += shape * smoothstep(.25, .7, tex + (1. - k / h) * .4);
   }
   // one great arch, with bright knots of plasma raining down its legs

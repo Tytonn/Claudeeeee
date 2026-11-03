@@ -16,16 +16,19 @@ import "./styles/overlays.css";
 import "./styles/viewer.css";
 import "./styles/fx.css";
 import "./styles/collab.css";
+// last: the light (Ink) scene, over everything above
+import "./styles/ink.css";
 
 import { useApp } from "./store/app";
 import { loadAll, startPersistence, storageOk } from "./store/persist";
 import { toast } from "./store/toasts";
 import { startShareSync } from "./store/shareSync";
 import { startSync, syncNow } from "./account/sync";
-import { ACCENTS, RAIN_AMOUNT, SOLAR_TINTS, applyTheme, hexRgb } from "./lib/theme";
+import { ACCENTS, RAIN_AMOUNT, SOLAR_TINTS, accentColor, applyTheme, hexRgb, sceneOf } from "./lib/theme";
 import type { Settings } from "./lib/types";
 import { fx } from "./fx/engine";
 import { refreshPointerLight, startPointerLight } from "./fx/dom";
+import { changeScene } from "./fx/transitions";
 import { setSoundEnabled, setSoundTheme } from "./lib/sound";
 import { startViewportFit } from "./lib/platform";
 import { startVaultWatch } from "./lib/vault";
@@ -45,11 +48,11 @@ async function boot() {
   const syncFx = (s: Settings, first = false) => {
     fx.setLevel(s.effects);
     const accent = ACCENTS[s.accent] ?? ACCENTS.iris;
-    fx.setAccent(accent.color, accent.nebula);
+    fx.setAccent(accentColor(s.accent, sceneOf(s.scene)), accent.nebula);
     const amount = RAIN_AMOUNT[s.rainAmount] ?? 0.5;
     const blur = typeof s.cityBlur === "number" ? Math.min(1, Math.max(0, s.cityBlur)) : 1;
     fx.setRain({ lightning: s.lightning !== false, city: s.cityLights !== false, amount, blur });
-    fx.setScene(s.scene === "rain" || s.scene === "solar" ? s.scene : "eclipse", first);
+    fx.setScene(sceneOf(s.scene), first);
     fx.setSolar({
       clouds: s.solarClouds !== false,
       size: typeof s.solarSize === "number" ? Math.min(1, Math.max(0, s.solarSize)) : 0.5,
@@ -57,7 +60,8 @@ async function boot() {
       tint: s.solarTint && s.solarTint !== "pearl" && SOLAR_TINTS[s.solarTint] ? hexRgb(SOLAR_TINTS[s.solarTint].color) : null,
     });
     fx.setBackdrop(s.backdrop);
-    setSoundTheme(fx.rain && s.effects !== "off" ? "rain" : "eclipse");
+    // (Ink's paper stays even with effects off, and so do its sounds; the rain's go with its sky)
+    setSoundTheme(fx.inkScene ? "ink" : fx.rain && s.effects !== "off" ? "rain" : "eclipse");
     fx.setOpen(s.backdrop === "bare");
     if (fx.cursorLight !== (s.cursorLight !== false)) {
       fx.setCursorLight(s.cursorLight !== false);
@@ -69,7 +73,7 @@ async function boot() {
   syncFx(settings, true);
   fx.init();
   startPointerLight();
-  if (import.meta.env.DEV) Object.assign(window as object, { __fx: fx, __app: useApp, __syncNow: syncNow });
+  if (import.meta.env.DEV) Object.assign(window as object, { __fx: fx, __app: useApp, __syncNow: syncNow, __changeScene: changeScene });
   useApp.subscribe(
     (s) => s.settings,
     (s) => {

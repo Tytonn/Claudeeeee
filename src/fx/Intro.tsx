@@ -9,9 +9,10 @@ export function shouldPlayIntro(): boolean {
   try {
     if (!fx.full || sessionStorage.getItem(KEY)) return false;
     sessionStorage.setItem(KEY, "1");
-    // Under the solar eclipse the real sky plays the intro, so the page stays out of sight
-    // from the very first frame until it's done.
+    // Under the solar eclipse (and on Ink's paper) the real sky plays the intro, so the page
+    // stays out of sight from the very first frame until it's done.
     if (fx.solar) document.documentElement.classList.add("intro-solar");
+    if (fx.inkScene) document.documentElement.classList.add("intro-ink");
     return true;
   } catch {
     return false;
@@ -20,8 +21,8 @@ export function shouldPlayIntro(): boolean {
 
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
-type Kind = "eclipse" | "rain" | "solar";
-const LENGTH: Record<Kind, number> = { eclipse: 2650, rain: 2900, solar: 3400 };
+type Kind = "eclipse" | "rain" | "solar" | "ink";
+const LENGTH: Record<Kind, number> = { eclipse: 2650, rain: 2900, solar: 3400, ink: 2500 };
 /** Where the moon comes from in the solar intro (down and to the right, so the sun breaks out up and to the left). */
 const FROM = { x: 0.82, y: 0.57 };
 
@@ -37,9 +38,13 @@ const FROM = { x: 0.82, y: 0.57 };
  * dimming daylight and a blinding crescent; the moon creeps over it; Baily's beads, the diamond
  * ring — totality, the corona blooming out, the stars appearing. Then the sun drifts off to its
  * place in the sky as the page comes up.
+ *
+ * On Ink it's quiet: just the paper, and the name soaking into it letter by letter, the way ink
+ * takes to paper — while a cloud of ink opens out in the water beneath it. Then the page comes up
+ * over it, and the water carries the cloud away.
  */
 export function Intro({ onDone }: { onDone: () => void }) {
-  const [kind] = useState<Kind>(() => (fx.rain ? "rain" : fx.solar ? "solar" : "eclipse"));
+  const [kind] = useState<Kind>(() => (fx.rain ? "rain" : fx.solar ? "solar" : fx.inkScene ? "ink" : "eclipse"));
   const [progress, setProgress] = useState(0);
   const [stage, setStage] = useState<"rise" | "total" | "out">("rise");
   const [spot] = useState(() => {
@@ -49,6 +54,14 @@ export function Intro({ onDone }: { onDone: () => void }) {
   const done = useRef(false);
   const onDoneRef = useRef(onDone);
   onDoneRef.current = onDone;
+
+  // On paper: the page out of sight until the name has been written, and the ink let into the water.
+  useLayoutEffect(() => {
+    if (kind !== "ink") return;
+    document.documentElement.classList.add("intro-ink");
+    const t = window.setTimeout(() => fx.inkWelcome(innerWidth / 2, innerHeight * 0.5 + Math.min(150, innerHeight * 0.17), 3200), 260);
+    return () => window.clearTimeout(t);
+  }, [kind]);
 
   // Before the first paint: the sun in place, the moon well off it, the sky still dark.
   useLayoutEffect(() => {
@@ -74,6 +87,14 @@ export function Intro({ onDone }: { onDone: () => void }) {
       if (kind === "rain") {
         window.setTimeout(() => fx.diamondRing(), 140 / rate);
         window.setTimeout(() => onDoneRef.current(), 900 / rate);
+        return;
+      }
+      if (kind === "ink") {
+        // the name lifts off the paper as the page comes up over it
+        root.classList.remove("intro-ink");
+        root.classList.add("intro-ink-out");
+        window.setTimeout(() => root.classList.remove("intro-ink-out"), 1500);
+        window.setTimeout(() => onDoneRef.current(), 800 / rate);
         return;
       }
       if (kind === "solar") {
@@ -124,6 +145,7 @@ export function Intro({ onDone }: { onDone: () => void }) {
         fx.holdSun(null);
         root.classList.remove("intro-solar");
       }
+      if (kind === "ink" && !done.current) root.classList.remove("intro-ink");
     };
   }, [kind]);
 
@@ -136,6 +158,23 @@ export function Intro({ onDone }: { onDone: () => void }) {
             <span className="intro-drip" style={{ left: "16%", animationDelay: "1.55s" }} />
             <span className="intro-drip" style={{ left: "55%", animationDelay: "1.85s" }} />
             <span className="intro-drip" style={{ left: "86%", animationDelay: "1.7s" }} />
+          </div>
+          <div className="intro-tag mono">a quiet place to write</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (kind === "ink") {
+    return (
+      <div className={`intro ink is-${stage}`} aria-hidden>
+        <div className="intro-stage">
+          <div className="intro-word display">
+            {"umbra".split("").map((ch, i) => (
+              <span key={i} style={{ animationDelay: `${0.32 + i * 0.13}s` }}>
+                {ch}
+              </span>
+            ))}
           </div>
           <div className="intro-tag mono">a quiet place to write</div>
         </div>

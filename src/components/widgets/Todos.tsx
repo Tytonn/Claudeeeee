@@ -40,7 +40,8 @@ function labelOf(color: TodoColor, labels: Partial<Record<TodoColor, string>>) {
   return labels[color]?.trim() || TODO_COLORS[color].name;
 }
 
-const tagStyle = (color: TodoColor | null | undefined) => (color ? ({ "--tag": TODO_COLORS[color].color } as CSSProperties) : undefined);
+/** A to-do's colour: both versions of it (the stylesheet picks the one for the scene — see `--tag`). */
+const tagStyle = (color: TodoColor | null | undefined) => (color ? ({ "--tag-c": TODO_COLORS[color].color, "--tag-p": TODO_COLORS[color].paper } as CSSProperties) : undefined);
 
 /** The color menu for a to-do: pick one, or none. */
 function colorItems(todo: Todo, labels: Partial<Record<TodoColor, string>>): MenuItem[] {

@@ -27,6 +27,7 @@ export const DEFAULT_SETTINGS: Settings = {
   solarTint: "pearl",
   showVersion: false,
   cursorLight: true,
+  inkSettle: true,
   clockMs: false,
   clockMsDigits: 3,
   todoGroups: false,

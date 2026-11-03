@@ -1,15 +1,29 @@
-import type { AccentId, FontId, RainAmountId, Settings, SizeId, SolarTintId, TitleFontId, TodoColor } from "./types";
+import type { AccentId, FontId, RainAmountId, SceneId, Settings, SizeId, SolarTintId, TitleFontId, TodoColor } from "./types";
 
-/** `nebula` is a second hue the sky blends with the accent, so space never looks flat. */
-export const ACCENTS: Record<AccentId, { name: string; color: string; nebula: string }> = {
-  iris: { name: "Iris", color: "oklch(0.77 0.125 286)", nebula: "oklch(0.52 0.15 245)" },
-  moon: { name: "Moon", color: "oklch(0.93 0.008 270)", nebula: "oklch(0.5 0.06 255)" },
-  sky: { name: "Sky", color: "oklch(0.8 0.105 232)", nebula: "oklch(0.5 0.15 285)" },
-  mint: { name: "Mint", color: "oklch(0.84 0.115 168)", nebula: "oklch(0.5 0.12 215)" },
-  corona: { name: "Corona", color: "oklch(0.86 0.115 82)", nebula: "oklch(0.55 0.16 35)" },
-  ember: { name: "Ember", color: "oklch(0.76 0.145 46)", nebula: "oklch(0.5 0.17 355)" },
-  rose: { name: "Rose", color: "oklch(0.79 0.115 356)", nebula: "oklch(0.5 0.15 300)" },
+/**
+ * `nebula` is a second hue the sky blends with the accent, so space never looks flat. `paper` is
+ * the same colour as ink would carry it on paper (the Ink scene): deeper, so it reads on a light page.
+ */
+export const ACCENTS: Record<AccentId, { name: string; color: string; nebula: string; paper: string }> = {
+  iris: { name: "Iris", color: "oklch(0.77 0.125 286)", nebula: "oklch(0.52 0.15 245)", paper: "oklch(0.5 0.15 284)" },
+  moon: { name: "Moon", color: "oklch(0.93 0.008 270)", nebula: "oklch(0.5 0.06 255)", paper: "oklch(0.34 0.014 268)" },
+  sky: { name: "Sky", color: "oklch(0.8 0.105 232)", nebula: "oklch(0.5 0.15 285)", paper: "oklch(0.52 0.12 240)" },
+  mint: { name: "Mint", color: "oklch(0.84 0.115 168)", nebula: "oklch(0.5 0.12 215)", paper: "oklch(0.53 0.095 172)" },
+  corona: { name: "Corona", color: "oklch(0.86 0.115 82)", nebula: "oklch(0.55 0.16 35)", paper: "oklch(0.6 0.12 72)" },
+  ember: { name: "Ember", color: "oklch(0.76 0.145 46)", nebula: "oklch(0.5 0.17 355)", paper: "oklch(0.57 0.155 42)" },
+  rose: { name: "Rose", color: "oklch(0.79 0.115 356)", nebula: "oklch(0.5 0.15 300)", paper: "oklch(0.53 0.15 2)" },
 };
+
+/** The accent as this scene shows it: light on the dark skies, ink-deep on paper. */
+export function accentColor(id: AccentId | string | undefined, scene: SceneId | string | undefined): string {
+  const a = ACCENTS[id as AccentId] ?? ACCENTS.iris;
+  return scene === "ink" ? a.paper : a.color;
+}
+
+/** The light scenes (just Ink, for now): paper, so the UI turns to ink on light. */
+export function isLightScene(scene: SceneId | string | undefined): boolean {
+  return scene === "ink";
+}
 
 /** The corona's colours in the solar eclipse. Pearl is the real thing; the rest are for fun. */
 export const SOLAR_TINTS: Record<SolarTintId, { name: string; color: string }> = {
@@ -28,14 +42,22 @@ export function hexRgb(hex: string): [number, number, number] {
   return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
 }
 
-/** The colors a to-do can wear: bright enough to read on the dark glass, soft enough to sit together. */
-export const TODO_COLORS: Record<TodoColor, { name: string; color: string }> = {
-  red: { name: "Red", color: "oklch(0.72 0.17 22)" },
-  orange: { name: "Orange", color: "oklch(0.79 0.15 58)" },
-  yellow: { name: "Yellow", color: "oklch(0.87 0.14 95)" },
-  green: { name: "Green", color: "oklch(0.79 0.14 155)" },
-  blue: { name: "Blue", color: "oklch(0.75 0.13 240)" },
-  purple: { name: "Purple", color: "oklch(0.73 0.15 300)" },
+/** A saved scene, or the Galaxy if it isn't one we know. */
+export function sceneOf(s: unknown): SceneId {
+  return s === "rain" || s === "solar" || s === "ink" ? s : "eclipse";
+}
+
+/**
+ * The colors a to-do can wear: bright enough to read on the dark glass, soft enough to sit
+ * together — and their deeper `paper` versions for the Ink scene.
+ */
+export const TODO_COLORS: Record<TodoColor, { name: string; color: string; paper: string }> = {
+  red: { name: "Red", color: "oklch(0.72 0.17 22)", paper: "oklch(0.56 0.17 25)" },
+  orange: { name: "Orange", color: "oklch(0.79 0.15 58)", paper: "oklch(0.64 0.15 52)" },
+  yellow: { name: "Yellow", color: "oklch(0.87 0.14 95)", paper: "oklch(0.7 0.135 84)" },
+  green: { name: "Green", color: "oklch(0.79 0.14 155)", paper: "oklch(0.57 0.12 155)" },
+  blue: { name: "Blue", color: "oklch(0.75 0.13 240)", paper: "oklch(0.54 0.13 245)" },
+  purple: { name: "Purple", color: "oklch(0.73 0.15 300)", paper: "oklch(0.53 0.15 302)" },
 };
 
 /** How hard it rains, as the engine understands it. */
@@ -62,10 +84,10 @@ export const SIZES: Record<SizeId, { name: string; px: number }> = {
   l: { name: "Large", px: 18.5 },
 };
 
-export function applyTheme(s: Pick<Settings, "accent" | "font" | "size"> & Partial<Pick<Settings, "backdrop" | "titleFont">>) {
+export function applyTheme(s: Pick<Settings, "accent" | "font" | "size"> & Partial<Pick<Settings, "backdrop" | "titleFont" | "scene">>) {
   const root = document.documentElement;
   root.dataset.backdrop = s.backdrop === "dark" || s.backdrop === "glass" || s.backdrop === "crystal" || s.backdrop === "bare" ? s.backdrop : "clear";
-  root.style.setProperty("--accent", ACCENTS[s.accent]?.color ?? ACCENTS.iris.color);
+  root.style.setProperty("--accent", accentColor(s.accent, sceneOf(s.scene)));
   root.style.setProperty("--font-editor", FONTS[s.font]?.stack ?? FONTS.sans.stack);
   // Serif text reads best a touch larger; mono a touch smaller.
   const base = SIZES[s.size]?.px ?? 16.5;
@@ -75,6 +97,9 @@ export function applyTheme(s: Pick<Settings, "accent" | "font" | "size"> & Parti
   root.dataset.titleFont = s.titleFont && s.titleFont in TITLE_FONTS ? s.titleFont : "display";
 }
 
+/** The Ink scene's paper, where nothing is drawn over it (keep in step with ink.css and boot.js). */
+export const PAPER = "#f1ede5";
+
 /**
  * The colours a phone paints around the page: its status bar (and toolbar) at the top, from
  * theme-color, and the strip under the gesture bar at the bottom, from the page's background.
@@ -83,7 +108,9 @@ export function applyTheme(s: Pick<Settings, "accent" | "font" | "size"> & Parti
  */
 export function setBarColors(top: string | null, bottom: string | null) {
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta && meta.getAttribute("content") !== (top ?? "#08090a")) meta.setAttribute("content", top ?? "#08090a");
+  // with nothing to match, the page's own plain colour: the dark, or paper in the Ink scene
+  const plain = document.documentElement.dataset.scene === "ink" ? PAPER : "#08090a";
+  if (meta && meta.getAttribute("content") !== (top ?? plain)) meta.setAttribute("content", top ?? plain);
   document.documentElement.style.backgroundColor = bottom ?? "";
   // (an iPhone may fill any space below the page with the body's colour: the sky's, then)
   if (document.body) document.body.style.backgroundColor = bottom ?? "";

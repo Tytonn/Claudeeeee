@@ -170,7 +170,7 @@
 }
 .people-mode:hover:not(:disabled) {
   color: var(--fg-2);
-  background: rgb(255 255 255 / 0.03);
+  background: rgb(var(--tint) / 0.03);
 }
 .people-mode.is-on {
   color: var(--fg-1);
@@ -267,7 +267,7 @@
   box-shadow: inset 0 0 0 1px var(--line);
 }
 .people-role:hover {
-  background: rgb(255 255 255 / 0.04);
+  background: rgb(var(--tint) / 0.04);
 }
 .people-empty,
 .people-fine {
@@ -362,7 +362,7 @@ html:is([data-backdrop="clear"], [data-backdrop="crystal"], [data-backdrop="bare
   background: linear-gradient(180deg, rgb(20 21 25 / 0.86), rgb(12 13 16 / 0.9));
   box-shadow:
     0 0 0 1px var(--line),
-    0 30px 80px -30px rgb(0 0 0 / 0.9);
+    0 30px 80px -30px rgb(var(--shade) / calc(0.9 * var(--shade-k)));
   -webkit-backdrop-filter: blur(18px);
   backdrop-filter: blur(18px);
 }

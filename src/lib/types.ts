@@ -67,7 +67,7 @@ export type EffectsId = "cosmic" | "subtle" | "off";
 /** How much of the sky shows through the panels. */
 export type BackdropId = "dark" | "glass" | "clear" | "crystal" | "bare";
 /** What's behind the glass: deep space round the eclipse (shown as "Galaxy"), a night city in the rain, or a total solar eclipse over the clouds. */
-export type SceneId = "eclipse" | "rain" | "solar";
+export type SceneId = "eclipse" | "rain" | "solar" | "ink";
 export type RainAmountId = "drizzle" | "rain" | "downpour";
 
 export type Settings = {
@@ -102,6 +102,8 @@ export type Settings = {
   showVersion: boolean;
   /** The cursor as a light: the glow on the glass and panel edges that follows it. */
   cursorLight: boolean;
+  /** Ink: each letter you type lands soft and dark and sharpens as it soaks into the paper. */
+  inkSettle: boolean;
   /** Show milliseconds on the clock (off by default)… */
   clockMs: boolean;
   /** …to this many digits. */

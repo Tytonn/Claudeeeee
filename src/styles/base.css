@@ -27,13 +27,19 @@
   --fg-4: #4d4d56;
   --fg-5: #34343b;
 
+  /* What overlays and outlines are drawn in (white light on the dark; ink on paper), and what
+     casts the shadows — with how deep they fall. */
+  --tint: 255 255 255;
+  --shade: 0 0 0;
+  --shade-k: 1;
+
   /* lines + states */
-  --line: rgb(255 255 255 / 0.055);
-  --line-2: rgb(255 255 255 / 0.085);
-  --line-3: rgb(255 255 255 / 0.13);
-  --hover: rgb(255 255 255 / 0.035);
-  --active: rgb(255 255 255 / 0.06);
-  --press: rgb(255 255 255 / 0.085);
+  --line: rgb(var(--tint) / 0.055);
+  --line-2: rgb(var(--tint) / 0.085);
+  --line-3: rgb(var(--tint) / 0.13);
+  --hover: rgb(var(--tint) / 0.035);
+  --active: rgb(var(--tint) / 0.06);
+  --press: rgb(var(--tint) / 0.085);
 
   /* accent (set at runtime from settings) */
   --accent: oklch(0.77 0.125 286);
@@ -63,14 +69,14 @@
 
   /* depth */
   --shadow-float:
-    0 0 0 1px rgb(255 255 255 / 0.07),
+    0 0 0 1px rgb(var(--tint) / 0.07),
     inset 0 1px 0 rgb(255 255 255 / 0.05),
-    0 24px 60px -12px rgb(0 0 0 / 0.75),
-    0 8px 20px -8px rgb(0 0 0 / 0.6);
+    0 24px 60px -12px rgb(var(--shade) / calc(0.75 * var(--shade-k))),
+    0 8px 20px -8px rgb(var(--shade) / calc(0.6 * var(--shade-k)));
   --shadow-pop:
-    0 0 0 1px rgb(255 255 255 / 0.08),
+    0 0 0 1px rgb(var(--tint) / 0.08),
     inset 0 1px 0 rgb(255 255 255 / 0.06),
-    0 12px 32px -8px rgb(0 0 0 / 0.7);
+    0 12px 32px -8px rgb(var(--shade) / calc(0.7 * var(--shade-k)));
 
   /* motion */
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -220,7 +226,7 @@ svg {
   scrollbar-color: transparent transparent;
 }
 *:hover {
-  scrollbar-color: rgb(255 255 255 / 0.09) transparent;
+  scrollbar-color: rgb(var(--tint) / 0.09) transparent;
 }
 ::-webkit-scrollbar {
   width: 10px;
@@ -236,10 +242,10 @@ svg {
   background-clip: padding-box;
 }
 *:hover::-webkit-scrollbar-thumb {
-  background-color: rgb(255 255 255 / 0.09);
+  background-color: rgb(var(--tint) / 0.09);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background-color: rgb(255 255 255 / 0.16) !important;
+  background-color: rgb(var(--tint) / 0.16) !important;
 }
 
 /* utility */

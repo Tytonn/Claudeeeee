@@ -8,7 +8,7 @@
 
 ## What's inside
 
-**The light show** *(the Galaxy scene — the default; see also Solar eclipse and Rain below)*
+**The light show** *(the Galaxy scene — the default; see also Solar eclipse, Rain and Ink below)*
 - A living sky behind everything (WebGL): a drifting nebula with glowing filaments and dark dust lanes, three depths of twinkling stars that shift with your cursor, and shooting stars — now and then a fireball or a little meteor shower.
 - The editor is the moon in a total eclipse. A solar corona pours out from behind it in long, flowing streamers, swings toward your cursor, and throws off coronal loops. The side panels are smoked glass, so you see the sky through them.
 - Your cursor is a light source: panels catch a rim of light where it passes, countdown cards tilt toward it and cast shadows away from it. (**Settings → Cursor light** turns it off, in any scene.)
@@ -22,7 +22,7 @@
 - **Settings → Background:** *Dark* (smoked glass), *Glass* (more sky), *Clear* (the default: the sky almost fully, with a soft shade behind your words), *Crystal* (no glass at all — just outlines over the open sky, with a crisp little drop shadow behind every word) or *Bare* (nothing at all: no panels, no outlines, no shade — the sky's light even carries on behind your words instead of stopping at the page's edge). Also in the command palette: *Show more of the sky*.
 - **Settings → Title font:** the typeface of every note's title — *Display* (the tall, narrow serif), *Display italic*, *Serif*, *Sans* or *Mono*. Or just right-click a title.
 - On a phone, the status bar and the strip under the gesture bar take on the colors at the top and bottom of the sky, so it runs right to the edges of the screen.
-- **Settings → About → Show version:** a small gray *v1.07* beside the logo, so a screenshot says which version it's from. The exact build (its commit and time) is listed there too, and in the command palette's *Screen info*. The number lives in `src/version.ts` and goes up with every update.
+- **Settings → About → Show version:** a small gray *v1.08* beside the logo, so a screenshot says which version it's from. The exact build (its commit and time) is listed there too, and in the command palette's *Screen info*. The number lives in `src/version.ts` and goes up with every update.
 
 **Solar eclipse** *(Settings → Scene → Solar eclipse)*
 - A real total solar eclipse, seen from the ground, drawn live on the GPU: a black moon in a golden, glowing ring, the pearly corona streaming out around it in long, fine-combed blades, pink prominences standing up off the rim, and a dusky sky with a sunset glowing all the way round the horizon — the way it really looks at totality. Venus and a few stars come out in the dark.
@@ -50,6 +50,15 @@
 - Everything else goes wet too: a new note brings the lightning close; checking a to-do is a splash (ripples, a crown of droplets); erased letters run off the page like drips; deleting a note washes it away from the top; other things you delete are rinsed off in drops; sharing calls down a bolt; the intro writes *umbra* into the fogged glass; and the little sounds become drips and bubbles.
 - It switches over with a sheet of rain running down the screen. Command palette: *Make it rain*, *Scene: Galaxy*, and toggles for lightning and city lights.
 - Like the eclipse, it pauses completely when the tab is hidden and lowers its resolution on its own if a device struggles — but it keeps falling at full frame rate while you type.
+
+**Ink** *(Settings → Scene → Ink — the light one)*
+- Warm, paper-white, with real ink drifting through clear water behind everything — all drawn live on the GPU, no images or video. A small fluid-style simulation carries two inks (charcoal, and a deep indigo) on a slowly churning current: clouds bloom with dense hearts and soft edges, curl, stretch into fine tendrils, thin out and fade, and new ones keep blooming, mostly low and along the edges — so it never loops. Behind your note, only the faintest wisps.
+- The whole interface turns to ink on paper: ink-dark type, paper panels on soft, warm shadows, and every accent (and to-do color) in a deeper, inkier shade. Each *Background* has a paper version: *Dark* frosts the panels like heavy paper, *Glass* lets more of the water through, *Clear* (the default) leaves your note on open water with the side columns as sheets of vellum, and *Crystal* and *Bare* clear nearly everything away (every word keeps a soft paper halo).
+- **Arriving:** choose Ink and the screen fades to near-black, a single drop of ink falls through the dark to the middle of the screen, a ripple runs out as it lands, and the ink bursts open in curling fingers as the paper clears out of the dark around it — then it all settles into the live background. About two and a half seconds; a tap, a click or any key skips it, and changing scene again part-way calls it off cleanly.
+- **Ink settling letters** *(toggle, on by default)*: each letter you type lands slightly soft and dark, the way ink is the moment it touches paper, and sharpens as it soaks in, in about 150 ms. It's drawn over the text, never in it — nothing moves or reflows, and your caret, selection, undo, paste, autocorrect and keyboard (IME and phone keyboards included) work exactly as always. Pasting, undo, a friend's edits and opening a note never do it.
+- Everything else is ink too: the caret is a nib of ink; a new note is a drop of ink blooming under the fresh page; deleting a note lets its words bleed away into the water; the little flourishes become flecks and strokes of ink; your cursor stirs the water as it passes; and the sounds turn to soft taps and drops.
+- **The intro** (once a visit) is quiet: *umbra* soaks into the paper letter by letter while a cloud of ink opens out in the water beneath it.
+- Light on the GPU: the water is simulated at half resolution, 20 times a second (the screen blends smoothly between steps), and the paper is painted once. It pauses when the tab is hidden, and with effects off it's simply paper.
 
 **Notes**
 - A calm rich-text editor: type <kbd>/</kbd> for blocks (headings, lists, checklists, quotes, code, dividers, today's date), select text for a formatting bubble, or just write Markdown (`#`, `-`, `[]`, `>`, ```` ``` ````, `==highlight==`).
@@ -174,7 +183,7 @@ npm run typecheck
 - **Name:** the wordmark is plain text — search for `umbra` in `index.html`, `src/`, and `public/manifest.webmanifest`.
 - **Default accent / settings:** `DEFAULT_SETTINGS` in [`src/store/app.ts`](src/store/app.ts); the palette lives in [`src/lib/theme.ts`](src/lib/theme.ts).
 - **Design tokens** (colors, type, radii, motion): the top of [`src/styles/base.css`](src/styles/base.css).
-- **The sky and effects:** the WebGL sky (nebula, stars, corona) is one shader in [`src/fx/shaders.ts`](src/fx/shaders.ts); the rain is two passes in [`src/fx/rain.ts`](src/fx/rain.ts) (the city into a mipmapped texture, then the glass); the solar eclipse is two passes in [`src/fx/solar.ts`](src/fx/solar.ts) (the clouds into a small texture, then the sky and the eclipse); everything else (meteors, flares, lightning timing, splashes, particles, trails) is in [`src/fx/engine.ts`](src/fx/engine.ts). Each accent's nebula color is in [`src/lib/theme.ts`](src/lib/theme.ts).
+- **The sky and effects:** the WebGL sky (nebula, stars, corona) is one shader in [`src/fx/shaders.ts`](src/fx/shaders.ts); the rain is two passes in [`src/fx/rain.ts`](src/fx/rain.ts) (the city into a mipmapped texture, then the glass); the solar eclipse is two passes in [`src/fx/solar.ts`](src/fx/solar.ts) (the clouds into a small texture, then the sky and the eclipse); Ink is a little fluid simulation and a paper pass in [`src/fx/ink.ts`](src/fx/ink.ts) (where new clouds bloom: [`src/fx/inkBlooms.ts`](src/fx/inkBlooms.ts); the drop arriving: [`src/fx/inkArrival.ts`](src/fx/inkArrival.ts)), and its paper look is [`src/styles/ink.css`](src/styles/ink.css); everything else (meteors, flares, lightning timing, splashes, particles, trails) is in [`src/fx/engine.ts`](src/fx/engine.ts). Each accent's nebula color is in [`src/lib/theme.ts`](src/lib/theme.ts).
 
 ## Project layout
 
@@ -192,7 +201,7 @@ src/
     widgets/                   to-dos, countdowns, date picker
     overlays/                  command palette, settings, share sheet, the PIN pad, toasts
     ui/                        primitives (tooltip, popover, menu, switch, eclipse…)
-  fx/                          the light engine: WebGL sky (galaxy, solar eclipse, rain), effects overlay, intro, light caret
+  fx/                          the light engine: WebGL sky (galaxy, solar eclipse, rain, ink), effects overlay, intro, light caret, settling letters
   collab/                      live co-editing: sync engine, owner sessions, title binding
   account/                     accounts, the sign-in eclipse, cross-device sync
   share/ShareView.tsx          what your friend sees

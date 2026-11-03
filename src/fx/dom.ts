@@ -297,6 +297,49 @@ export function eclipseWipe(noteEl: HTMLElement | null, panelEl: HTMLElement | n
 }
 
 /**
+ * Deleting a note, on paper: the words let go of the page — their ink bleeds and softens and
+ * sinks away into the water, a cloud or two of it opening out where they were — and the next
+ * page is there underneath, clean.
+ */
+export function inkWash(noteEl: HTMLElement | null, panelEl: HTMLElement | null) {
+  if (!noteEl || !panelEl || !fx.active) return;
+  const pr = panelEl.getBoundingClientRect();
+  if (!pr.width) return;
+  const scroller = panelEl.querySelector<HTMLElement>(".canvas-scroll");
+  const stage = document.createElement("div");
+  stage.className = "fx-ghost fx-inkout";
+  Object.assign(stage.style, overlayBox(panelEl, pr));
+  const page = lift(noteEl, pr, "fx-inkout-page");
+  stage.append(page);
+  document.body.appendChild(stage);
+  play("eclipse");
+  const dur = fx.full ? 950 : 600;
+  const done = () => stage.remove();
+  page
+    .animate(
+      [
+        { opacity: 1, filter: "blur(0px) contrast(1)", transform: "none" },
+        { opacity: 0.9, filter: "blur(1.2px) contrast(1.15)", transform: "translateY(3px)", offset: 0.25 },
+        { opacity: 0, filter: "blur(11px) contrast(0.6)", transform: "translateY(16px) scale(1.012)" },
+      ],
+      { duration: dur, easing: "cubic-bezier(0.45, 0, 0.6, 1)" },
+    )
+    .finished.then(done, done);
+  // the next page comes up clean beneath it
+  scroller?.animate([{ opacity: 0 }, { opacity: 1 }], { duration: dur * 0.75, delay: dur * 0.3, easing: "cubic-bezier(0.25, 0.6, 0.3, 1)", fill: "backwards" });
+  // where the words were, their ink lets go into the water
+  const nr = noteEl.getBoundingClientRect();
+  const top = Math.max(pr.top + 60, nr.top + 40);
+  const bottom = Math.min(pr.bottom - 60, nr.bottom - 40, top + pr.height * 0.6);
+  for (let i = 0; i < 2; i++) {
+    const x = pr.left + pr.width * (0.3 + 0.4 * Math.random());
+    const y = top + (bottom - top) * (0.2 + 0.6 * Math.random());
+    window.setTimeout(() => fx.inkBloom(x, y, { size: 0.04, amount: 1.2, push: 0.1, splash: i === 0 }), i * 180);
+  }
+  fx.inkLinger(1200);
+}
+
+/**
  * Deleting a note, in the rain: water sheets down the page from the top and washes the
  * words away with it — running ahead in drips, the last of it sliding and blurring as it
  * goes — and the next page is there behind it, rinsed clean.

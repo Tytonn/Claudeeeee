@@ -1,7 +1,8 @@
 import { flushSync } from "react-dom";
 import { useApp } from "../store/app";
-import { ACCENTS } from "../lib/theme";
+import { accentColor } from "../lib/theme";
 import { webkit } from "../lib/platform";
+import { play } from "../lib/sound";
 import type { AccentId, SceneId } from "../lib/types";
 import { fx } from "./engine";
 import { oklchToRgb, to255 } from "./color";
@@ -31,7 +32,7 @@ export function changeAccent(id: AccentId, x: number, y: number) {
   const s = useApp.getState();
   if (s.settings.accent === id) return;
   const set = () => s.setSettings({ accent: id });
-  const c = to255(oklchToRgb(ACCENTS[id].color));
+  const c = to255(oklchToRgb(accentColor(id, s.settings.scene)));
   const sparkle = () => {
     fx.ring(x, y, 8, 120, { dur: 700, color: c });
     fx.burst(x, y, {
@@ -71,6 +72,123 @@ export function changeAccent(id: AccentId, x: number, y: number) {
   t.finished.finally(() => root.classList.remove("vt-accent"));
 }
 
+/**
+ * Arriving in Ink. Whatever was on screen fades to near-black; a single drop of ink falls
+ * through the dark to the middle of the screen; where it lands a ripple runs out and the ink
+ * blooms and curls away from it — and the paper opens out of the dark around it, until the
+ * page is back, on paper, with the ink drifting on.
+ *
+ * The dark, the drop and the paper are the Ink scene's own (the engine draws them, see
+ * `inkArrive`); here is only what goes around them: the curtain that takes the old scene down,
+ * keeping the page out of sight meanwhile, and letting you skip it — a tap, a click or a key
+ * brings the page straight back. Choosing another scene part-way calls it all off cleanly.
+ *
+ * Returns false where it can't play (effects off, reduced motion, no WebGL): then it's a plain
+ * change of scene.
+ */
+type Arrival = { to: SceneId; cancel: () => void };
+let arrival: Arrival | null = null;
+/** Each arrival's own number: whatever an older one left scheduled checks it and does nothing. */
+let arrivalGen = 0;
+
+const CURTAIN_MS = 380;
+
+function arriveInInk(set: () => void): boolean {
+  if (!fx.active || fx.reducedMotion || !fx.inkCapable) return false;
+  const gen = ++arrivalGen;
+  const root = document.documentElement;
+  const mine = () => gen === arrivalGen;
+  // the scene we're leaving: if it changes some other way meanwhile (say, from another device),
+  // that change wins and the drop is called off
+  const from = useApp.getState().settings.scene;
+
+  // the curtain: brings the dark down over the old scene, then stays (clear) to catch the taps
+  const curtain = document.createElement("div");
+  curtain.className = "ink-curtain";
+  curtain.setAttribute("aria-hidden", "true");
+  document.body.append(curtain);
+  const fade = curtain.animate([{ opacity: 0 }, { opacity: 1 }], { duration: CURTAIN_MS, easing: "cubic-bezier(0.45, 0, 0.55, 1)", fill: "forwards" });
+
+  let phase: "dark" | "drop" | "over" = "dark";
+  let timer = 0;
+
+  const finish = () => {
+    if (phase === "over") return;
+    phase = "over";
+    window.clearTimeout(timer);
+    removeEventListener("pointerdown", onSkip, true);
+    removeEventListener("keydown", onSkip, true);
+    fade.cancel();
+    curtain.remove();
+    root.classList.remove("ink-arriving", "ink-revealing");
+    if (mine()) arrival = null;
+  };
+  // the page comes back up: soon after the drop lands, or at once when skipped
+  const reveal = () => {
+    if (!mine() || phase === "over") return;
+    root.classList.add("ink-revealing");
+  };
+
+  const drop = () => {
+    if (!mine() || phase !== "dark") return;
+    if (useApp.getState().settings.scene !== from) {
+      finish();
+      return;
+    }
+    phase = "drop";
+    // the page stays out of sight while the drop falls (the sky has its own dark from here on)
+    root.classList.add("ink-arriving");
+    flushSync(set);
+    const ok = fx.inkArrive({
+      land: () => mine() && play("inkdrop"),
+      reveal,
+      done: () => mine() && finish(),
+    });
+    if (!ok) {
+      // the scene has changed, but the ink can't play its part: just lift the dark
+      fx.fadeSky(700);
+      finish();
+      return;
+    }
+    fx.renderNow();
+    // the sky is dark now too: the curtain goes clear (it stays, to catch a tap to skip)
+    requestAnimationFrame(() => {
+      if (!mine() || phase === "over") return;
+      fade.cancel();
+      curtain.style.opacity = "0";
+    });
+  };
+
+  const onSkip = (e: Event) => {
+    if (!mine() || phase === "over") return;
+    // the tap or key is only for skipping: it mustn't reach the page hidden underneath
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (phase === "dark") {
+      window.clearTimeout(timer);
+      drop();
+    }
+    reveal();
+    fx.inkSkip();
+  };
+
+  timer = window.setTimeout(drop, CURTAIN_MS);
+  addEventListener("pointerdown", onSkip, true);
+  addEventListener("keydown", onSkip, true);
+
+  arrival = {
+    to: "ink",
+    cancel: () => {
+      // called off part-way: let the drop go and put the page back as it is
+      const was = phase;
+      finish();
+      arrivalGen++;
+      if (was === "drop") fx.inkSkip();
+    },
+  };
+  return true;
+}
+
 /** Where the falling sheet of rain has got to: its lower edge, with drips running ahead. */
 const DRIPS = Array.from({ length: 29 }, (_, i) => (i % 2 ? 0.25 + Math.random() * 0.75 : Math.random() * 0.25));
 function curtain(k: number) {
@@ -99,9 +217,16 @@ export function changeSolarLook(look: "corona" | "golden") {
 
 export function changeScene(id: SceneId, x = innerWidth / 2, y = innerHeight / 2) {
   const s = useApp.getState();
+  // a drop already on its way to Ink: a second click on Ink changes nothing; anything else
+  // calls it off, cleanly, and carries on from wherever it had got to
+  if (arrival) {
+    if (id === "ink" && arrival.to === "ink") return;
+    arrival.cancel();
+  }
   if (s.settings.scene === id) return;
   // The Golden eclipse comes with its own colour: the accent turns gold (you can change it after).
   const set = () => s.setSettings(id === "solar" && s.settings.solarLook === "golden" ? { scene: id, accent: GOLDEN_ACCENT } : { scene: id });
+  if (id === "ink" && arriveInInk(set)) return;
   const start = viewTransitions();
   if (!start) {
     set();

@@ -6,6 +6,7 @@ import { buildExtensions } from "./extensions";
 import { authForNote } from "../../lib/images";
 import { safeDoc } from "./safeDoc";
 import { LightCaret } from "../../fx/LightCaret";
+import { InkSettle } from "../../fx/InkSettle";
 import { fx } from "../../fx/engine";
 import { play } from "../../lib/sound";
 import { BubbleBar } from "./BubbleBar";
@@ -269,6 +270,7 @@ export function NoteEditor({ noteId, scroller }: Props) {
       </div>
       <EditorContent editor={editor} className="note-body" />
       <LightCaret editor={editor} container={noteEl} />
+      <InkSettle editor={editor} container={noteEl} />
       {editor && <BubbleBar editor={editor} />}
       <SlashMenu />
     </div>

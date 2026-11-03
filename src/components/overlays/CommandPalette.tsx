@@ -5,6 +5,7 @@ import {
   CalendarPlus,
   CloudLightning,
   CloudRain,
+  Droplet,
   Cloudy,
   Eclipse,
   Orbit,
@@ -37,7 +38,7 @@ import {
 import { sortedNotes, useApp } from "../../store/app";
 import { displayTitle, fuzzyScore, snippet } from "../../lib/text";
 import { shortStamp } from "../../lib/dates";
-import { ACCENTS, ALT, FONTS, MOD, SHIFT } from "../../lib/theme";
+import { ACCENTS, ALT, FONTS, MOD, SHIFT, accentColor, sceneOf } from "../../lib/theme";
 import type { AccentId, BackdropId, FontId, RainAmountId } from "../../lib/types";
 import { NEW_COUNTDOWN_EVENT, flushEditor, newGroup, newNote, openShare } from "../../lib/actions";
 import { lockHidden, openHidden } from "../../lib/vault";
@@ -210,7 +211,7 @@ function useItems(query: string): Item[] {
         id: `accent-${id}`,
         group: "Appearance",
         label: `Accent: ${ACCENTS[id].name}`,
-        icon: <span className="swatch-dot" style={{ background: ACCENTS[id].color }} />,
+        icon: <span className="swatch-dot" style={{ background: accentColor(id, settings.scene) }} />,
         keywords: "color colour theme tint",
         hidden: true,
         meta: settings.accent === id ? "current" : undefined,
@@ -222,9 +223,10 @@ function useItems(query: string): Item[] {
             ...[
               { id: "eclipse" as const, label: "Scene: Galaxy", icon: <Orbit size={15} strokeWidth={1.6} />, keywords: "scene theme space stars galaxy nebula sky background corona" },
               { id: "solar" as const, label: "Scene: Solar eclipse", icon: <Eclipse size={15} strokeWidth={1.6} />, keywords: "scene theme sun eclipse totality corona diamond ring clouds sunset sky background" },
+              { id: "ink" as const, label: "Scene: Ink", icon: <Droplet size={15} strokeWidth={1.6} />, keywords: "scene theme ink water paper light bright white day drop sumi calligraphy background" },
               { id: "rain" as const, label: "Make it rain", icon: <CloudRain size={15} strokeWidth={1.6} />, keywords: "scene theme rain storm city night window background" },
             ]
-              .filter((sc) => sc.id !== (settings.scene === "rain" || settings.scene === "solar" ? settings.scene : "eclipse"))
+              .filter((sc) => sc.id !== sceneOf(settings.scene))
               .map((sc) => ({ id: `scene-${sc.id}`, group: "Appearance", label: sc.label, icon: sc.icon, keywords: sc.keywords, run: () => window.setTimeout(() => changeScene(sc.id), 240) })),
             ...(settings.scene === "solar"
               ? [

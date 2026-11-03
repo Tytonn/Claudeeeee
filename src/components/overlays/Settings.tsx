@@ -5,7 +5,7 @@ import { useApp } from "../../store/app";
 import { BOARD, shareUrl, stopShare } from "../../store/shareSync";
 import { exportAll, importBackup } from "../../store/persist";
 import { toast } from "../../store/toasts";
-import { ACCENTS, FONTS, SOLAR_TINTS, TITLE_FONTS } from "../../lib/theme";
+import { ACCENTS, FONTS, SOLAR_TINTS, TITLE_FONTS, accentColor, sceneOf } from "../../lib/theme";
 import type { AccentId, BackdropId, EffectsId, FontId, RainAmountId, SceneId, SizeId, SolarTintId, TitleFontId } from "../../lib/types";
 import { displayTitle } from "../../lib/text";
 import { relativeLong } from "../../lib/dates";
@@ -51,6 +51,84 @@ const RAIN_STREAKS: [number, number, number, number, number, number][] = [[108.2
 const RAIN_BOKEH: [number, number, number, string, number][] = [[212.6, 41.3, 9.4, "#8fd0ff", 0.27], [230.6, 49.0, 9.2, "#ffd9a8", 0.33], [171.4, 61.0, 8.4, "#fff0d0", 0.35], [8.0, 43.4, 8.1, "#ff9e7a", 0.37], [25.6, 44.4, 8.0, "#ffa85c", 0.3], [7.8, 30.2, 5.4, "#d6b8ff", 0.31], [89.2, 40.1, 5.3, "#c4ceff", 0.4], [83.7, 73.7, 4.8, "#9fe6c6", 0.31], [63.0, 31.2, 4.6, "#6ed6ff", 0.36], [32.8, 35.4, 4.5, "#fff0d0", 0.21], [226.6, 29.9, 4.2, "#ff9e7a", 0.36], [162.7, 34.5, 4.2, "#fff0d0", 0.37], [228.7, 70.0, 4.0, "#d6b8ff", 0.26], [99.8, 34.1, 3.7, "#8fd0ff", 0.48], [72.5, 68.2, 3.5, "#8fd0ff", 0.44], [91.0, 64.5, 3.2, "#ff5470", 0.5], [44.1, 41.8, 2.8, "#ff9e7a", 0.33], [133.3, 57.8, 2.7, "#d6b8ff", 0.44], [157.3, 56.4, 2.5, "#d6b8ff", 0.38], [175.3, 43.6, 2.4, "#ffa85c", 0.34], [102.6, 53.8, 2.2, "#8fd0ff", 0.36], [112.0, 35.6, 2.2, "#fff0d0", 0.56], [134.4, 49.1, 2.2, "#fff0d0", 0.57], [100.2, 27.1, 2.1, "#ffce92", 0.48]];
 // prettier-ignore
 const RAIN_DROPS: [number, number, number][] = [[77.9, 36.4, 1.8], [70.4, 42.1, 1.7], [163.8, 18.6, 1.2], [62.7, 61.3, 1.5], [153.6, 19.0, 1.7], [148.3, 8.5, 1.2], [15.9, 10.1, 1.1], [121.2, 50.3, 1.9], [45.4, 21.1, 2.0], [196.5, 27.8, 1.3]];
+
+/** Ink on paper: clouds of it pooled low in the corners, a tendril curling up, a drop catching the light. */
+/**
+ * Ink: warm paper, a cloud of ink rising from the bottom with a tendril curling away from it,
+ * a bluer one at the side, a wisp across the water — and the single drop, falling.
+ * (The card shows the middle of this: the cloud and the drop sit there.)
+ */
+function InkArt() {
+  return (
+    <svg className="scene-svg" viewBox="0 0 240 72" preserveAspectRatio="xMidYMid slice" aria-hidden>
+      <defs>
+        <linearGradient id="ink-paper" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#f8f5ef" />
+          <stop offset="1" stopColor="#ece6da" />
+        </linearGradient>
+        <radialGradient id="ink-vignette" cx="50%" cy="40%" r="80%">
+          <stop offset="0.55" stopColor="#000" stopOpacity="0" />
+          <stop offset="1" stopColor="#4a3e2e" stopOpacity="0.18" />
+        </radialGradient>
+        <radialGradient id="ink-cloud" cx="50%" cy="60%" r="50%">
+          <stop offset="0" stopColor="#1b1b22" stopOpacity="0.95" />
+          <stop offset="0.55" stopColor="#24242e" stopOpacity="0.7" />
+          <stop offset="1" stopColor="#2a2a36" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id="ink-indigo" cx="50%" cy="55%" r="50%">
+          <stop offset="0" stopColor="#262b52" stopOpacity="0.85" />
+          <stop offset="0.6" stopColor="#2e3460" stopOpacity="0.45" />
+          <stop offset="1" stopColor="#343a66" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id="ink-bead" cx="38%" cy="34%" r="70%">
+          <stop offset="0" stopColor="#5a5c70" />
+          <stop offset="0.35" stopColor="#141419" />
+          <stop offset="1" stopColor="#0b0b10" />
+        </radialGradient>
+        <filter id="ink-bleed" x="-40%" y="-40%" width="180%" height="180%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.07" numOctaves="3" seed="7" result="n" />
+          <feDisplacementMap in="SourceGraphic" in2="n" scale="14" xChannelSelector="R" yChannelSelector="G" result="d" />
+          <feGaussianBlur in="d" stdDeviation="0.9" />
+        </filter>
+        <filter id="ink-wisp" x="-40%" y="-40%" width="180%" height="180%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.08" numOctaves="2" seed="3" result="n" />
+          <feDisplacementMap in="SourceGraphic" in2="n" scale="5" xChannelSelector="R" yChannelSelector="G" result="d" />
+          <feGaussianBlur in="d" stdDeviation="1.1" />
+        </filter>
+        <filter id="ink-haze" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur stdDeviation="3.2" />
+        </filter>
+      </defs>
+      <rect width="240" height="72" fill="url(#ink-paper)" />
+      {/* the haze the clouds give off into the water */}
+      <g filter="url(#ink-haze)" opacity="0.32">
+        <ellipse cx="96" cy="70" rx="40" ry="16" fill="#2a2a34" />
+        <ellipse cx="168" cy="72" rx="26" ry="11" fill="#2c3258" />
+      </g>
+      {/* the big cloud, rising from the bottom */}
+      <g filter="url(#ink-bleed)">
+        <ellipse cx="94" cy="72" rx="34" ry="15" fill="url(#ink-cloud)" />
+        <ellipse cx="80" cy="62" rx="15" ry="10" fill="url(#ink-cloud)" opacity="0.85" />
+        <ellipse cx="106" cy="60" rx="12" ry="9" fill="url(#ink-cloud)" opacity="0.75" />
+        <ellipse cx="66" cy="70" rx="13" ry="8" fill="url(#ink-cloud)" opacity="0.7" />
+        <ellipse cx="162" cy="72" rx="20" ry="11" fill="url(#ink-indigo)" />
+        <ellipse cx="174" cy="63" rx="9" ry="7" fill="url(#ink-indigo)" opacity="0.8" />
+      </g>
+      {/* tendrils: one rising and curling away from the cloud (soft and wide where it leaves it,
+          finer as it goes), and a bluer one at the side */}
+      <g filter="url(#ink-wisp)" fill="none" strokeLinecap="round">
+        <path d="M98 58 C 106 46, 98 38, 108 31" stroke="#25252e" strokeWidth="4.2" opacity="0.32" />
+        <path d="M100 54 C 108 42, 98 34, 110 28 C 120 23, 128 30, 122 36 C 117 40, 112 35, 116 32" stroke="#23232c" strokeWidth="1.8" opacity="0.5" />
+        <path d="M84 58 C 79 49, 86 43, 81 36" stroke="#2b2b35" strokeWidth="2.2" opacity="0.26" />
+        <path d="M170 60 C 178 51, 168 45, 176 39 C 182 35, 186 41, 181 43" stroke="#2c3258" strokeWidth="2" opacity="0.36" />
+      </g>
+      <rect width="240" height="72" fill="url(#ink-vignette)" />
+      {/* the drop, falling, catching the light */}
+      <ellipse cx="136" cy="17" rx="2.6" ry="3.3" fill="url(#ink-bead)" />
+      <circle cx="135.1" cy="15.9" r="0.75" fill="#fff" opacity="0.9" />
+    </svg>
+  );
+}
 
 function RainArt() {
   return (
@@ -185,6 +263,7 @@ const SCENES: { id: SceneId; name: string; sub: string }[] = [
   { id: "eclipse", name: "Galaxy", sub: "A living corona in deep space" },
   { id: "solar", name: "Solar eclipse", sub: "Totality, low over the clouds" },
   { id: "rain", name: "Rain", sub: "A city at night, through a wet window" },
+  { id: "ink", name: "Ink", sub: "Ink drifting through clear water, on paper" },
 ];
 
 function ScenePicker() {
@@ -192,7 +271,7 @@ function ScenePicker() {
   const golden = useApp((s) => s.settings.solarLook === "golden");
   const tint = useApp((s) => s.settings.solarTint ?? "pearl");
   const accent = useApp((s) => s.settings.accent);
-  const current = scene === "rain" || scene === "solar" ? scene : "eclipse";
+  const current = sceneOf(scene);
   return (
     <div className="scenes" role="radiogroup" aria-label="Scene">
       {SCENES.map((sc) => {
@@ -200,7 +279,7 @@ function ScenePicker() {
         return (
           <button key={sc.id} type="button" role="radio" aria-checked={on} className={`scene-card is-${sc.id} ${on ? "is-on" : ""}`} onClick={(e) => changeScene(sc.id, e.clientX, e.clientY)}>
             <span className="scene-art" aria-hidden>
-              {sc.id === "eclipse" ? <Eclipse progress={1} size={34} /> : sc.id === "rain" ? <RainArt /> : <SolarArt golden={golden} tint={tint} accent={accent} />}
+              {sc.id === "eclipse" ? <Eclipse progress={1} size={34} /> : sc.id === "rain" ? <RainArt /> : sc.id === "ink" ? <InkArt /> : <SolarArt golden={golden} tint={tint} accent={accent} />}
             </span>
             <span className="scene-text">
               <span className="scene-name">{sc.name}</span>
@@ -258,6 +337,8 @@ function RainBlur() {
 function Swatches() {
   const accent = useApp((s) => s.settings.accent);
   const scene = useApp((s) => `${s.settings.scene}:${s.settings.solarLook}`);
+  // on paper, each swatch shows its colour as the ink carries it
+  const sceneId = useApp((s) => sceneOf(s.settings.scene));
   return (
     <div className="swatches" role="radiogroup" aria-label="Accent color">
       {(Object.keys(ACCENTS) as AccentId[]).map((id) => (
@@ -269,7 +350,7 @@ function Swatches() {
           aria-label={ACCENTS[id].name}
           title={ACCENTS[id].name}
           className="swatch"
-          style={{ "--sw": ACCENTS[id].color } as React.CSSProperties}
+          style={{ "--sw": accentColor(id, sceneId) } as React.CSSProperties}
           onClick={(e) => changeAccent(id, e.clientX, e.clientY)}
         >
           {accent === id && <motion.span key={scene} layoutId={`swatch-ring-${scene}`} className="swatch-ring" transition={spring} />}
@@ -485,7 +566,12 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
                 </Row>
               </>
             )}
-            <Row label="Accent" desc="Tints the caret, checkmarks and the glow.">
+            {settings.scene === "ink" && (
+              <Row label="Ink settling letters" desc="Each letter you type lands soft and dark, then sharpens as it soaks into the paper.">
+                <Switch checked={settings.inkSettle !== false} onChange={(v) => setSettings({ inkSettle: v })} label="Ink settling letters" />
+              </Row>
+            )}
+            <Row label="Accent" desc={settings.scene === "ink" ? "Tints the caret, checkmarks and links — in a deeper, inkier shade on paper." : "Tints the caret, checkmarks and the glow."}>
               <Swatches />
             </Row>
             <Row label="Writing font">

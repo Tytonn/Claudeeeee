@@ -1,19 +1,21 @@
 /**
- * Tiny synthesized UI sounds (Web Audio, no assets). Soft, glassy, short — and in the
- * rain scene, made of water: drips, bubbles, washes.
+ * Tiny synthesized UI sounds (Web Audio, no assets). Soft, glassy, short — in the rain scene,
+ * made of water: drips, bubbles, washes; in Ink, of a nib and still water: soft taps, deep
+ * slow drops, the hush of paper.
  */
-export type SoundName = "tick" | "untick" | "pop" | "drop" | "chime" | "done" | "dawn" | "eclipse" | "transmit";
+export type SoundName = "tick" | "untick" | "pop" | "drop" | "chime" | "done" | "dawn" | "eclipse" | "transmit" | "inkdrop";
 
 let ctx: AudioContext | null = null;
 let out: GainNode | null = null;
 let enabled = true;
-let theme: "eclipse" | "rain" = "eclipse";
+type SoundTheme = "eclipse" | "rain" | "ink";
+let theme: SoundTheme = "eclipse";
 
 export function setSoundEnabled(value: boolean) {
   enabled = value;
 }
 
-export function setSoundTheme(value: "eclipse" | "rain") {
+export function setSoundTheme(value: SoundTheme) {
   theme = value;
 }
 
@@ -167,6 +169,71 @@ function playRain(name: SoundName) {
       swell({ dur: 0.7, from: 700, to: 5200, gain: 0.022 });
       [880, 1174.7, 1568, 2093].forEach((f, i) => plink(f, { at: i * 0.055, gain: 0.026, up: 1.7, dur: 0.11 }));
       break;
+    case "inkdrop":
+      plink(jitter(420), { gain: 0.05, up: 2.4, dur: 0.2 });
+      break;
+  }
+}
+
+/** A pen nib touching paper: a dry, tiny tick of fibre. */
+function nib({ at = 0, gain = 0.016 } = {}) {
+  click({ at, gain, freq: 2300, dur: 0.012 });
+  click({ at: at + 0.004, gain: gain * 0.5, freq: 5400, dur: 0.006 });
+}
+
+function playInk(name: SoundName) {
+  switch (name) {
+    case "tick":
+      nib();
+      plink(jitter(760), { at: 0.01, gain: 0.04, up: 1.55, dur: 0.14 });
+      tone(1520, { at: 0.05, dur: 0.3, gain: 0.008, attack: 0.02 });
+      break;
+    case "untick":
+      nib({ gain: 0.011 });
+      plink(jitter(520), { gain: 0.028, up: 1.35, dur: 0.12 });
+      break;
+    case "pop":
+      plink(jitter(330), { gain: 0.045, up: 2.1, dur: 0.19 });
+      break;
+    case "drop":
+      // a sheet lifted away: the hush of paper, and a low drip
+      swell({ dur: 0.32, from: 2600, to: 900, gain: 0.016, q: 0.5 });
+      plink(jitter(470), { at: 0.04, gain: 0.03, up: 0.6, dur: 0.17 });
+      break;
+    case "chime":
+      [784, 987.8, 1174.7].forEach((f, i) => plink(f, { at: i * 0.08, gain: 0.026, up: 1.18, dur: 0.38 }));
+      tone(1568, { at: 0.22, dur: 0.7, gain: 0.005, attack: 0.05 });
+      break;
+    case "done":
+      [659.3, 784, 987.8, 1318.5].forEach((f, i) => plink(f, { at: i * 0.085, gain: 0.03, up: 1.35, dur: 0.2 }));
+      tone(1318.5, { at: 0.36, dur: 1, gain: 0.008, attack: 0.06 });
+      break;
+    case "dawn":
+      // ink let into the water: a soft bloom of sound
+      swell({ dur: 1.2, from: 180, to: 1400, gain: 0.03, type: "lowpass", q: 0.4 });
+      plink(jitter(300), { at: 0.05, gain: 0.04, up: 2.4, dur: 0.24 });
+      [987.8, 1318.5].forEach((f, i) => tone(f, { at: 0.18 + i * 0.09, dur: 0.9, gain: 0.006, attack: 0.08 }));
+      break;
+    case "eclipse":
+      // washed out of the paper: a slow draining hush
+      swell({ dur: 1.1, from: 2200, to: 200, gain: 0.04, type: "lowpass", q: 0.5 });
+      plink(jitter(380), { at: 0.9, gain: 0.026, up: 0.7, dur: 0.18 });
+      break;
+    case "transmit":
+      swell({ dur: 0.7, from: 500, to: 3800, gain: 0.018 });
+      [659.3, 880, 1174.7].forEach((f, i) => plink(f, { at: i * 0.06, gain: 0.024, up: 1.5, dur: 0.14 }));
+      break;
+    case "inkdrop":
+      // the one drop: it meets the water (a deep, round bubble ringing up), a breath of splash,
+      // and the hush of the ink opening out
+      click({ gain: 0.02, freq: 1400, dur: 0.02 });
+      plink(220, { gain: 0.07, up: 2.6, dur: 0.26 });
+      plink(440, { at: 0.012, gain: 0.022, up: 2.2, dur: 0.2 });
+      swell({ at: 0.02, dur: 0.5, from: 3200, to: 700, gain: 0.014, q: 0.6 });
+      swell({ at: 0.12, dur: 1.6, from: 140, to: 900, gain: 0.03, type: "lowpass", q: 0.3 });
+      plink(jitter(980), { at: 0.42, gain: 0.012, up: 1.6, dur: 0.12 });
+      tone(330, { at: 0.06, dur: 1.4, gain: 0.006, attack: 0.12 });
+      break;
   }
 }
 
@@ -174,6 +241,14 @@ export function play(name: SoundName) {
   if (!enabled) return;
   const c = audio();
   if (!c) return;
+  if (theme === "ink") {
+    try {
+      playInk(name);
+    } catch {
+      /* audio is best-effort */
+    }
+    return;
+  }
   if (theme === "rain") {
     try {
       playRain(name);
@@ -222,6 +297,9 @@ export function play(name: SoundName) {
       case "transmit":
         swell({ dur: 0.8, from: 600, to: 6000, gain: 0.025 });
         [1318.5, 1760, 2349.3].forEach((f, i) => tone(f, { at: i * 0.07, dur: 0.22, gain: 0.02 }));
+        break;
+      case "inkdrop":
+        tone(300, { dur: 0.22, gain: 0.04, glide: 640 });
         break;
     }
   } catch {

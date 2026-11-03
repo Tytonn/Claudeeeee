@@ -55,8 +55,8 @@
   position: absolute;
   inset: 0;
   border-radius: 11px;
-  background: rgb(255 255 255 / 0.06);
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.035);
+  background: rgb(var(--tint) / 0.06);
+  box-shadow: inset 0 0 0 1px rgb(var(--tint) / 0.035);
 }
 .palette-icon {
   position: relative;
@@ -67,7 +67,7 @@
   height: 28px;
   border-radius: 8px;
   color: var(--fg-3);
-  background: rgb(255 255 255 / 0.035);
+  background: rgb(var(--tint) / 0.035);
   box-shadow: inset 0 0 0 1px var(--line);
   transition:
     color var(--t-fast),
@@ -184,7 +184,7 @@
 }
 .set-card {
   border-radius: 15px;
-  background: rgb(255 255 255 / 0.02);
+  background: rgb(var(--tint) / 0.02);
   box-shadow: inset 0 0 0 1px var(--line);
 }
 .set-row {
@@ -293,7 +293,7 @@
   gap: 10px;
   padding: 7px 7px 7px 10px;
   border-radius: 11px;
-  background: rgb(255 255 255 / 0.025);
+  background: rgb(var(--tint) / 0.025);
   box-shadow: inset 0 0 0 1px var(--line);
 }
 .set-link-icon {
@@ -303,7 +303,7 @@
   height: 26px;
   border-radius: 7px;
   color: var(--fg-2);
-  background: rgb(255 255 255 / 0.04);
+  background: rgb(var(--tint) / 0.04);
 }
 .set-link-text {
   display: flex;
@@ -417,7 +417,7 @@
   display: flex;
   flex-direction: column;
   border-radius: 13px;
-  background: rgb(255 255 255 / 0.02);
+  background: rgb(var(--tint) / 0.02);
   box-shadow: inset 0 0 0 1px var(--line);
 }
 .share-row {
@@ -430,7 +430,7 @@
   transition: background-color var(--t-fast);
 }
 .share-row:not(.is-fixed):hover {
-  background: rgb(255 255 255 / 0.02);
+  background: rgb(var(--tint) / 0.02);
 }
 .share-row + .share-row {
   border-top: 1px solid var(--line);
@@ -447,7 +447,7 @@
   height: 30px;
   border-radius: 9px;
   color: var(--fg-2);
-  background: rgb(255 255 255 / 0.04);
+  background: rgb(var(--tint) / 0.04);
   box-shadow: inset 0 0 0 1px var(--line);
 }
 .share-row-text {
@@ -563,7 +563,7 @@
 }
 .share-name.is-static {
   box-shadow: none;
-  background: rgb(255 255 255 / 0.025);
+  background: rgb(var(--tint) / 0.025);
 }
 .share-name-value {
   flex: 1;
@@ -672,7 +672,7 @@
   padding: 0;
   list-style: none;
   border-radius: 14px;
-  background: rgb(255 255 255 / 0.02);
+  background: rgb(var(--tint) / 0.02);
   box-shadow: inset 0 0 0 1px var(--line);
 }
 .import-row {
@@ -724,8 +724,13 @@
 
 .scenes {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
+}
+@media (max-width: 640px) {
+  .scenes {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 .scene-card {
   position: relative;
@@ -735,14 +740,14 @@
   padding: 7px 7px 10px;
   border-radius: 14px;
   text-align: left;
-  background: rgb(255 255 255 / 0.02);
+  background: rgb(var(--tint) / 0.02);
   box-shadow: inset 0 0 0 1px var(--line);
   transition:
     background-color var(--t-fast) var(--ease),
     transform 260ms cubic-bezier(0.3, 1.4, 0.5, 1);
 }
 .scene-card:hover {
-  background: rgb(255 255 255 / 0.045);
+  background: rgb(var(--tint) / 0.045);
 }
 .scene-card:active {
   transform: scale(0.98);
@@ -765,6 +770,9 @@
     radial-gradient(1.5px 1.5px at 60% 84%, rgb(255 255 255 / 0.7), transparent),
     radial-gradient(60% 90% at 50% 50%, color-mix(in oklch, var(--accent) 16%, transparent), transparent 70%),
     #040407;
+}
+.scene-card.is-ink .scene-art {
+  background: linear-gradient(180deg, #f7f3ec, #ebe5d9);
 }
 .scene-card.is-solar .scene-art {
   background: linear-gradient(180deg, #0b0d1c, #24161f 45%, #5e2c1f 78%, #9a4d28);
@@ -827,7 +835,7 @@
 .range::-webkit-slider-runnable-track {
   height: 4px;
   border-radius: 4px;
-  background: linear-gradient(90deg, var(--accent) var(--v, 60%), rgb(255 255 255 / 0.12) var(--v, 60%));
+  background: linear-gradient(90deg, var(--accent) var(--v, 60%), rgb(var(--tint) / 0.12) var(--v, 60%));
 }
 .range::-webkit-slider-thumb {
   -webkit-appearance: none;
@@ -836,7 +844,7 @@
   margin-top: -5px;
   border-radius: 50%;
   background: #fff;
-  box-shadow: 0 1px 4px rgb(0 0 0 / 0.5);
+  box-shadow: 0 1px 4px rgb(var(--shade) / calc(0.5 * var(--shade-k)));
   transition: transform 160ms var(--ease);
 }
 .range:hover::-webkit-slider-thumb {
@@ -845,7 +853,7 @@
 .range::-moz-range-track {
   height: 4px;
   border-radius: 4px;
-  background: rgb(255 255 255 / 0.12);
+  background: rgb(var(--tint) / 0.12);
 }
 .range::-moz-range-progress {
   height: 4px;
@@ -877,7 +885,7 @@
   background: var(--sw);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.4),
-    0 0 0 2px rgb(0 0 0 / 0.35),
+    0 0 0 2px rgb(var(--shade) / calc(0.35 * var(--shade-k))),
     0 0 0 3px color-mix(in oklch, var(--sw) 40%, transparent);
 }
 .swatch-custom input[type="color"] {
@@ -1175,14 +1183,14 @@
   align-items: center;
   height: 44px;
   border-radius: 12px;
-  background: rgb(255 255 255 / 0.035);
+  background: rgb(var(--tint) / 0.035);
   box-shadow: inset 0 0 0 1px var(--line-2);
   transition:
     box-shadow 220ms ease,
     background 220ms ease;
 }
 .auth-input:focus-within {
-  background: rgb(255 255 255 / 0.055);
+  background: rgb(var(--tint) / 0.055);
   box-shadow:
     inset 0 0 0 1px color-mix(in oklch, var(--accent) 65%, transparent),
     0 0 0 4px color-mix(in oklch, var(--accent) 13%, transparent),
@@ -1246,7 +1254,7 @@
 }
 .auth-eye:hover {
   color: var(--fg-2);
-  background: rgb(255 255 255 / 0.05);
+  background: rgb(var(--tint) / 0.05);
 }
 .auth-hint {
   padding-left: 2px;
@@ -1268,7 +1276,7 @@
   flex: 1;
   height: 4px;
   border-radius: 4px;
-  background: rgb(255 255 255 / 0.07);
+  background: rgb(var(--tint) / 0.07);
   transition:
     background 320ms ease,
     box-shadow 320ms ease;
@@ -1544,9 +1552,9 @@
   font-weight: 300;
   font-variant-numeric: tabular-nums;
   color: var(--fg-1);
-  background: rgb(255 255 255 / 0.045);
+  background: rgb(var(--tint) / 0.045);
   box-shadow:
-    inset 0 0 0 1px rgb(255 255 255 / 0.07),
+    inset 0 0 0 1px rgb(var(--tint) / 0.07),
     inset 0 1px 0 rgb(255 255 255 / 0.05);
   transition:
     background-color 140ms var(--ease),
@@ -1555,7 +1563,7 @@
   -webkit-tap-highlight-color: transparent;
 }
 .vault-key:hover:not(:disabled) {
-  background: rgb(255 255 255 / 0.08);
+  background: rgb(var(--tint) / 0.08);
 }
 .vault-key:active:not(:disabled) {
   background: color-mix(in oklch, var(--accent) 24%, transparent);

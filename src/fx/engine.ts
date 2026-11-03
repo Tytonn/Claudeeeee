@@ -1,5 +1,8 @@
 import { goldenShift, mixRgb, oklchToRgb, to255, type RGB } from "./color";
-import { Sky, type SceneId } from "./sky";
+import { Sky, type InkStep, type SceneId } from "./sky";
+import { CLEARED, FALL, REVEAL, SKIP_MS, arrivalLook, dropInk } from "./inkArrival";
+import { INK_BLOOMS } from "./ink";
+import { newBloom, type InkBloom } from "./inkBlooms";
 import { viewportHeight } from "../lib/platform";
 import { ACCENTS, setBarColors } from "../lib/theme";
 
@@ -241,6 +244,39 @@ class FxEngine {
   private layoutAt = -1e9;
   private cloudsK = 1;
 
+  // ── ink ──
+  /** The current's own clock (s), and the time not yet simulated (the simulation steps 20 times a second). */
+  private inkT = 40;
+  private inkAcc = 0;
+  private inkBlooms: InkBloom[] = [];
+  private inkNext = 0;
+  /** Steps still to run quickly, to start with ink already in the water. */
+  private inkWarm = 0;
+  private inkReset = false;
+  private inkSteps: InkStep[] = [];
+  private inkMix = 1;
+  /** The cursor's motion, smoothed (screen heights per second). */
+  private stirV = { x: 0, y: 0 };
+  private stirAt = { x: 0, y: 0 };
+  /** How firmly the note's area is kept clear, and how much ink shows behind it (both dip while a drop arrives). */
+  private inkClear = 1;
+  private inkBehind = 0.16;
+  private inkRipples: { x: number; y: number; t0: number; strength: number }[] = [];
+  /** The drop arriving: when it started, where it lands, and what to tell whoever asked. */
+  private arrival: {
+    t0: number;
+    at: { x: number; y: number };
+    landed: boolean;
+    revealed: boolean;
+    out: number;
+    on: { land?: () => void; reveal?: () => void; done?: () => void };
+  } | null = null;
+  private intro: [number, number, number, number] = [0, 0, 0, 0];
+  /** The ink couldn't be drawn here: plain paper (CSS) instead. */
+  private inkStatic = false;
+  /** Until when (effects clock, ms) ink may stay in the middle of the screen — the launch's welcome. */
+  private inkHoldUntil = 0;
+
   // ── lifecycle ────────────────────────────────────────────────────────────
 
   init() {
@@ -296,6 +332,10 @@ class FxEngine {
     for (const type of ["keydown", "pointerdown", "wheel"] as const) addEventListener(type, () => (this.lastInput = this.clock), { passive: true });
     this.seedMotes();
     this.applyLevel();
+    if (this.scene === "ink") {
+      this.startInk();
+      this.placeSkyCanvas();
+    }
   }
 
   private makeCanvas(cls: string) {
@@ -375,6 +415,10 @@ class FxEngine {
       const budget = Math.sqrt(4.2e6 / Math.max(1, this.W * this.H));
       return Math.min(dpr, this.small ? 1.6 : 2, budget) * (this.effective === "subtle" ? 0.75 : 1);
     }
+    if (this.scene === "ink") {
+      // Soft ink, but paper with a tooth to it: about one pixel per CSS pixel (less on phones).
+      return Math.min(devicePixelRatio || 1, this.small ? 1.1 : 1.25) * (this.effective === "subtle" ? 0.75 : 1);
+    }
     if (this.scene === "solar") {
       // The clouds are drawn small anyway; the moon wants a crisp edge.
       return Math.min(devicePixelRatio || 1, this.small ? 1.25 : 1.35) * (this.effective === "subtle" ? 0.7 : 1);
@@ -400,7 +444,52 @@ class FxEngine {
     return this.scene === "solar";
   }
 
+  /** The Ink scene: a light one (paper), where effects are ink rather than light. */
+  get inkScene() {
+    return this.scene === "ink";
+  }
+
+  /** Whether this device can run the ink in the water (WebGL with float or 8-bit targets). */
+  get inkCapable() {
+    return Boolean(this.sky?.inkReady());
+  }
+
+  /** The reader asked for less motion (the big moments become simple changes). */
+  get reducedMotion() {
+    return this.reduced;
+  }
+
   /** Switches the sky. The rain sets in gradually; `instant` skips that (e.g. at startup). */
+  /** Clean water, with ink already drifting in it by the time anyone sees it. */
+  private startInk() {
+    this.inkBlooms = [];
+    this.inkRipples = [];
+    this.inkAcc = 0;
+    this.inkNext = this.inkT + 0.3;
+    this.inkWarm = 170;
+    this.inkReset = true;
+    this.inkClear = 1;
+    this.inkBehind = 0.16;
+    this.arrival = null;
+    this.intro = [0, 0, 0, 0];
+    // the cursor's stir starts from where it is (not from a leap across the screen)
+    this.stirAt = { ...this.mouse };
+    this.stirV = { x: 0, y: 0 };
+    // a handful already under way, along the bottom and the sides
+    const aspect = this.W / Math.max(1, this.H);
+    const panel = this.inkPanel();
+    const rect = { x0: panel[0], y0: panel[1], x1: panel[2], y1: panel[3] };
+    for (let i = 0; i < 4; i++) this.inkBlooms.push(newBloom(Math.random, this.inkT + i * 1.6, aspect, rect, false, this.inkScale));
+    this.inkStatic = !this.sky || !this.sky.inkReady();
+  }
+
+  /** The sky canvas: hidden when there's nothing to draw on it (ink this device can't simulate: plain paper). */
+  private placeSkyCanvas() {
+    if (!this.skyCanvas) return;
+    const on = this.effective !== "off" && Boolean(this.sky) && !(this.inkScene && this.inkStatic);
+    this.skyCanvas.style.display = on ? "" : "none";
+  }
+
   setScene(scene: SceneId, instant = false) {
     if (scene === this.scene) return;
     if (scene === "rain" && this.sky && !this.sky.rainReady()) scene = "eclipse";
@@ -408,7 +497,10 @@ class FxEngine {
     if (scene === this.scene) return;
     this.scene = scene;
     document.documentElement.dataset.scene = scene;
+    document.querySelector('meta[name="color-scheme"]')?.setAttribute("content", scene === "ink" ? "light" : "dark");
     this.barsSoon();
+    // (with effects off nothing reads the sky's edges: the bars just take the page's own colour)
+    if (this.started && this.effective === "off") setBarColors(null, null);
     if (scene !== "eclipse") {
       this.cmes = [];
       this.meteors = [];
@@ -425,6 +517,9 @@ class FxEngine {
       this.flashNow = 0;
       this.setRoomFlash(0);
     }
+    if (scene === "ink") this.startInk();
+    else this.endArrival();
+    if (this.started) this.placeSkyCanvas();
     if (scene === "solar") {
       this.solarFade = instant ? 1 : 0.55;
       this.nudges = [];
@@ -548,6 +643,7 @@ class FxEngine {
     const on = lvl !== "off";
     for (const c of [this.skyCanvas, this.dustCanvas, this.overCanvas]) if (c) c.style.display = on ? "" : "none";
     if (!this.sky && this.skyCanvas) this.skyCanvas.style.display = "none";
+    this.placeSkyCanvas();
     document.documentElement.dataset.fx = lvl;
     this.resize();
     if (on && !this.raf) {
@@ -634,7 +730,8 @@ class FxEngine {
 
   private frame = (real: number) => {
     this.raf = requestAnimationFrame(this.frame);
-    const realDt = Math.min(0.25, (real - this.last) / 1000);
+    // (a frame's timestamp can fall a hair before the moment the loop was started: never go back in time)
+    const realDt = Math.max(0, Math.min(0.25, (real - this.last) / 1000));
     const dt = Math.min(0.05, realDt) * this.timeScale;
     this.last = real;
     if (!document.hidden) this.adapt(realDt);
@@ -664,13 +761,19 @@ class FxEngine {
     this.trackPanel();
     if (this.rain) this.stepRain(now, dt, idle);
     if (this.solar) this.stepSolar(now, dt, idle);
+    if (this.inkScene && !this.inkStatic) this.stepInk(now, dt);
 
     // Sky: the eclipse drifts so slowly while you write that ~30fps is plenty then. Rain never
     // slows down — falling drops stutter visibly at anything less than every frame — and nor does
     // the solar eclipse while something's happening in it.
-    const throttle = !this.rain && !this.solarBusy && this.energy < 0.4 ? 32 : 0;
-    if (this.sky && (now - this.lastSky > throttle || this.flare > 0.02 || this.shocks.length || this.flashNow > 0.004)) {
+    const throttle = !this.rain && !this.solarBusy && !this.inkScene && this.energy < 0.4 ? 32 : 0;
+    if (this.sky && !(this.inkScene && this.inkStatic) && (this.inkScene || now - this.lastSky > throttle || this.flare > 0.02 || this.shocks.length || this.flashNow > 0.004)) {
       this.renderSky(now);
+    }
+
+    if (this.inkScene) {
+      this.drawOverlay(now, dt);
+      return;
     }
 
     if (this.rain || this.solar) {
@@ -747,7 +850,10 @@ class FxEngine {
         tint: this.tintNow,
         goldShift: this.goldShift(),
       },
+      ink: this.inkFrame(),
     });
+    this.inkSteps = [];
+    this.inkReset = false;
     this.matchBars(now);
   }
 
@@ -787,6 +893,256 @@ class FxEngine {
     this.barTop = top;
     this.barBottom = bottom;
     setBarColors(top, bottom);
+  }
+
+  // ── ink ──────────────────────────────────────────────────────────────────
+
+  /**
+   * The part of the screen kept clear of ink (behind the note), in screen heights (y up). On a
+   * phone the note is the whole screen, so the clear part is its middle: ink keeps to the sides
+   * and gathers below.
+   */
+  private inkPanel(): [number, number, number, number] {
+    const H = Math.max(1, this.H);
+    let { x, y, w, h } = this.panel;
+    // on a phone (or a note filling the screen) all of it is writing: the ink keeps to a thin
+    // margin down the sides and gathers along the bottom
+    const full = this.small || w > this.W * 0.86;
+    if (full) {
+      x = this.W * 0.07;
+      w = this.W * 0.86;
+      y = this.H * 0.1;
+      h = this.H * 0.74;
+    }
+    if (y > this.H) return [-9, -9, -8.9, -8.9];
+    // and on a big screen it may pool a little way up along the bottom edge, under the note
+    const pool = full ? 0 : Math.min(0.07, 54 / H);
+    return [x / H, Math.max(1 - (y + h) / H, pool), (x + w) / H, 1 - y / H];
+  }
+
+  /** How big the clouds are, for the screen's shape: smaller on a tall, narrow one. */
+  private get inkScale() {
+    const aspect = this.W / Math.max(1, this.H);
+    return Math.min(1, Math.max(0.55, 0.55 + (0.45 * (aspect - 0.45)) / 0.85));
+  }
+
+  private stepInk(now: number, dt: number) {
+    const aspect = this.W / Math.max(1, this.H);
+    const panel = this.inkPanel();
+    const rect = { x0: panel[0], y0: panel[1], x1: panel[2], y1: panel[3] };
+    const steps: InkStep[] = [];
+    const add = (sdt: number) => {
+      // new clouds come along every few seconds (a little less often while you write)
+      while (this.inkT >= this.inkNext) {
+        this.inkBlooms.push(newBloom(Math.random, this.inkNext, aspect, rect, false, this.inkScale));
+        // and the bottom gets an extra one now and then
+        if (Math.random() < 0.3) {
+          const b = newBloom(Math.random, this.inkNext + rand(0.6, 2.2), aspect, rect, false, this.inkScale);
+          b.y = rand(0.01, this.small ? 0.08 : 0.12);
+          this.inkBlooms.push(b);
+        }
+        this.inkNext += rand(4.5, 8.5) * (this.calm ? 1.3 : 1);
+      }
+      const A = new Float32Array(INK_BLOOMS * 4);
+      const B = new Float32Array(INK_BLOOMS * 4);
+      const live = this.inkBlooms.filter((b) => this.inkT >= b.t0 && this.inkT - b.t0 < 14).slice(-INK_BLOOMS);
+      for (let i = 0; i < INK_BLOOMS; i++) {
+        const b = live[i];
+        if (b) {
+          A.set([b.x, b.y, b.r, this.inkT - b.t0], i * 4);
+          B.set([b.amount, b.indigo, b.push, b.seed], i * 4);
+        } else A.set([0, 0, 0.05, -1], i * 4);
+      }
+      steps.push({ t: this.inkT, dt: sdt, A, B });
+      this.inkT += sdt;
+    };
+    // to begin with: a quick run (in bigger steps), so there's already ink in the water
+    let n = 0;
+    while (this.inkWarm > 0 && n < 30) {
+      add(0.15);
+      this.inkWarm--;
+      n++;
+    }
+    // then twenty steps a second
+    const STEP = 0.05;
+    this.inkAcc += dt;
+    let k = 0;
+    while (this.inkAcc >= STEP && k < 3) {
+      add(STEP);
+      this.inkAcc -= STEP;
+      k++;
+    }
+    if (this.inkAcc > STEP * 3) this.inkAcc = 0;
+    this.inkMix = Math.min(1, Math.max(0, this.inkAcc / STEP));
+    this.inkSteps = steps;
+    this.inkBlooms = this.inkBlooms.filter((b) => this.inkT - b.t0 < 14);
+
+    // the cursor stirs the water as it moves (a mouse; a finger is for scrolling)
+    const H = Math.max(1, this.H);
+    const vx = (this.mouse.x - this.stirAt.x) / Math.max(dt, 1e-3) / H;
+    const vy = -(this.mouse.y - this.stirAt.y) / Math.max(dt, 1e-3) / H;
+    this.stirAt = { ...this.mouse };
+    const cap = (v: number) => Math.max(-1.2, Math.min(1.2, v));
+    const kk = Math.min(1, dt * 9);
+    this.stirV.x += (cap(vx) - this.stirV.x) * kk;
+    this.stirV.y += (cap(vy) - this.stirV.y) * kk;
+
+    // ripples run out and die away
+    this.inkRipples = this.inkRipples.filter((r) => now - r.t0 < 3200);
+
+    // the area behind the note clears again after a drop, and its ink goes back to a whisper
+    if (!this.arrival && now > this.inkHoldUntil) {
+      this.inkClear += (1 - this.inkClear) * Math.min(1, dt * 0.45);
+      this.inkBehind += (0.16 - this.inkBehind) * Math.min(1, dt * 0.45);
+    }
+    this.stepArrival(now);
+  }
+
+  /** The drop arriving, frame by frame. */
+  private stepArrival(now: number) {
+    const a = this.arrival;
+    if (!a) {
+      this.intro = [0, 0, 0, 0];
+      return;
+    }
+    // the water's first quick steps (a burst of work) happen in the dark, before the drop falls
+    if (this.inkWarm > 0 && !a.landed && !a.out) a.t0 = now;
+    const t = (now - a.t0) / 1000;
+    if (t >= FALL && !a.landed) this.landDrop(a, now);
+    if (a.landed && !a.revealed && t >= REVEAL) {
+      a.revealed = true;
+      a.on.reveal?.();
+    }
+    const out = a.out > 0 ? Math.min(1, (now - a.out) / SKIP_MS) : 0;
+    this.intro = arrivalLook(t, out);
+    if (this.intro[0] <= 0.001 && (t > CLEARED || out >= 1)) {
+      this.arrival = null;
+      this.intro = [0, 0, 0, 0];
+      a.on.done?.();
+    }
+  }
+
+  /** The drop lands: a cloud of ink blooms out from it, and a ripple runs out across the water. */
+  private landDrop(a: NonNullable<FxEngine["arrival"]>, now: number) {
+    a.landed = true;
+    const H = Math.max(1, this.H);
+    this.inkBlooms.push(...dropInk(a.at.x / H, 1 - a.at.y / H, this.inkT, Math.random, this.inkScale));
+    this.inkRipples.push({ x: a.at.x, y: a.at.y, t0: now, strength: 1.5 });
+    a.on.land?.();
+  }
+
+  /**
+   * Ink arriving: the screen is dark, a single drop falls to the middle, and as it lands a ripple
+   * runs out, the ink blooms and curls away from it, and the paper opens out of the dark around
+   * it. `land` and `reveal` are told when it lands and when the page can start coming back.
+   */
+  inkArrive(on: { land?: () => void; reveal?: () => void; done?: () => void } = {}) {
+    if (!this.inkScene || this.inkStatic || !this.active) return false;
+    const at = { x: this.W / 2, y: this.H / 2 };
+    this.arrival = { t0: this.clock, at, landed: false, revealed: false, out: 0, on };
+    // the ink from the drop is allowed in the middle for a while, then cleared away as the note returns
+    this.inkClear = 0.06;
+    this.inkBehind = 1;
+    this.stepArrival(this.clock);
+    return true;
+  }
+
+  /** Skips to the end of the arrival (a tap, a click or a key): the drop lands at once. */
+  inkSkip() {
+    const a = this.arrival;
+    if (!a || a.out) return;
+    a.out = this.clock;
+    if (!a.landed) this.landDrop(a, this.clock);
+    if (!a.revealed) {
+      a.revealed = true;
+      a.on.reveal?.();
+    }
+  }
+
+  /** Whether a drop is arriving right now. */
+  get arriving() {
+    return Boolean(this.arrival);
+  }
+
+  /** Drops the arrival at once (the scene is changing again): its `done` is still told. */
+  private endArrival() {
+    const a = this.arrival;
+    if (!a) return;
+    this.arrival = null;
+    this.intro = [0, 0, 0, 0];
+    a.on.done?.();
+  }
+
+  /**
+   * The launch's welcome on paper: a slow cloud of ink opening out under the name (at x, y, CSS
+   * px), allowed to linger in the middle of the screen for `hold` ms before the page clears it.
+   */
+  inkWelcome(x: number, y: number, hold = 2600) {
+    if (!this.inkScene || this.inkStatic || !this.active) return false;
+    const H = Math.max(1, this.H);
+    this.inkHoldUntil = this.clock + hold;
+    this.inkClear = 0.05;
+    this.inkBehind = 1;
+    const s = this.inkScale;
+    this.inkBlooms.push({ x: x / H, y: 1 - y / H, r: 0.06 * s, t0: this.inkT + 0.05, amount: 2.3, indigo: 0.12, push: 0.085 * s, seed: Math.random() * 100 });
+    this.inkBlooms.push({ x: x / H - 0.05 * s, y: 1 - y / H - 0.012, r: 0.035 * s, t0: this.inkT + 0.55, amount: 1.5, indigo: 0.6, push: 0.05 * s, seed: Math.random() * 100 });
+    this.inkBlooms.push({ x: x / H + 0.06 * s, y: 1 - y / H + 0.008, r: 0.03 * s, t0: this.inkT + 0.85, amount: 1.3, indigo: 0.25, push: 0.045 * s, seed: Math.random() * 100 });
+    return true;
+  }
+
+  /**
+   * For a moment, ink may show behind the note (a new page's drop, a deleted page's words letting
+   * go): it shows more strongly there, and is cleared more gently, for `ms` — then as usual.
+   */
+  inkLinger(ms: number, behind = 0.6) {
+    if (!this.inkScene) return;
+    this.inkHoldUntil = Math.max(this.inkHoldUntil, this.clock + ms);
+    this.inkBehind = Math.max(this.inkBehind, behind);
+    this.inkClear = Math.min(this.inkClear, 0.3);
+  }
+
+  /** A ripple running out across the water (and the paper). */
+  inkRipple(x: number, y: number, strength = 1) {
+    if (!this.inkScene) return;
+    this.inkRipples.push({ x, y, t0: this.clock, strength });
+    if (this.inkRipples.length > 3) this.inkRipples.shift();
+  }
+
+  /** A fresh cloud of ink blooming at a point on the screen (CSS px). */
+  inkBloom(x: number, y: number, o: { size?: number; amount?: number; indigo?: number; push?: number; splash?: boolean } = {}) {
+    if (!this.inkScene || this.inkStatic) return;
+    const H = Math.max(1, this.H);
+    this.inkBlooms.push({
+      x: x / H,
+      y: 1 - y / H,
+      r: o.size ?? 0.06,
+      t0: this.inkT,
+      amount: o.amount ?? 2,
+      indigo: o.indigo ?? (Math.random() < 0.4 ? rand(0.3, 0.7) : rand(0, 0.1)),
+      push: o.push ?? 0.11,
+      // (past 1000: a drop's splash — it opens out in curling fingers)
+      seed: Math.random() * 100 + (o.splash ? 1000 : 0),
+    });
+  }
+
+  private inkFrame() {
+    const H = Math.max(1, this.H);
+    const now = this.clock;
+    return {
+      steps: this.inkSteps,
+      mix: this.inkMix,
+      reset: this.inkReset,
+      aspect: this.W / H,
+      panel: this.inkPanel(),
+      clear: this.inkClear,
+      stir: [this.mouse.x / H, 1 - this.mouse.y / H, this.stirV.x * 0.4 * this.cursorK * (this.small ? 0 : 1), this.stirV.y * 0.4 * this.cursorK * (this.small ? 0 : 1)] as [number, number, number, number],
+      flow: this.effective === "subtle" ? 0.7 : 1,
+      behind: this.inkBehind,
+      ripples: this.inkRipples.slice(-3).map((r) => [r.x, r.y, (now - r.t0) / 1000, r.strength] as [number, number, number, number]),
+      intro: this.intro,
+      drop: this.arrival ? this.arrival.at : { x: this.W / 2, y: this.H / 2 },
+      fade: 1,
+    };
   }
 
   // ── the solar eclipse ────────────────────────────────────────────────────
@@ -1868,7 +2224,9 @@ class FxEngine {
 
   flash(x: number, y: number, r: number, o: { dur?: number; alpha?: number; color?: C255; delay?: number } = {}) {
     if (!this.active) return;
-    this.flashes.push({ x, y, r, t0: this.clock + (o.delay ?? 0), dur: o.dur ?? 500, color: o.color ?? this.accent, alpha: o.alpha ?? 0.5 });
+    // (on paper a flash of light becomes a wash of ink, which needs far less of it)
+    const alpha = (o.alpha ?? 0.5) * (this.inkScene ? 0.32 : 1);
+    this.flashes.push({ x, y, r, t0: this.clock + (o.delay ?? 0), dur: o.dur ?? 500, color: o.color ?? this.accent, alpha });
     this.overDirty = true;
   }
 
@@ -1892,6 +2250,10 @@ class FxEngine {
     if (!this.active) return;
     if (this.rain) {
       this.thunderclap();
+      return;
+    }
+    if (this.inkScene) {
+      this.inkNewPage();
       return;
     }
     if (this.solar) {
@@ -1937,6 +2299,23 @@ class FxEngine {
     this.rays.push({ x, y, n: 16, r0: 6, len: 90, color: this.accentHot, spin: 0.3, width: 1.4, t0: now, dur: 700 });
     this.burst(x, y, { count: 70, speed: 420, size: 2, life: 1.1, sparks: 0.7 });
     this.overDirty = true;
+  }
+
+  /**
+   * New note, on paper: a drop of ink lands on the fresh page and blooms out under it as the page
+   * develops, a ripple running out from it — then the water carries it off.
+   */
+  private inkNewPage() {
+    const p = this.panel;
+    if (p.circle || !this.inkScene) return;
+    const x = p.x + p.w * rand(0.4, 0.6);
+    const y = p.y + Math.min(p.h * 0.2, 150);
+    this.inkLinger(900);
+    const s = this.inkScale;
+    this.inkBloom(x, y, { size: 0.045 * s, amount: 1.5, push: 0.2 * s, indigo: rand(0.2, 0.55), splash: true });
+    this.inkRipple(x, y, 1);
+    // and a few flecks of ink flicked off the nib
+    if (this.full) this.burst(x, y, { count: 16, speed: 170, size: 1.4, life: 0.6, sparks: 0.25 });
   }
 
   /**

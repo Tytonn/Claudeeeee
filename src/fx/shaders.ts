@@ -94,7 +94,8 @@ vec2 shock(vec4 s, vec2 p, inout float light) {
   float d = length(dv);
   float R = s.z * uScale * 1.5;
   float w = uScale * .05;
-  float band = exp(-pow((d - R) / w, 2.));
+  float u = (d - R) / w;
+  float band = exp(-u * u);
   float fade = 1. - s.z;
   light += band * fade * fade * s.w;
   return p - (dv / max(d, 1.)) * band * s.w * fade * uScale * .03;

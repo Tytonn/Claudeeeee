@@ -21,10 +21,13 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <script src="/boot.js"></script>
     <style>
       html { background: #060607; }
       /* Covers the first frames (the sky drawing itself, the fonts arriving) until the intro or the app is ready. */
       #veil { position: fixed; inset: 0 0 -25vh 0; z-index: 20000; background: #060607; pointer-events: none; transition: opacity 450ms ease; }
+      /* the Ink scene starts on paper (see boot.js) */
+      html[data-scene="ink"], html[data-scene="ink"] #veil { background: #f1ede5; }
     </style>
   </head>
   <body>
