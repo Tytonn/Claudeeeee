@@ -265,13 +265,7 @@ export function Workspace() {
   // How this note arrives: a dawn for new notes, a focus pull when switching.
   const entrance = useMemo(() => peekEntrance(), [activeId]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => resetEntrance(), [activeId]);
-  // A new note's light washes down the whole page from above its top edge, centred under the flash.
-  const dawnX = useMemo(() => {
-    if (entrance !== "dawn") return undefined;
-    const r = panelRef.current?.getBoundingClientRect();
-    const x = fx.ringX;
-    return r && r.width && x !== null ? `${Math.round(Math.min(95, Math.max(5, ((x - r.left) / r.width) * 100)))}%` : undefined;
-  }, [entrance, activeId]); // eslint-disable-line react-hooks/exhaustive-deps
+
 
   useGlobalShortcuts();
   useTypingFade(settings.fadeWhileTyping && !isMobile);
@@ -299,7 +293,8 @@ export function Workspace() {
         <main className="canvas" ref={panelRef} data-light>
           <div className="canvas-glow" aria-hidden />
           {entrance === "dawn" && view !== "trash" && !openShared && (
-            <div key={`dawn-${activeId}`} className="canvas-dawn" style={dawnX ? ({ "--dawn-x": dawnX } as React.CSSProperties) : undefined} aria-hidden />
+            // A new note's light washes down the whole page, from above its top edge.
+            <div key={`dawn-${activeId}`} className="canvas-dawn" aria-hidden />
           )}
           <TopBar />
           <div className="canvas-scroll" ref={setScroller}>

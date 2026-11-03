@@ -449,13 +449,6 @@ class FxEngine {
     return Math.pow(2, (Math.min(1, Math.max(0, this.solarOpts.size)) - 0.5) * 1.4);
   }
 
-  /** Where the light of a new note's diamond ring comes from, across the screen (CSS px): the
-   *  flash on the page's rim, or the sun itself under the solar eclipse. Null in the rain. */
-  get ringX(): number | null {
-    if (this.rain) return null;
-    return this.solar ? this.sun.x : this.diamond.x;
-  }
-
   /** Where the sun is (CSS px), for things that start from it. */
   get sunSpot() {
     return { ...this.sun };
@@ -1810,7 +1803,8 @@ class FxEngine {
       return;
     }
     const p = this.panel;
-    let x = p.x + p.w * rand(0.62, 0.86);
+    // On the page's top edge, near the middle (its light washes down over the whole page).
+    let x = p.x + p.w * rand(0.44, 0.56);
     let y = p.y + 1;
     if (p.circle) {
       // On a moon: wherever its rim is actually on screen (bottom if it hangs above the page).
