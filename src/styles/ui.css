@@ -368,8 +368,17 @@
   overflow: auto;
   overscroll-behavior: contain;
 }
+/* As tall as there's room for on screen (worked out where it's placed — see Popover.tsx), and it
+   scrolls beyond that: a long list never runs off the edge of the window. */
+[data-floating-layer] > .popover {
+  max-height: inherit;
+}
 
 .menu {
+  /* (the lists slide within the menu's own edges when a submenu opens or closes: the one leaving
+     never spills out of the menu, so no scrollbars flash on the way) */
+  position: relative;
+  overflow: hidden;
   min-width: 214px;
   padding: 5px;
   outline: none;
