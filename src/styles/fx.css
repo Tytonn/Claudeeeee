@@ -156,19 +156,40 @@ html:not([data-fx="off"]) .pill-btn.is-live::after {
 .note-wrap {
   position: relative;
 }
-/* New note: the page develops like an exposure as the diamond ring flashes. */
+/* New note: the page develops like an exposure as the diamond ring flashes… */
 html:not([data-fx="off"]) .note-wrap.enter-dawn {
   animation: develop 1100ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
-html:not([data-fx="off"]) .note-wrap.enter-dawn::before {
-  content: "";
+/* …and its light washes down the whole panel — top bar and all — pouring in from beyond the
+   top edge, under the flash, soft all round (it never starts at a line). */
+.canvas-dawn {
   position: absolute;
-  inset: -10% 0 auto;
-  height: 38%;
+  inset: 0 0 auto;
+  height: 78%;
+  z-index: 6;
   pointer-events: none;
-  background: linear-gradient(180deg, transparent, color-mix(in oklch, var(--accent) 22%, transparent) 45%, rgb(255 255 255 / 0.16) 50%, transparent);
-  filter: blur(8px);
-  animation: develop-sweep 1100ms cubic-bezier(0.4, 0, 0.2, 1) both;
+  background:
+    radial-gradient(58% 52% at var(--dawn-x, 62%) 44%, color-mix(in oklch, var(--accent) 24%, transparent), transparent 72%),
+    radial-gradient(95% 42% at var(--dawn-x, 62%) 48%, rgb(255 255 255 / 0.09), transparent 76%);
+  mix-blend-mode: screen;
+  opacity: 0;
+  animation: dawn-wash 1350ms cubic-bezier(0.3, 0.6, 0.3, 1) both;
+}
+@keyframes dawn-wash {
+  0% {
+    transform: translateY(-82%);
+    opacity: 0;
+  }
+  22% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(118%);
+    opacity: 0;
+  }
+}
+html[data-fx="off"] .canvas-dawn {
+  display: none;
 }
 @keyframes develop {
   0% {
@@ -184,16 +205,6 @@ html:not([data-fx="off"]) .note-wrap.enter-dawn::before {
     opacity: 1;
     filter: none;
     transform: none;
-  }
-}
-@keyframes develop-sweep {
-  from {
-    transform: translateY(-40%);
-    opacity: 1;
-  }
-  to {
-    transform: translateY(330%);
-    opacity: 0;
   }
 }
 /* Switching notes: a lens pulling focus, with a breath of chromatic split. */
