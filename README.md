@@ -22,7 +22,7 @@
 - **Settings → Background:** *Dark* (smoked glass), *Glass* (more sky), *Clear* (the default: the sky almost fully, with a soft shade behind your words), *Crystal* (no glass at all — just outlines over the open sky, with a crisp little drop shadow behind every word) or *Bare* (nothing at all: no panels, no outlines, no shade — the sky's light even carries on behind your words instead of stopping at the page's edge). Also in the command palette: *Show more of the sky*.
 - **Settings → Title font:** the typeface of every note's title — *Display* (the tall, narrow serif), *Display italic*, *Serif*, *Sans* or *Mono*. Or just right-click a title.
 - On a phone, the status bar and the strip under the gesture bar take on the colors at the top and bottom of the sky, so it runs right to the edges of the screen.
-- **Settings → About → Show version:** a small gray *v1.06* beside the logo, so a screenshot says which version it's from. The exact build (its commit and time) is listed there too, and in the command palette's *Screen info*. The number lives in `src/version.ts` and goes up with every update.
+- **Settings → About → Show version:** a small gray *v1.07* beside the logo, so a screenshot says which version it's from. The exact build (its commit and time) is listed there too, and in the command palette's *Screen info*. The number lives in `src/version.ts` and goes up with every update.
 
 **Solar eclipse** *(Settings → Scene → Solar eclipse)*
 - A real total solar eclipse, seen from the ground, drawn live on the GPU: a black moon in a golden, glowing ring, the pearly corona streaming out around it in long, fine-combed blades, pink prominences standing up off the rim, and a dusky sky with a sunset glowing all the way round the horizon — the way it really looks at totality. Venus and a few stars come out in the dark.
@@ -56,6 +56,7 @@
 - Code blocks with syntax highlighting, smart quotes and dashes, links (<kbd>Ctrl/⌘</kbd>+click to open).
 - **Pictures:** paste or drop one in, or type <kbd>/</kbd> → *Image* (on a phone, that opens your photos and camera). A blurry stand-in holds its exact space at once, then the picture develops in over it. Double-click (or the corner button) to see it full-screen. **Resize** one by dragging either side (a finger works too — it settles on the usual sizes and shows the percentage as you go), or select it and pick *Small*, *Medium*, *Large* or *Full* from the bar on it; its width is kept as a share of the page, so it suits any screen. Pictures are shrunk to a sharp ~2200px and re-encoded in your browser before they go anywhere.
 - **Groups:** file notes into groups (folders) — drag a note onto one, or use *Move to group* in its menu. Groups fold up, rename in place, and sync with your account.
+- **A note's menu** (pin, share, duplicate, move to a group, copy, download, trash): right-click it in the list — on a phone or tablet, tap its *···* or hold your finger on it. Groups work the same way.
 - **Hidden notes:** *Hide note* takes a note out of your list, search and trash. It's in a note's menu (in your accent color) only while your hidden notes are unlocked. To unlock them, search for **hidden** and enter your 4-digit PIN; they show up in their own section until you lock them (or after a minute away from the app). Forgot the PIN? Your account password lets you choose a new one.
 - Saves instantly as you type. Pin, duplicate, copy as Markdown, download `.md`, trash with undo (auto-empties after 30 days).
 - Empty notes clean themselves up. Your place in each note is remembered.
@@ -63,7 +64,7 @@
 **To-dos** *(optional)*
 - Check things off with a little tick, a burst, and a strike-through that draws itself.
 - <kbd>Enter</kbd> adds the next one, drag the handle to reorder, completed items tuck away.
-- **Colors** *(optional)*: give a to-do a color from the dot on its row (or right-click it — on a phone, hold your finger on it); its checkbox wears it. Turn on *Group by color* in the list's header and they sort into sections — rename a color to whatever it means to you (*Work*, *Home*…).
+- **Colors** *(optional)*: give a to-do a color from the dot on its row (or right-click it — on a phone or tablet, hold your finger on it); its checkbox wears it. Turn on *Group by color* in the list's header and they sort into sections — rename a color to whatever it means to you (*Work*, *Home*…).
 
 **Countdowns** *(optional)*
 - Type naturally: *"Tokyo trip dec 20"*, *"Mom's birthday march 3"*, *"Flight in 3 days at 7am"* — the date is understood as you type. Or pick one from the calendar.

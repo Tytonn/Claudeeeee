@@ -101,14 +101,14 @@ body,
 #root {
   height: 100%;
 }
-/* An iPhone Home Screen app: iOS lays the page out short by the see-through status bar's height
-   and paints nothing below the page — so the page itself is as tall as the screen. */
-html.is-iphone-app,
-html.is-iphone-app body,
-html.is-iphone-app #root {
+/* A Home Screen app on an iPhone or iPad: iOS lays the page out short by the see-through status
+   bar's height and paints nothing below the page — so the page itself is as tall as the screen. */
+html.is-ios-app,
+html.is-ios-app body,
+html.is-ios-app #root {
   height: var(--app-h, 100%);
 }
-html.is-iphone-app {
+html.is-ios-app {
   overflow: hidden;
 }
 

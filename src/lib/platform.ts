@@ -14,10 +14,19 @@ const iOS = /iPhone|iPad|iPod/.test(ua) || (nav?.platform === "MacIntel" && (nav
 export const standalone = nav?.standalone === true || mq("(display-mode: standalone)");
 
 /**
- * An iPhone Home Screen app: it owns the whole screen, under a see-through status bar. (Also
- * recognised by its tell-tale measurements — see startViewportFit — in case iOS doesn't say so.)
+ * A Home Screen app on an iPhone or iPad: it owns the whole screen, under a see-through status
+ * bar. An iPhone app always has the whole screen; an iPad one is recognised by its tell-tale
+ * measurements (see startViewportFit), since an iPad can also put it in a smaller window — and
+ * since iPads introduce themselves to websites as Macs.
  */
-export let iPhoneApp = /iPhone|iPod/.test(ua) && standalone;
+export let iosApp = /iPhone|iPod/.test(ua) && standalone;
+
+/** The screen's full width and height the way it's held now (CSS px). */
+function fullScreen(): { w: number; h: number } {
+  const long = Math.max(screen.width, screen.height);
+  const short = Math.min(screen.width, screen.height);
+  return mq("(orientation: landscape)") ? { w: long, h: short } : { w: short, h: long };
+}
 
 /** How far the screen's safe area reaches in from the top and bottom (CSS px). */
 function insets(): { top: number; bottom: number } {
@@ -45,7 +54,7 @@ export function screenInfo(): string {
     `app ${root.style.getPropertyValue("--app-h") || "-"}`,
     `html ${Math.round(root.getBoundingClientRect().height)}`,
     `standalone ${standalone ? "yes" : "no"}`,
-    `iPhone app ${iPhoneApp ? "yes" : "no"}`,
+    `iOS app ${iosApp ? "yes" : "no"}`,
     `dpr ${devicePixelRatio}`,
   ]
     .filter(Boolean)
@@ -60,16 +69,17 @@ export function screenInfo(): string {
 export const webkit = iOS || (/AppleWebKit/.test(ua) && /Safari/.test(ua) && !/Chrome|Chromium|CriOS|Edg|OPR|Android/.test(ua));
 
 /**
- * The height we really have. In an iPhone Home Screen app with a see-through status bar, CSS
- * viewport units (and on some iOS versions innerHeight) come up short by the status bar's
- * height, which left a dark strip along the bottom. The app has the whole screen, so use it.
+ * The height we really have. In a Home Screen app with a see-through status bar, CSS viewport
+ * units (and on some iOS versions innerHeight) come up short by the status bar's height, which
+ * left a dark strip along the bottom. The app has the whole screen, so use it — as long as it
+ * really has it (an iPad can show it in a smaller window).
  */
 export function viewportHeight(): number {
   const h = window.innerHeight;
-  if (!iPhoneApp) return h;
-  const long = Math.max(screen.width, screen.height);
-  const short = Math.min(screen.width, screen.height);
-  return Math.max(h, mq("(orientation: landscape)") ? short : long);
+  if (!iosApp) return h;
+  const full = fullScreen();
+  if (Math.abs(innerWidth - full.w) > 3) return h;
+  return Math.max(h, full.h);
 }
 
 /** Keeps `--app-h` (used for every full-height layer) equal to the real screen height on iPhone apps. */
@@ -84,20 +94,19 @@ export function startViewportFit() {
         if (!typing && (scrollX || scrollY)) scrollTo(0, 0);
       }, 80),
     );
-  // The tell-tale of a Home Screen app under a see-through status bar, even if iOS doesn't say
-  // it's one: the page comes up short by exactly the status bar's height.
-  if (!iPhoneApp && /iPhone|iPod/.test(ua)) {
+  // The tell-tale of a Home Screen app under a see-through status bar (on an iPad, or an iPhone
+  // that doesn't say it's one): a window as wide as the screen, whose page comes up short by
+  // exactly the status bar's height.
+  if (!iosApp && iOS) {
     const top = insets().top;
-    const long = Math.max(screen.width, screen.height);
-    const short = Math.min(screen.width, screen.height);
-    const full = mq("(orientation: landscape)") ? short : long;
-    if (top > 20 && Math.abs(full - (innerHeight + top)) <= 3) iPhoneApp = true;
+    const full = fullScreen();
+    if (top >= 20 && Math.abs(innerWidth - full.w) <= 3 && Math.abs(full.h - (innerHeight + top)) <= 3) iosApp = true;
   }
-  if (!iPhoneApp) return;
+  if (!iosApp) return;
   // iOS lays the page out short by the status bar's height — and paints nothing below the
   // page, which left a dark band (with the bottom bar under it) along the bottom of the screen.
   // So the page itself is made as tall as the screen, not just what's in it.
-  document.documentElement.classList.add("is-iphone-app");
+  document.documentElement.classList.add("is-ios-app");
   // (and if iOS nudges the now-taller page up a little, put it back — unless you're typing)
   addEventListener(
     "scroll",

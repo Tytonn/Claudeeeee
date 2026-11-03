@@ -64,6 +64,7 @@ import { AccountButton } from "../account/AccountModal";
 import { navigate } from "../lib/router";
 import { toast } from "../store/toasts";
 import { BUILD_SHA, VERSION } from "../version";
+import { touchScreen, useLongPress } from "../lib/longPress";
 
 export function noteMenuItems(note: Note, opts: { share?: boolean } = {}): MenuItem[] {
   const { groups, ui } = useApp.getState();
@@ -94,6 +95,32 @@ export function noteMenuItems(note: Note, opts: { share?: boolean } = {}): MenuI
   ];
 }
 
+/** A note someone shared with you, in your list: open it, or (right-click, hold, or ···) its menu. */
+function SharedRow({ id, title, from, active, menuOpen, onOpen, onMenu }: { id: string; title: string; from: string; active: boolean; menuOpen: boolean; onOpen: () => void; onMenu: (x: number, y: number) => void }) {
+  const hold = useLongPress(onMenu);
+  return (
+    <motion.button
+      layout="position"
+      transition={spring}
+      type="button"
+      data-shared-id={id}
+      className={`sb-item sb-shared-item ${active ? "is-active" : ""} ${menuOpen ? "is-menu" : ""}`}
+      aria-current={active ? "page" : undefined}
+      onClick={onOpen}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onMenu(e.clientX, e.clientY);
+      }}
+      {...hold}
+    >
+      {active && <motion.span layoutId="sb-active" className="sb-item-bg" transition={spring} />}
+      <span className="sb-item-title">{title}</span>
+      <span className="sb-item-from mono">{from}</span>
+      <RowMore label={`${title} options`} onOpen={onMenu} />
+    </motion.button>
+  );
+}
+
 /** Notes other people shared with you — so you can always get back to them. */
 function SharedSection() {
   const shared = useApp((s) => s.shared);
@@ -110,31 +137,21 @@ function SharedSection() {
       <div className="sb-label label">
         <Users size={11} strokeWidth={2} /> Shared with you
       </div>
-      {list.map((l) => {
-        const active = view === "notes" && openShared === l.id;
-        return (
-          <motion.button
-            key={l.id}
-            layout="position"
-            transition={spring}
-            type="button"
-            className={`sb-item sb-shared-item ${active ? "is-active" : ""}`}
-            aria-current={active ? "page" : undefined}
-            onClick={() => {
-              flushEditor();
-              setUI({ openShared: l.id, view: "notes", mobile: "editor" });
-            }}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              setMenu({ id: l.id, x: e.clientX, y: e.clientY });
-            }}
-          >
-            {active && <motion.span layoutId="sb-active" className="sb-item-bg" transition={spring} />}
-            <span className="sb-item-title">{l.title || "Untitled"}</span>
-            <span className="sb-item-from mono">{l.from ? l.from.split(/\s+/)[0] : ""}</span>
-          </motion.button>
-        );
-      })}
+      {list.map((l) => (
+        <SharedRow
+          key={l.id}
+          id={l.id}
+          title={l.title || "Untitled"}
+          from={l.from ? l.from.split(/\s+/)[0] : ""}
+          active={view === "notes" && openShared === l.id}
+          menuOpen={menu?.id === l.id}
+          onOpen={() => {
+            flushEditor();
+            setUI({ openShared: l.id, view: "notes", mobile: "editor" });
+          }}
+          onMenu={(x, y) => setMenu({ id: l.id, x, y })}
+        />
+      ))}
       <Popover open={Boolean(menu && menuLink)} onClose={() => setMenu(null)} anchor={menuAnchor} placement="bottom-start" role="menu">
         {menuLink && (
           <Menu
@@ -168,9 +185,35 @@ type RowProps = {
 };
 
 /** One note in the list. */
+/**
+ * On a touch screen, a row's own "···": a phone can't right-click, so its menu needs a way in
+ * (holding a finger on the row works too). It lives inside the row's button, so it's a span.
+ */
+function RowMore({ label, onOpen }: { label: string; onOpen: (x: number, y: number) => void }) {
+  if (!touchScreen) return null;
+  return (
+    <span
+      className="sb-item-more"
+      role="button"
+      aria-label={label}
+      data-no-hold
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const r = e.currentTarget.getBoundingClientRect();
+        onOpen(r.left, r.bottom + 4);
+      }}
+    >
+      <MoreHorizontal size={17} strokeWidth={2} />
+    </span>
+  );
+}
+
 function NoteRow({ note: n, active, menuOpen, shared, now, draggable, onMenu }: RowProps) {
   const activeId = useApp((s) => s.ui.activeId);
   const view = useApp((s) => s.ui.view);
+  const hold = useLongPress((x, y) => onMenu(n.id, x, y));
   return (
     <motion.button
       key={n.id}
@@ -181,8 +224,9 @@ function NoteRow({ note: n, active, menuOpen, shared, now, draggable, onMenu }: 
       exit={{ opacity: 0, x: -6, transition: { duration: 0.14 } }}
       type="button"
       data-note-id={n.id}
-      draggable={draggable}
+      draggable={draggable && !touchScreen}
       className={`sb-item ${active ? "is-active" : ""} ${menuOpen ? "is-menu" : ""}`}
+      {...hold}
       aria-current={active ? "page" : undefined}
       onClick={(e) => {
         flushEditor();
@@ -204,6 +248,7 @@ function NoteRow({ note: n, active, menuOpen, shared, now, draggable, onMenu }: 
       <span className={`sb-item-title ${!n.title.trim() && !n.text.trim() ? "is-untitled" : ""}`}>{displayTitle(n)}</span>
       {shared && <span className="live-dot sm" aria-label="Shared" />}
       <span className="sb-item-time mono">{shortStamp(n.updatedAt, now)}</span>
+      <RowMore label={`${displayTitle(n)} options`} onOpen={(x, y) => onMenu(n.id, x, y)} />
     </motion.button>
   );
 }
@@ -279,6 +324,7 @@ function FolderSection({ section, list, dropping, onGroupMenu }: { section: Extr
   const { group, notes } = section;
   const renaming = useApp((s) => s.ui.renaming === group.id);
   const open = !group.collapsed;
+  const hold = useLongPress((x, y) => onGroupMenu(group.id, x, y));
   return (
     <motion.section layout="position" transition={spring} className={`sb-group sb-folder ${dropping ? "is-drop" : ""} ${open ? "is-open" : ""}`} data-drop={`g:${group.id}`}>
       <div className="sb-folder-head" data-group-head={group.id}>
@@ -298,6 +344,7 @@ function FolderSection({ section, list, dropping, onGroupMenu }: { section: Extr
               e.preventDefault();
               onGroupMenu(group.id, e.clientX, e.clientY);
             }}
+            {...hold}
           >
             <ChevronRight size={13} strokeWidth={2} className={`chev ${open ? "is-open" : ""}`} />
             <span className="sb-folder-name">{group.name}</span>

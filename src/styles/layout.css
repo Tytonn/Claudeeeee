@@ -24,8 +24,18 @@ html:not(.is-ready) .app {
 .rail {
   position: relative;
   min-width: 0;
-  height: var(--app-h, 100dvh);
+  height: calc(var(--app-h, 100dvh) - var(--app-top, 0px) - var(--app-bottom, 0px));
   overflow: hidden;
+}
+
+/* An iPad Home Screen app runs under the status bar and down past the home indicator: the
+   panels keep clear of both (and of the softening just under the status bar). In a browser
+   both are 0, and nothing moves. */
+.app:not(.is-mobile) {
+  --app-top: calc(env(safe-area-inset-top) + min(8px, env(safe-area-inset-top)));
+  --app-bottom: env(safe-area-inset-bottom);
+  padding-top: var(--app-top);
+  padding-bottom: var(--app-bottom);
 }
 
 .sidebar-inner {
@@ -309,6 +319,46 @@ html:not(.is-ready) .app {
 }
 .sb-item-title.is-untitled {
   color: var(--fg-4);
+}
+/* A row's own "···" on a touch screen, where there's no right-click: quiet until pressed, and lit
+   while its menu is open. (Holding a finger on the row opens the same menu.) */
+.sb-item-more {
+  display: none;
+}
+@media (hover: none) {
+  .sb-item,
+  .sb-folder-toggle {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .sb-item-more {
+    position: relative;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    margin: 0 -8px 0 -2px;
+    border-radius: 11px;
+    color: var(--fg-4);
+    transition:
+      background-color 160ms var(--ease),
+      color 160ms var(--ease),
+      transform 160ms var(--ease);
+  }
+  .sb-item-more:active {
+    color: var(--fg-1);
+    background: rgb(255 255 255 / 0.1);
+    transform: scale(0.92);
+  }
+  .sb-item.is-menu .sb-item-more {
+    color: var(--accent);
+    background: color-mix(in oklch, var(--accent) 16%, transparent);
+  }
+  .sb-item.is-active .sb-item-more {
+    color: var(--fg-3);
+  }
 }
 .sb-item-time {
   position: relative;
