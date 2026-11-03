@@ -1,7 +1,9 @@
-import { FRAG, VERT } from "./shaders";
-import { rainShaders } from "./rain";
-import { SOLAR_CLOUD_FRAG, SOLAR_CLOUD_UNIFORMS, SOLAR_SKY_FRAG, SOLAR_SKY_UNIFORMS } from "./solar";
-import { INK_COPY_FRAG, INK_COPY_UNIFORMS, INK_PAPER_FRAG, INK_PAPER_UNIFORMS, INK_SIM_FRAG, INK_SIM_UNIFORMS, INK_VIEW_FRAG, INK_VIEW_UNIFORMS } from "./ink";
+import { buildProgram, type GL, type Program } from "./gl";
+import type { SceneRenderer, SkyContext } from "./renderer";
+import { GalaxyRenderer } from "../scenes/galaxy/renderer";
+import { SolarRenderer } from "../scenes/solar/renderer";
+import { RainRenderer } from "../scenes/rain/renderer";
+import { InkRenderer } from "../scenes/ink/renderer";
 import type { RGB } from "./color";
 import type { SceneId } from "../lib/types";
 
@@ -116,114 +118,26 @@ export type SkyFrame = {
   ink: InkFrame;
 };
 
-type Target = { fb: WebGLFramebuffer; tex: WebGLTexture; w: number; h: number };
-
-type GL = WebGLRenderingContext | WebGL2RenderingContext;
-type Program = {
-  prog: WebGLProgram;
-  loc: Record<string, WebGLUniformLocation | null>;
-};
-
-const ECLIPSE_UNIFORMS = [
-  "uRes",
-  "uTime",
-  "uMouse",
-  "uPanel",
-  "uRadius",
-  "uShape",
-  "uA",
-  "uB",
-  "uEnergy",
-  "uFlare",
-  "uDim",
-  "uRing",
-  "uShock0",
-  "uShock1",
-  "uShock2",
-  "uScale",
-  "uQuality",
-  "uCursor",
-  "uOpen",
-];
-const SCENE_UNIFORMS = ["uRes", "uAspect", "uTime", "uA", "uCity", "uAmount", "uWet", "uFlash", "uWind", "uDim", "uQuality", "uBlur"];
-const GLASS_UNIFORMS = [
-  "uScene",
-  "uRes",
-  "uDpr",
-  "uTime",
-  "uMouse",
-  "uFlash",
-  "uAmount",
-  "uWet",
-  "uFog",
-  "uA",
-  "uDim",
-  "uQuality",
-  "uLodBase",
-  "uScale",
-  "uShock0",
-  "uShock1",
-  "uShock2",
-  "uFade",
-  "uSceneSize",
-  "uWind",
-  "uBlur",
-  "uCursor",
-];
-
-const pow2 = (n: number) => Math.pow(2, Math.round(Math.log2(Math.max(1, n))));
-
 /**
- * The WebGL sky. Three scenes share one context: the eclipse (one pass), the rain (the city
- * into a mipmapped texture, then the glass on top) and the solar eclipse (the clouds into a
- * small texture, then the sky and the eclipse at full resolution). The rain and the solar
- * eclipse are compiled the first time they're needed, so nobody pays for them until they pick one.
+ * The WebGL sky. Every scene shares one context; each scene's renderer (scenes/<id>/renderer.ts)
+ * compiles what it needs the first time it's needed, so nobody pays for a scene they never pick.
+ * The galaxy is built with the sky itself — no galaxy, no sky — and any scene that can't be drawn
+ * here falls back on it.
  */
-export class Sky {
-  private gl: GL;
-  private gl2: boolean;
+export class Sky implements SkyContext {
+  readonly gl: GL;
+  readonly gl2: boolean;
   private lost = false;
-  private cssH = 0;
-  private cssW = 0;
-  private eclipse: Program | null = null;
-  private rainScene: Program | null = null;
-  private rainGlass: Program | null = null;
-  private rainBroken = false;
-  private lodExt = false;
-  private target: {
-    fb: WebGLFramebuffer;
-    tex: WebGLTexture;
-    w: number;
-    h: number;
-  } | null = null;
-  /** When the city was last painted (scene time); it's redrawn at most 30 times a second. */
-  private cityAt = -1;
-  private solarClouds: Program | null = null;
-  private solarSky: Program | null = null;
-  private solarBroken = false;
-  private cloudTarget: { fb: WebGLFramebuffer; tex: WebGLTexture; w: number; h: number } | null = null;
-  /** When the clouds were last painted (ms); like the city, at most 30 times a second. */
-  private cloudsAt = -1;
-  /** The cloud texture is empty (clear skies): nothing to repaint. */
-  private cloudsClear = false;
-  /** Cloud texels per sky pixel: they're soft, half is plenty. */
-  cloudScale = 0.5;
-  private inkSim: Program | null = null;
-  private inkView: Program | null = null;
-  private inkPaper: Program | null = null;
-  private inkCopy: Program | null = null;
-  private inkBroken = false;
-  /** The ink, twice (the simulation reads one and writes the other). [0] is the newest. */
-  private dye: [Target, Target] | null = null;
-  /** Half-float ink (else 8 bits, square-root encoded). */
-  private dyeHalf = false;
-  private paper: Target | null = null;
-  /** Ink texels per sky pixel: tendrils need some, but it's all soft enough for half. */
-  inkScale = 0.5;
+  cssH = 0;
+  cssW = 0;
   scale = 1;
   quality = 1;
   /** City texels per CSS pixel. */
   cityScale = 0.75;
+  private galaxy: GalaxyRenderer;
+  private ink: InkRenderer;
+  /** Each scene's renderer. */
+  private renderers: Record<SceneId, SceneRenderer>;
 
   static create(canvas: HTMLCanvasElement): Sky | null {
     try {
@@ -240,19 +154,21 @@ export class Sky {
       const gl = gl2 ?? canvas.getContext("webgl", attrs);
       if (!gl) return null;
       const sky = new Sky(canvas, gl, Boolean(gl2));
-      return sky.eclipse ? sky : null;
+      return sky.galaxy.supported() ? sky : null;
     } catch {
       return null;
     }
   }
-
   private constructor(
-    private canvas: HTMLCanvasElement,
+    readonly canvas: HTMLCanvasElement,
     gl: GL,
     gl2: boolean,
   ) {
     this.gl = gl;
     this.gl2 = gl2;
+    this.galaxy = new GalaxyRenderer(this);
+    this.ink = new InkRenderer(this);
+    this.renderers = { eclipse: this.galaxy, solar: new SolarRenderer(this), rain: new RainRenderer(this), ink: this.ink };
     this.setup();
     canvas.addEventListener("webglcontextlost", (e) => {
       e.preventDefault();
@@ -260,53 +176,18 @@ export class Sky {
     });
     canvas.addEventListener("webglcontextrestored", () => {
       this.lost = false;
-      this.eclipse = this.rainScene = this.rainGlass = null;
-      this.target = null;
-      this.rainBroken = false;
-      this.solarClouds = this.solarSky = null;
-      this.cloudTarget = null;
-      this.solarBroken = false;
-      this.inkSim = this.inkView = this.inkPaper = this.inkCopy = null;
-      this.dye = null;
-      this.paper = null;
-      this.inkBroken = false;
+      for (const r of Object.values(this.renderers)) r.restore();
       this.setup();
     });
   }
 
-  private build(vert: string, frag: string, uniforms: string[], label: string): Program | null {
-    const gl = this.gl;
-    const compile = (type: number, src: string) => {
-      const sh = gl.createShader(type)!;
-      gl.shaderSource(sh, src);
-      gl.compileShader(sh);
-      if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
-        console.warn(`${label} shader:`, gl.getShaderInfoLog(sh));
-        return null;
-      }
-      return sh;
-    };
-    const vs = compile(gl.VERTEX_SHADER, vert);
-    const fs = compile(gl.FRAGMENT_SHADER, frag);
-    if (!vs || !fs) return null;
-    const prog = gl.createProgram()!;
-    gl.attachShader(prog, vs);
-    gl.attachShader(prog, fs);
-    gl.bindAttribLocation(prog, 0, "aPos");
-    gl.linkProgram(prog);
-    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
-      console.warn(`${label} program:`, gl.getProgramInfoLog(prog));
-      return null;
-    }
-    const loc: Program["loc"] = {};
-    for (const name of uniforms) loc[name] = gl.getUniformLocation(prog, name);
-    return { prog, loc };
+  build(vert: string, frag: string, uniforms: string[], label: string): Program | null {
+    return buildProgram(this.gl, vert, frag, uniforms, label);
   }
 
   private setup() {
     const gl = this.gl;
-    this.eclipse = this.build(VERT, FRAG, ECLIPSE_UNIFORMS, "sky");
-    if (!this.eclipse) return;
+    if (!this.galaxy.build()) return;
     const buf = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, buf);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
@@ -314,267 +195,34 @@ export class Sky {
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
   }
 
-  /** Compiles the rain the first time it's asked for. False if this device can't run it. */
-  private ensureRain(): boolean {
-    if (this.rainBroken) return false;
-    if (this.rainScene && this.rainGlass) return true;
-    if (!this.gl2) this.lodExt = Boolean(this.gl.getExtension("EXT_shader_texture_lod"));
-    const src = rainShaders(this.gl2, this.lodExt);
-    this.rainScene = this.build(src.vert, src.scene, SCENE_UNIFORMS, "rain scene");
-    this.rainGlass = this.rainScene ? this.build(src.vert, src.glass, GLASS_UNIFORMS, "rain glass") : null;
-    if (!this.rainScene || !this.rainGlass) {
-      this.rainBroken = true;
-      return false;
-    }
-    return true;
-  }
-
-  /** The texture the city is painted into: about the screen's own resolution. */
-  private ensureTarget(): boolean {
-    const gl = this.gl;
-    const k = Math.min(this.cityScale, 2048 / Math.max(1, this.cssW, this.cssH));
-    let w = Math.max(64, Math.round(this.cssW * k));
-    let h = Math.max(64, Math.round(this.cssH * k));
-    // WebGL1 can only mipmap power-of-two textures; the stretch doesn't matter, it's sampled by uv.
-    if (!this.gl2) {
-      w = Math.min(2048, pow2(w));
-      h = Math.min(2048, pow2(h));
-    }
-    if (this.target && this.target.w === w && this.target.h === h) return true;
-    if (this.target) {
-      gl.deleteFramebuffer(this.target.fb);
-      gl.deleteTexture(this.target.tex);
-      this.target = null;
-    }
-    const tex = gl.createTexture();
-    const fb = gl.createFramebuffer();
-    if (!tex || !fb) return false;
-    gl.bindTexture(gl.TEXTURE_2D, tex);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.generateMipmap(gl.TEXTURE_2D);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
-    const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    if (!ok) {
-      gl.deleteFramebuffer(fb);
-      gl.deleteTexture(tex);
-      this.rainBroken = true;
-      return false;
-    }
-    this.target = { fb, tex, w, h };
-    this.cityAt = -1;
-    return true;
-  }
-
-  /** Compiles the solar eclipse the first time it's asked for. False if this device can't run it. */
-  private ensureSolar(): boolean {
-    if (this.solarBroken) return false;
-    if (this.solarClouds && this.solarSky) return true;
-    this.solarClouds = this.build(VERT, SOLAR_CLOUD_FRAG, SOLAR_CLOUD_UNIFORMS, "solar clouds");
-    this.solarSky = this.solarClouds ? this.build(VERT, SOLAR_SKY_FRAG, SOLAR_SKY_UNIFORMS, "solar sky") : null;
-    if (!this.solarClouds || !this.solarSky) {
-      this.solarBroken = true;
-      return false;
-    }
-    return true;
-  }
-
-  /** The small texture the clouds are painted into. */
-  private ensureCloudTarget(): boolean {
-    const gl = this.gl;
-    const w = Math.max(16, Math.round(this.canvas.width * this.cloudScale));
-    const h = Math.max(16, Math.round(this.canvas.height * this.cloudScale));
-    if (this.cloudTarget && this.cloudTarget.w === w && this.cloudTarget.h === h) return true;
-    if (this.cloudTarget) {
-      gl.deleteFramebuffer(this.cloudTarget.fb);
-      gl.deleteTexture(this.cloudTarget.tex);
-      this.cloudTarget = null;
-    }
-    const tex = gl.createTexture();
-    const fb = gl.createFramebuffer();
-    if (!tex || !fb) return false;
-    gl.bindTexture(gl.TEXTURE_2D, tex);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
-    const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    if (!ok) {
-      gl.deleteFramebuffer(fb);
-      gl.deleteTexture(tex);
-      this.solarBroken = true;
-      return false;
-    }
-    this.cloudTarget = { fb, tex, w, h };
-    this.cloudsAt = -1;
-    this.cloudsClear = false;
-    return true;
-  }
-
-  /** Compiles the ink the first time it's asked for. False if this device can't run it. */
-  private ensureInk(): boolean {
-    if (this.inkBroken) return false;
-    if (this.inkSim && this.inkView && this.inkPaper && this.inkCopy) return true;
-    this.inkSim = this.build(VERT, INK_SIM_FRAG, INK_SIM_UNIFORMS, "ink sim");
-    this.inkView = this.inkSim ? this.build(VERT, INK_VIEW_FRAG, INK_VIEW_UNIFORMS, "ink view") : null;
-    this.inkPaper = this.inkView ? this.build(VERT, INK_PAPER_FRAG, INK_PAPER_UNIFORMS, "ink paper") : null;
-    this.inkCopy = this.inkPaper ? this.build(VERT, INK_COPY_FRAG, INK_COPY_UNIFORMS, "ink copy") : null;
-    if (!this.inkSim || !this.inkView || !this.inkPaper || !this.inkCopy) {
-      this.inkBroken = true;
-      return false;
-    }
-    return true;
-  }
-
-  /** A texture to draw into: half-float if asked (and possible), else 8 bits. Null if neither works. */
-  private makeTarget(w: number, h: number, half: boolean): Target | null {
-    const gl = this.gl;
-    const tex = gl.createTexture();
-    const fb = gl.createFramebuffer();
-    if (!tex || !fb) return null;
-    gl.bindTexture(gl.TEXTURE_2D, tex);
-    if (half && this.gl2) {
-      const g2 = gl as WebGL2RenderingContext;
-      g2.texImage2D(g2.TEXTURE_2D, 0, g2.RGBA16F, w, h, 0, g2.RGBA, g2.HALF_FLOAT, null);
-    } else if (half) {
-      const ext = gl.getExtension("OES_texture_half_float");
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, ext ? ext.HALF_FLOAT_OES : gl.UNSIGNED_BYTE, null);
-    } else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
-    const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
-    if (ok) {
-      gl.clearColor(0, 0, 0, 1);
-      gl.clear(gl.COLOR_BUFFER_BIT);
-    }
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    if (!ok) {
-      gl.deleteFramebuffer(fb);
-      gl.deleteTexture(tex);
-      return null;
-    }
-    return { fb, tex, w, h };
-  }
-
-  /** Whether this device can draw ink into half-floats (smoother faint ink) — asked once. */
-  private halfOk: boolean | null = null;
-  private canHalf(): boolean {
-    if (this.halfOk !== null) return this.halfOk;
-    const gl = this.gl;
-    if (this.gl2) this.halfOk = Boolean(gl.getExtension("EXT_color_buffer_float") || gl.getExtension("EXT_color_buffer_half_float"));
-    else this.halfOk = Boolean(gl.getExtension("OES_texture_half_float") && gl.getExtension("OES_texture_half_float_linear") && gl.getExtension("EXT_color_buffer_half_float"));
-    return this.halfOk;
-  }
-
-  /** The ink's two textures, at about half the sky's resolution — carrying the ink over when the size changes. */
-  private ensureDye(): boolean {
-    const w = Math.max(32, Math.round(this.canvas.width * this.inkScale));
-    const h = Math.max(32, Math.round(this.canvas.height * this.inkScale));
-    if (this.dye && this.dye[0].w === w && this.dye[0].h === h) return true;
-    const gl = this.gl;
-    let half = this.canHalf();
-    let a = this.makeTarget(w, h, half);
-    let b = a && this.makeTarget(w, h, half);
-    if ((!a || !b) && half) {
-      if (a) this.dropTarget(a);
-      half = false;
-      this.halfOk = false;
-      a = this.makeTarget(w, h, false);
-      b = a && this.makeTarget(w, h, false);
-    }
-    if (!a || !b) {
-      if (a) this.dropTarget(a);
-      this.inkBroken = true;
-      return false;
-    }
-    const old = this.dye;
-    if (old && this.inkCopy && this.dyeHalf === half) {
-      // keep the ink: copy it across, both states
-      gl.useProgram(this.inkCopy.prog);
-      gl.uniform2f(this.inkCopy.loc.uRes, w, h);
-      gl.activeTexture(gl.TEXTURE0);
-      gl.uniform1i(this.inkCopy.loc.uSrc, 0);
-      for (const [from, to] of [
-        [old[0], a],
-        [old[1], b],
-      ] as const) {
-        gl.bindFramebuffer(gl.FRAMEBUFFER, to.fb);
-        gl.viewport(0, 0, w, h);
-        gl.bindTexture(gl.TEXTURE_2D, from.tex);
-        gl.drawArrays(gl.TRIANGLES, 0, 3);
-      }
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-      gl.viewport(0, 0, this.canvas.width, this.canvas.height);
-    }
-    if (old) {
-      this.dropTarget(old[0]);
-      this.dropTarget(old[1]);
-    }
-    this.dye = [a, b];
-    this.dyeHalf = half;
-    return true;
-  }
-
-  private dropTarget(t: Target) {
-    this.gl.deleteFramebuffer(t.fb);
-    this.gl.deleteTexture(t.tex);
-  }
-
-  /** The paper, painted once for this size. */
-  private ensurePaper(): boolean {
-    const w = this.canvas.width;
-    const h = this.canvas.height;
-    if (this.paper && this.paper.w === w && this.paper.h === h) return true;
-    if (this.paper) this.dropTarget(this.paper);
-    this.paper = this.makeTarget(w, h, false);
-    if (!this.paper || !this.inkPaper) return false;
-    const gl = this.gl;
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this.paper.fb);
-    gl.viewport(0, 0, w, h);
-    gl.useProgram(this.inkPaper.prog);
-    gl.uniform2f(this.inkPaper.loc.uRes, w, h);
-    gl.drawArrays(gl.TRIANGLES, 0, 3);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    return true;
+  /** Whether a scene can be drawn here (compiles it, if needed). */
+  supports(scene: SceneId): boolean {
+    return !this.lost && this.galaxy.supported() && this.renderers[scene].supported();
   }
 
   /** Whether the ink can actually be drawn here (compiles it, and makes its textures, if needed). */
   inkReady(): boolean {
-    return !this.lost && Boolean(this.eclipse) && this.ensureInk() && this.ensureDye() && this.ensurePaper();
+    return !this.lost && this.galaxy.supported() && this.ink.ready();
   }
 
   /** Whether the ink is kept in half-floats (else 8 bits). */
   get inkHalf() {
-    return this.dyeHalf;
+    return this.ink.half;
   }
 
   /** Whether the solar eclipse can actually be drawn here (compiles it if needed). */
   solarReady(): boolean {
-    return !this.lost && Boolean(this.eclipse) && this.ensureSolar();
-  }
-
-  /** Repaint everything on the next frame (e.g. for a view transition's snapshot). */
-  invalidate() {
-    this.cityAt = -1;
-    this.cloudsAt = -1;
+    return this.supports("solar");
   }
 
   /** Whether the rain can actually be drawn here (compiles it if needed). */
   rainReady(): boolean {
-    return !this.lost && Boolean(this.eclipse) && this.ensureRain();
+    return this.supports("rain");
+  }
+
+  /** Repaint everything on the next frame (e.g. for a view transition's snapshot). */
+  invalidate() {
+    for (const r of Object.values(this.renderers)) r.invalidate();
   }
 
   resize(cssW: number, cssH: number, scale: number) {
@@ -589,7 +237,6 @@ export class Sky {
     }
     this.gl.viewport(0, 0, w, h);
   }
-
   /**
    * The colour along the top and bottom edges of the frame just drawn (for the phone's bars).
    * Two one-pixel rows, read straight after drawing.
@@ -621,95 +268,14 @@ export class Sky {
       return null;
     }
   }
-
   render(f: SkyFrame) {
-    if (this.lost || !this.eclipse) return;
-    if (f.scene === "rain" && this.ensureRain() && this.ensureTarget()) this.renderRain(f);
-    else if (f.scene === "solar" && this.ensureSolar() && this.ensureCloudTarget()) this.renderSolar(f);
-    else if (f.scene === "ink" && this.inkReady()) this.renderInk(f);
-    else this.renderEclipse(f);
+    if (this.lost || !this.galaxy.supported()) return;
+    const r = this.renderers[f.scene];
+    if (r !== this.galaxy && r.ready()) r.render(f);
+    else this.galaxy.render(f);
   }
 
-  private renderInk(f: SkyFrame) {
-    const gl = this.gl;
-    const I = f.ink;
-    const S = this.inkSim!;
-    const V = this.inkView!;
-    let dye = this.dye!;
-    if (I.reset) {
-      for (const t of dye) {
-        gl.bindFramebuffer(gl.FRAMEBUFFER, t.fb);
-        gl.clearColor(0, 0, 0, 1);
-        gl.clear(gl.COLOR_BUFFER_BIT);
-      }
-    }
-    // the simulation's steps
-    if (I.steps.length) {
-      const w = dye[0].w;
-      const h = dye[0].h;
-      gl.useProgram(S.prog);
-      gl.uniform2f(S.loc.uRes, w, h);
-      gl.uniform1f(S.loc.uAspect, I.aspect);
-      gl.uniform4f(S.loc.uPanel, I.panel[0], I.panel[1], I.panel[2], I.panel[3]);
-      gl.uniform4f(S.loc.uStir, I.stir[0], I.stir[1], I.stir[2], I.stir[3]);
-      gl.uniform1f(S.loc.uEncode, this.dyeHalf ? 0 : 1);
-      gl.uniform1f(S.loc.uClear, I.clear);
-      gl.uniform1f(S.loc.uFlow, I.flow);
-      gl.activeTexture(gl.TEXTURE0);
-      gl.uniform1i(S.loc.uDye, 0);
-      gl.viewport(0, 0, w, h);
-      for (const st of I.steps) {
-        gl.bindFramebuffer(gl.FRAMEBUFFER, dye[1].fb);
-        gl.bindTexture(gl.TEXTURE_2D, dye[0].tex);
-        gl.uniform1f(S.loc.uTime, st.t);
-        gl.uniform1f(S.loc.uDt, st.dt);
-        gl.uniform4fv(S.loc.uBloomA, st.A);
-        gl.uniform4fv(S.loc.uBloomB, st.B);
-        gl.drawArrays(gl.TRIANGLES, 0, 3);
-        dye = [dye[1], dye[0]];
-      }
-      this.dye = dye;
-    }
-    // and the picture
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    const W = this.canvas.width;
-    const Hh = this.canvas.height;
-    gl.viewport(0, 0, W, Hh);
-    gl.useProgram(V.prog);
-    const k = this.scale;
-    const fy = (y: number) => Hh - y * k;
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, dye[1].tex);
-    gl.uniform1i(V.loc.uDye0, 0);
-    gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, dye[0].tex);
-    gl.uniform1i(V.loc.uDye1, 1);
-    gl.activeTexture(gl.TEXTURE2);
-    gl.bindTexture(gl.TEXTURE_2D, this.paper!.tex);
-    gl.uniform1i(V.loc.uPaper, 2);
-    gl.activeTexture(gl.TEXTURE0);
-    gl.uniform1f(V.loc.uMix, I.mix);
-    gl.uniform2f(V.loc.uRes, W, Hh);
-    gl.uniform1f(V.loc.uTime, f.time);
-    gl.uniform1f(V.loc.uEncode, this.dyeHalf ? 0 : 1);
-    const p = f.panel;
-    gl.uniform4f(V.loc.uPanel, p.x * k, Hh - (p.y + p.h) * k, (p.x + p.w) * k, Hh - p.y * k);
-    gl.uniform1f(V.loc.uPanelR, p.r * k);
-    gl.uniform1f(V.loc.uBehind, I.behind);
-    [V.loc.uRipple0, V.loc.uRipple1, V.loc.uRipple2].forEach((l, i) => {
-      const r = I.ripples[i];
-      if (r) gl.uniform4f(l, r[0] * k, fy(r[1]), r[2], r[3]);
-      else gl.uniform4f(l, 0, 0, 0, 0);
-    });
-    gl.uniform4f(V.loc.uIntro, I.intro[0], I.intro[1], I.intro[2], I.intro[3]);
-    gl.uniform2f(V.loc.uDrop, I.drop.x * k, fy(I.drop.y));
-    gl.uniform1f(V.loc.uFade, I.fade);
-    gl.uniform1f(V.loc.uQuality, this.quality);
-    gl.uniform3f(V.loc.uA, f.a[0], f.a[1], f.a[2]);
-    gl.drawArrays(gl.TRIANGLES, 0, 3);
-  }
-
-  private shocks(loc: Program["loc"], f: SkyFrame, fy: (y: number) => number) {
+  shocks(loc: Program["loc"], f: SkyFrame, fy: (y: number) => number) {
     const gl = this.gl;
     const k = this.scale;
     [loc.uShock0, loc.uShock1, loc.uShock2].forEach((l, i) => {
@@ -717,182 +283,4 @@ export class Sky {
       if (s) gl.uniform4f(l, s.x * k, fy(s.y), s.age, s.strength);
       else gl.uniform4f(l, 0, 0, 0, 0);
     });
-  }
-
-  private renderEclipse(f: SkyFrame) {
-    const gl = this.gl;
-    const P = this.eclipse!;
-    gl.useProgram(P.prog);
-    const k = this.scale;
-    const W = this.canvas.width;
-    const H = this.canvas.height;
-    const fy = (y: number) => (this.cssH - y) * k; // CSS (y down) → GL (y up)
-    const L = P.loc;
-    gl.viewport(0, 0, W, H);
-    gl.uniform2f(L.uRes, W, H);
-    gl.uniform1f(L.uTime, f.time);
-    gl.uniform2f(L.uMouse, f.mouse.x * k, fy(f.mouse.y));
-    gl.uniform4f(L.uPanel, (f.panel.x + f.panel.w / 2) * k, fy(f.panel.y + f.panel.h / 2), (f.panel.w / 2) * k, (f.panel.h / 2) * k);
-    gl.uniform1f(L.uRadius, f.panel.r * k);
-    gl.uniform1f(L.uShape, f.panel.circle ? 1 : 0);
-    gl.uniform3f(L.uA, f.a[0], f.a[1], f.a[2]);
-    gl.uniform3f(L.uB, f.b[0], f.b[1], f.b[2]);
-    gl.uniform1f(L.uEnergy, f.energy);
-    gl.uniform1f(L.uFlare, f.flare);
-    gl.uniform1f(L.uDim, f.dim);
-    gl.uniform4f(L.uRing, f.ring.x * k, fy(f.ring.y), f.ring.v, 0);
-    this.shocks(L, f, fy);
-    gl.uniform1f(L.uScale, Math.min(W, H));
-    gl.uniform1f(L.uQuality, this.quality);
-    gl.uniform1f(L.uCursor, f.cursor);
-    gl.uniform1f(L.uOpen, f.open);
-    gl.drawArrays(gl.TRIANGLES, 0, 3);
-  }
-
-  private renderRain(f: SkyFrame) {
-    const gl = this.gl;
-    const T = this.target!;
-    const r = f.rain;
-    const W = this.canvas.width;
-    const H = this.canvas.height;
-    const k = this.scale;
-    const fy = (y: number) => (this.cssH - y) * k;
-
-    // 1 · the city, into the texture — it moves slowly, so 30 times a second is plenty
-    // (except while lightning flickers or the glass ripples)
-    const S = this.rainScene!;
-    const fresh = this.cityAt < 0 || f.time - this.cityAt > 1 / 31 || f.time < this.cityAt || r.flash > 0.004 || f.dim > 0.01;
-    if (fresh) this.cityAt = f.time;
-    if (fresh) {
-      gl.bindFramebuffer(gl.FRAMEBUFFER, T.fb);
-      gl.viewport(0, 0, T.w, T.h);
-      gl.useProgram(S.prog);
-      gl.uniform2f(S.loc.uRes, T.w, T.h);
-      gl.uniform1f(S.loc.uAspect, this.cssW / Math.max(1, this.cssH));
-      gl.uniform1f(S.loc.uTime, f.time);
-      gl.uniform3f(S.loc.uA, f.a[0], f.a[1], f.a[2]);
-      gl.uniform1f(S.loc.uCity, r.city);
-      gl.uniform1f(S.loc.uAmount, r.amount);
-      gl.uniform1f(S.loc.uWet, r.wet);
-      gl.uniform4f(S.loc.uFlash, r.flash, r.boltX, r.boltSeed, r.bolt);
-      gl.uniform1f(S.loc.uWind, r.wind);
-      gl.uniform1f(S.loc.uDim, f.dim);
-      gl.uniform1f(S.loc.uQuality, this.quality);
-      gl.uniform1f(S.loc.uBlur, r.blur);
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
-      gl.bindTexture(gl.TEXTURE_2D, T.tex);
-      gl.generateMipmap(gl.TEXTURE_2D);
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    }
-
-    // 2 · the glass
-    const G = this.rainGlass!;
-    gl.viewport(0, 0, W, H);
-    gl.useProgram(G.prog);
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, T.tex);
-    gl.uniform1i(G.loc.uScene, 0);
-    gl.uniform2f(G.loc.uRes, W, H);
-    gl.uniform1f(G.loc.uDpr, k);
-    gl.uniform1f(G.loc.uTime, f.time);
-    gl.uniform2f(G.loc.uMouse, f.mouse.x * k, fy(f.mouse.y));
-    gl.uniform4f(G.loc.uFlash, r.flash, r.boltX, r.boltSeed, r.bolt);
-    gl.uniform1f(G.loc.uAmount, r.amount);
-    gl.uniform1f(G.loc.uWet, r.wet);
-    gl.uniform1f(G.loc.uFog, r.fog);
-    gl.uniform3f(G.loc.uA, f.a[0], f.a[1], f.a[2]);
-    gl.uniform1f(G.loc.uDim, f.dim);
-    gl.uniform1f(G.loc.uQuality, this.quality);
-    gl.uniform1f(G.loc.uLodBase, Math.log2(T.w / W));
-    gl.uniform1f(G.loc.uScale, Math.min(W, H));
-    gl.uniform1f(G.loc.uFade, r.fade);
-    gl.uniform2f(G.loc.uSceneSize, T.w, T.h);
-    gl.uniform1f(G.loc.uWind, r.wind);
-    gl.uniform1f(G.loc.uBlur, r.blur);
-    gl.uniform1f(G.loc.uCursor, f.cursor);
-    this.shocks(G.loc, f, fy);
-    gl.drawArrays(gl.TRIANGLES, 0, 3);
-  }
-
-  private renderSolar(f: SkyFrame) {
-    const gl = this.gl;
-    const s = f.solar;
-    const T = this.cloudTarget!;
-    const W = this.canvas.width;
-    const H = this.canvas.height;
-    const k = this.scale;
-    const fy = (y: number) => (this.cssH - y) * k;
-    const shared = (L: Program["loc"], w: number, h: number) => {
-      gl.uniform2f(L.uRes, w, h);
-      gl.uniform2f(L.uView, W, H);
-      gl.uniform1f(L.uTime, f.time);
-      gl.uniform1f(L.uScale, Math.min(W, H));
-      gl.uniform1f(L.uQuality, this.quality);
-      gl.uniform3f(L.uSun, s.sun.x * k, fy(s.sun.y), s.sun.r * k);
-      gl.uniform1f(L.uLight, s.light);
-      gl.uniform3f(L.uGlare, s.glare.x, -s.glare.y, s.glare.v);
-      gl.uniform1f(L.uCorona, s.corona);
-      gl.uniform2f(L.uMouse, f.mouse.x * k, fy(f.mouse.y));
-      gl.uniform3f(L.uA, f.a[0], f.a[1], f.a[2]);
-      gl.uniform3f(L.uB, f.b[0], f.b[1], f.b[2]);
-      gl.uniform1f(L.uGold, s.gold);
-    };
-
-    // 1 · the clouds, small. They drift slowly, so 30 times a second is plenty — except while
-    // the light on them is changing quickly (the diamond ring, the intro).
-    const now = performance.now();
-    if (s.clouds <= 0) {
-      // Clear skies: an empty texture, and nothing to paint into it.
-      if (!this.cloudsClear) {
-        gl.bindFramebuffer(gl.FRAMEBUFFER, T.fb);
-        gl.viewport(0, 0, T.w, T.h);
-        gl.clearColor(0, 0, 0, 0);
-        gl.clear(gl.COLOR_BUFFER_BIT);
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-        this.cloudsClear = true;
-      }
-    } else {
-      const fresh =
-        this.cloudsClear ||
-        this.cloudsAt < 0 ||
-        now - this.cloudsAt > 32 ||
-        now < this.cloudsAt ||
-        s.glare.v > 0.002 ||
-        s.light > 0.0004 ||
-        s.fade < 0.999 ||
-        s.clouds < 1 ||
-        (s.gold > 0.001 && s.gold < 0.999);
-      if (fresh) {
-        this.cloudsAt = now;
-        this.cloudsClear = false;
-        const C = this.solarClouds!;
-        gl.bindFramebuffer(gl.FRAMEBUFFER, T.fb);
-        gl.viewport(0, 0, T.w, T.h);
-        gl.useProgram(C.prog);
-        shared(C.loc, T.w, T.h);
-        gl.uniform1f(C.loc.uCloudy, s.clouds);
-        gl.drawArrays(gl.TRIANGLES, 0, 3);
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-      }
-    }
-
-    // 2 · the sky, the eclipse, the clouds laid over it, the glare
-    const S = this.solarSky!;
-    const L = S.loc;
-    gl.viewport(0, 0, W, H);
-    gl.useProgram(S.prog);
-    shared(L, W, H);
-    gl.uniform2f(L.uMoon, s.moon.x, -s.moon.y);
-    gl.uniform4f(L.uTint, s.tint[0], s.tint[1], s.tint[2], s.tint[3]);
-    gl.uniform2f(L.uGoldShift, s.goldShift[0], s.goldShift[1]);
-    gl.uniform4f(L.uErupt, -s.erupt[0], s.erupt[1], s.erupt[2], s.erupt[3]);
-    gl.uniform1f(L.uCursor, f.cursor);
-    gl.uniform1f(L.uDim, f.dim);
-    gl.uniform1f(L.uFade, s.fade);
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, T.tex);
-    gl.uniform1i(L.uClouds, 0);
-    gl.drawArrays(gl.TRIANGLES, 0, 3);
-  }
-}
-
+  }}

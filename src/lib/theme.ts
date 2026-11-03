@@ -1,4 +1,8 @@
 import type { AccentId, FontId, RainAmountId, SceneId, Settings, SizeId, SolarTintId, TitleFontId, TodoColor } from "./types";
+import { PAPER, SCENES, isLightScene, sceneOf } from "../scenes/meta";
+
+// (where they've always been imported from)
+export { PAPER, isLightScene, sceneOf };
 
 /**
  * `nebula` is a second hue the sky blends with the accent, so space never looks flat. `paper` is
@@ -17,12 +21,7 @@ export const ACCENTS: Record<AccentId, { name: string; color: string; nebula: st
 /** The accent as this scene shows it: light on the dark skies, ink-deep on paper. */
 export function accentColor(id: AccentId | string | undefined, scene: SceneId | string | undefined): string {
   const a = ACCENTS[id as AccentId] ?? ACCENTS.iris;
-  return scene === "ink" ? a.paper : a.color;
-}
-
-/** The light scenes (just Ink, for now): paper, so the UI turns to ink on light. */
-export function isLightScene(scene: SceneId | string | undefined): boolean {
-  return scene === "ink";
+  return isLightScene(scene) ? a.paper : a.color;
 }
 
 /** The corona's colours in the solar eclipse. Pearl is the real thing; the rest are for fun. */
@@ -40,11 +39,6 @@ export const SOLAR_TINTS: Record<SolarTintId, { name: string; color: string }> =
 export function hexRgb(hex: string): [number, number, number] {
   const n = parseInt(hex.slice(1), 16);
   return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
-}
-
-/** A saved scene, or the Galaxy if it isn't one we know. */
-export function sceneOf(s: unknown): SceneId {
-  return s === "rain" || s === "solar" || s === "ink" ? s : "eclipse";
 }
 
 /**
@@ -97,9 +91,6 @@ export function applyTheme(s: Pick<Settings, "accent" | "font" | "size"> & Parti
   root.dataset.titleFont = s.titleFont && s.titleFont in TITLE_FONTS ? s.titleFont : "display";
 }
 
-/** The Ink scene's paper, where nothing is drawn over it (keep in step with ink.css and boot.js). */
-export const PAPER = "#f1ede5";
-
 /**
  * The colours a phone paints around the page: its status bar (and toolbar) at the top, from
  * theme-color, and the strip under the gesture bar at the bottom, from the page's background.
@@ -108,8 +99,8 @@ export const PAPER = "#f1ede5";
  */
 export function setBarColors(top: string | null, bottom: string | null) {
   const meta = document.querySelector('meta[name="theme-color"]');
-  // with nothing to match, the page's own plain colour: the dark, or paper in the Ink scene
-  const plain = document.documentElement.dataset.scene === "ink" ? PAPER : "#08090a";
+  // with nothing to match, the page's own plain colour: the dark, or paper in a light scene
+  const plain = SCENES[sceneOf(document.documentElement.dataset.scene)].plain;
   if (meta && meta.getAttribute("content") !== (top ?? plain)) meta.setAttribute("content", top ?? plain);
   document.documentElement.style.backgroundColor = bottom ?? "";
   // (an iPhone may fill any space below the page with the body's colour: the sky's, then)

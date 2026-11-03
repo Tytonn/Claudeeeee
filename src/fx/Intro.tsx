@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Eclipse } from "../components/ui/Eclipse";
 import { fx } from "./engine";
+import { SCENES, type IntroKind } from "../scenes/meta";
 
 const KEY = "umbra:intro";
 
@@ -11,8 +12,9 @@ export function shouldPlayIntro(): boolean {
     sessionStorage.setItem(KEY, "1");
     // Under the solar eclipse (and on Ink's paper) the real sky plays the intro, so the page
     // stays out of sight from the very first frame until it's done.
-    if (fx.solar) document.documentElement.classList.add("intro-solar");
-    if (fx.inkScene) document.documentElement.classList.add("intro-ink");
+    const kind = SCENES[fx.scene].intro;
+    if (kind === "solar") document.documentElement.classList.add("intro-solar");
+    if (kind === "ink") document.documentElement.classList.add("intro-ink");
     return true;
   } catch {
     return false;
@@ -21,7 +23,7 @@ export function shouldPlayIntro(): boolean {
 
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
-type Kind = "eclipse" | "rain" | "solar" | "ink";
+type Kind = IntroKind;
 const LENGTH: Record<Kind, number> = { eclipse: 2650, rain: 2900, solar: 3400, ink: 2500 };
 /** Where the moon comes from in the solar intro (down and to the right, so the sun breaks out up and to the left). */
 const FROM = { x: 0.82, y: 0.57 };
@@ -44,7 +46,7 @@ const FROM = { x: 0.82, y: 0.57 };
  * over it, and the water carries the cloud away.
  */
 export function Intro({ onDone }: { onDone: () => void }) {
-  const [kind] = useState<Kind>(() => (fx.rain ? "rain" : fx.solar ? "solar" : fx.inkScene ? "ink" : "eclipse"));
+  const [kind] = useState<Kind>(() => SCENES[fx.scene].intro);
   const [progress, setProgress] = useState(0);
   const [stage, setStage] = useState<"rise" | "total" | "out">("rise");
   const [spot] = useState(() => {

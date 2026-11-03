@@ -22,7 +22,7 @@
 - **Settings → Background:** *Dark* (smoked glass), *Glass* (more sky), *Clear* (the default: the sky almost fully, with a soft shade behind your words), *Crystal* (no glass at all — just outlines over the open sky, with a crisp little drop shadow behind every word) or *Bare* (nothing at all: no panels, no outlines, no shade — the sky's light even carries on behind your words instead of stopping at the page's edge). Also in the command palette: *Show more of the sky*.
 - **Settings → Title font:** the typeface of every note's title — *Display* (the tall, narrow serif), *Display italic*, *Serif*, *Sans* or *Mono*. Or just right-click a title.
 - On a phone, the status bar and the strip under the gesture bar take on the colors at the top and bottom of the sky, so it runs right to the edges of the screen.
-- **Settings → About → Show version:** a small gray *v1.08* beside the logo, so a screenshot says which version it's from. The exact build (its commit and time) is listed there too, and in the command palette's *Screen info*. The number lives in `src/version.ts` and goes up with every update.
+- **Settings → About → Show version:** a small gray *v1.09* beside the logo, so a screenshot says which version it's from. The exact build (its commit and time) is listed there too, and in the command palette's *Screen info*. The number lives in `src/version.ts` and goes up with every update.
 
 **Solar eclipse** *(Settings → Scene → Solar eclipse)*
 - A real total solar eclipse, seen from the ground, drawn live on the GPU: a black moon in a golden, glowing ring, the pearly corona streaming out around it in long, fine-combed blades, pink prominences standing up off the rim, and a dusky sky with a sunset glowing all the way round the horizon — the way it really looks at totality. Venus and a few stars come out in the dark.
@@ -183,7 +183,18 @@ npm run typecheck
 - **Name:** the wordmark is plain text — search for `umbra` in `index.html`, `src/`, and `public/manifest.webmanifest`.
 - **Default accent / settings:** `DEFAULT_SETTINGS` in [`src/store/app.ts`](src/store/app.ts); the palette lives in [`src/lib/theme.ts`](src/lib/theme.ts).
 - **Design tokens** (colors, type, radii, motion): the top of [`src/styles/base.css`](src/styles/base.css).
-- **The sky and effects:** the WebGL sky (nebula, stars, corona) is one shader in [`src/fx/shaders.ts`](src/fx/shaders.ts); the rain is two passes in [`src/fx/rain.ts`](src/fx/rain.ts) (the city into a mipmapped texture, then the glass); the solar eclipse is two passes in [`src/fx/solar.ts`](src/fx/solar.ts) (the clouds into a small texture, then the sky and the eclipse); Ink is a little fluid simulation and a paper pass in [`src/fx/ink.ts`](src/fx/ink.ts) (where new clouds bloom: [`src/fx/inkBlooms.ts`](src/fx/inkBlooms.ts); the drop arriving: [`src/fx/inkArrival.ts`](src/fx/inkArrival.ts)), and its paper look is [`src/styles/ink.css`](src/styles/ink.css); everything else (meteors, flares, lightning timing, splashes, particles, trails) is in [`src/fx/engine.ts`](src/fx/engine.ts). Each accent's nebula color is in [`src/lib/theme.ts`](src/lib/theme.ts).
+- **The sky and effects:** each scene lives in its own folder under [`src/scenes/`](src/scenes): its shaders (`shaders.ts`), how they're drawn each frame (`renderer.ts`), what it does from moment to moment and its own take on the effects (`controller.ts`), and its card, settings and palette commands (`ui.tsx`). The galaxy (nebula, stars, corona; meteors and dust) is [`src/scenes/galaxy/`](src/scenes/galaxy); the rain is two passes (the city into a mipmapped texture, then the glass) in [`src/scenes/rain/`](src/scenes/rain); the solar eclipse is two passes (the clouds into a small texture, then the sky and the eclipse) in [`src/scenes/solar/`](src/scenes/solar); Ink is a little fluid simulation and a paper pass in [`src/scenes/ink/`](src/scenes/ink) (where new clouds bloom: `blooms.ts`; the drop arriving: `arrival.ts`). The paper look of a light scene is [`src/styles/light.css`](src/styles/light.css), and Ink's own touches are [`src/styles/ink.css`](src/styles/ink.css). What every scene shares (particles, trails, flares, the effects overlay, how hard the sky works) is the engine, [`src/fx/engine.ts`](src/fx/engine.ts). Each accent's nebula color is in [`src/lib/theme.ts`](src/lib/theme.ts).
+
+## Adding a scene
+
+Every scene is described in one place, and every list of scenes is typed by its id — so once you add the id, TypeScript points out whatever is still missing.
+
+1. **Its id** in `SceneId` ([`src/lib/types.ts`](src/lib/types.ts)), and **its entry** in [`src/scenes/meta.ts`](src/scenes/meta.ts) (and `SCENE_ORDER`): its name and tagline, its palette command, whether it's a light scene, the page's own colour, its sounds, its launch intro, how it arrives when it's chosen, how a deleted note leaves it, and its lines in Settings.
+2. **Its card, settings and commands:** `src/scenes/<id>/ui.tsx`, listed in [`src/scenes/ui.ts`](src/scenes/ui.ts).
+3. **Its sky:** a renderer (`src/scenes/<id>/renderer.ts`, with its shaders beside it) implementing `SceneRenderer` ([`src/fx/renderer.ts`](src/fx/renderer.ts)), listed in [`src/fx/sky.ts`](src/fx/sky.ts). Anywhere it can't run, the galaxy is drawn instead.
+4. **Its life:** a controller (`src/scenes/<id>/controller.ts`) implementing `SceneController` ([`src/fx/scene.ts`](src/fx/scene.ts)), listed in [`src/fx/engine.ts`](src/fx/engine.ts): its clock, how sharp its sky is, what it hands the renderer each frame (its part of `SkyFrame` in [`src/fx/sky.ts`](src/fx/sky.ts), passed on by the engine's `renderSky`), and — if it likes — its own version of the effects (a new note in the rain is a clap of thunder; on paper, a drop of ink). Whatever it leaves out, the engine does the galaxy's way.
+5. **Sounds, intros, arrivals and farewells** are picked by kind in its entry; a new kind goes in [`src/lib/sound.ts`](src/lib/sound.ts), [`src/fx/Intro.tsx`](src/fx/Intro.tsx), [`src/fx/transitions.ts`](src/fx/transitions.ts) or [`src/lib/actions.ts`](src/lib/actions.ts).
+6. **A light scene** (`light: true`) puts the whole interface on paper through `html[data-tone="light"]` ([`src/styles/light.css`](src/styles/light.css)); its own touches go in a stylesheet of its own (keyed on `html[data-scene="<id>"]` where they change the shared interface; Ink's is [`src/styles/ink.css`](src/styles/ink.css)), and [`public/boot.js`](public/boot.js) should know its paper colour, so the page starts out that colour before anything else loads.
 
 ## Project layout
 
@@ -201,13 +212,15 @@ src/
     widgets/                   to-dos, countdowns, date picker
     overlays/                  command palette, settings, share sheet, the PIN pad, toasts
     ui/                        primitives (tooltip, popover, menu, switch, eclipse…)
-  fx/                          the light engine: WebGL sky (galaxy, solar eclipse, rain, ink), effects overlay, intro, light caret, settling letters
+  fx/                          the light engine: the sky, effects overlay, intro, scene changes, light caret, settling letters
+  scenes/                      the scenes, one folder each (galaxy, solar, rain, ink): shaders, renderer, controller, UI
+    meta.ts                    every scene described in one place (names, light or dark, sounds, intro…)
   collab/                      live co-editing: sync engine, owner sessions, title binding
   account/                     accounts, the sign-in eclipse, cross-device sync
   share/ShareView.tsx          what your friend sees
   store/                       state, IndexedDB persistence, live share sync
   lib/                         crypto, dates, markdown export, sounds, pictures, hidden notes, theme
-  styles/                      design system + component styles
+  styles/                      design system + component styles (light.css: the light scenes' paper)
 ```
 
 Built with React, TipTap, Yjs, Motion, Zustand, Floating UI, chrono-node, WebGL and Canvas, and the Geist + Instrument Serif + Newsreader typefaces.

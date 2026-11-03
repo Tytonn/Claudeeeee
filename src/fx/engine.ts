@@ -1,23 +1,28 @@
-import { goldenShift, mixRgb, oklchToRgb, to255, type RGB } from "./color";
-import { Sky, type InkStep, type SceneId } from "./sky";
-import { CLEARED, FALL, REVEAL, SKIP_MS, arrivalLook, dropInk } from "./inkArrival";
-import { INK_BLOOMS } from "./ink";
-import { newBloom, type InkBloom } from "./inkBlooms";
+import { mixRgb, oklchToRgb, to255, type RGB } from "./color";
+import { Sky, type SceneId } from "./sky";
 import { viewportHeight } from "../lib/platform";
-import { ACCENTS, setBarColors } from "../lib/theme";
+import { setBarColors } from "../lib/theme";
+import { SCENES } from "../scenes/meta";
+import type { SceneController } from "./scene";
+import { clamp01, easeInOut, easeOut, rand, WATER, WHITE, type C255, type Timed } from "./util";
+import { GalaxyScene } from "../scenes/galaxy/controller";
+import { SolarScene } from "../scenes/solar/controller";
+import { RainScene, type RainOptions } from "../scenes/rain/controller";
+import { InkScene } from "../scenes/ink/controller";
+
+export type { RainOptions };
 
 /**
  * umbra's light engine. One animation loop drives three layers:
- *  - the sky (WebGL): nebula dust, stars, and the solar corona around the editor panel —
- *    or, in the rain scene, a night city seen through a wet window, with lightning — or a
- *    total solar eclipse, seen from the ground, over a bank of cloud
- *  - dust (2D, behind the UI): motes drifting through the corona light
- *  - overlay (2D, above the UI): sunbursts, flares, embers, light trails — splashes and drips in the rain
- * Everything is in CSS pixels; effects are fire-and-forget.
+ *  - the sky (WebGL, fx/sky.ts): the scene itself — the galaxy, the solar eclipse, the rain, the ink
+ *  - behind the UI (2D): the galaxy's dust and shooting stars (the other scenes keep it clear)
+ *  - over the UI (2D): sunbursts, flares, embers, light trails — drops in the rain, ink on paper
+ * What's particular to each scene — its moment-to-moment life, the frame it hands the sky, its
+ * own take on the effects — is its controller (scenes/<id>/controller.ts, see fx/scene.ts); the
+ * engine is what they share. Everything is in CSS pixels; effects are fire-and-forget.
  */
 
 export type FxLevel = "cosmic" | "subtle" | "off";
-type C255 = [number, number, number];
 
 type Particle = {
   x: number;
@@ -37,7 +42,6 @@ type Particle = {
   sink?: { x: number; y: number; k: number; swirl: number };
 };
 
-type Timed = { t0: number; dur: number };
 type Ring = Timed & { x: number; y: number; r0: number; r1: number; color: C255; width: number; alpha: number };
 type Flash = Timed & { x: number; y: number; r: number; color: C255; alpha: number };
 type Rays = Timed & { x: number; y: number; n: number; r0: number; len: number; color: C255; spin: number; width: number };
@@ -55,137 +59,87 @@ type Trail = Timed & {
   fired?: boolean;
   quiet?: boolean;
 };
-type Mote = { x: number; y: number; z: number; vx: number; vy: number; size: number; phase: number };
-/** A coronal loop erupting from the panel's edge (drawn behind the glass). */
-type Cme = Timed & { x: number; y: number; nx: number; ny: number; tx: number; ty: number; span: number; height: number; tilt: number };
-/** A shooting star burning up behind the glass. */
-type Meteor = Timed & { x: number; y: number; vx: number; vy: number; size: number; color: C255; flareAt: number; wake: boolean; fireball: boolean };
-/** The glowing wake a bright meteor leaves, slowly twisting in the upper-air wind. */
-type Wake = Timed & { x0: number; y0: number; x1: number; y1: number; bend: number; width: number; color: C255 };
-type Frag = { x: number; y: number; vx: number; vy: number; life: number; max: number; size: number; color: C255 };
 /** A letter as it lands (white-hot, cooling to ink) or leaves (falling away as ash — or, in the rain, running off like a drip). */
 type Glyph = Timed & { ch: string; x: number; y: number; font: string; ash: boolean; vx: number; spin: number; drip?: boolean };
-/** A lightning strike: a few flickers of light, maybe with a bolt you can see. */
-type Strike = { t0: number; pulses: { at: number; amp: number; tau: number }[]; x: number; seed: number; bolt: boolean };
-export type RainOptions = { lightning: boolean; city: boolean; amount: number; blur: number };
-/** The moon nudged a hair off the sun and back — [ms, offset in sun radii] keys. A diamond ring, or just a glimmer of Baily's beads. */
-type Nudge = { t0: number; dir: { x: number; y: number }; keys: [number, number][]; spin?: number };
 
-const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
-const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
-const clamp01 = (t: number) => Math.min(1, Math.max(0, t));
-const rand = (a: number, b: number) => a + Math.random() * (b - a);
-const WHITE: C255 = [255, 255, 255];
-const WATER: C255 = [196, 222, 255];
-const SUNLIGHT: C255 = [255, 222, 186];
-const smooth = (a: number, b: number, x: number) => {
-  const t = clamp01((x - a) / (b - a));
-  return t * t * (3 - 2 * t);
-};
-
-/** The moon's radius in sun radii, and how high the mountains on its edge stand (as in the shader). */
-const MOON_R = 1.026;
-const CRAGS = 0.012;
-
-/** How much of the sun the moon leaves showing, 0..1, with their centers d sun radii apart. */
-function uncovered(d: number) {
-  const r1 = 1;
-  const r2 = MOON_R;
-  if (d >= r1 + r2) return 1;
-  if (d <= r2 - r1) return 0;
-  const acos = (x: number) => Math.acos(Math.min(1, Math.max(-1, x)));
-  const a = r1 * r1 * acos((d * d + r1 * r1 - r2 * r2) / (2 * d * r1));
-  const b = r2 * r2 * acos((d * d + r2 * r2 - r1 * r1) / (2 * d * r2));
-  const c = 0.5 * Math.sqrt(Math.max(0, (-d + r1 + r2) * (d + r1 - r2) * (d - r1 + r2) * (d + r1 + r2)));
-  return clamp01(1 - (a + b - c) / Math.PI);
-}
-
-/** Smooth steps between [time, value] keys. */
-function keyed(keys: [number, number][], t: number) {
-  if (t <= keys[0][0]) return keys[0][1];
-  for (let i = 1; i < keys.length; i++) {
-    const [t1, v1] = keys[i];
-    if (t <= t1) {
-      const [t0, v0] = keys[i - 1];
-      const u = (t - t0) / Math.max(1, t1 - t0);
-      return v0 + (v1 - v0) * u * u * (3 - 2 * u);
-    }
-  }
-  return keys[keys.length - 1][1];
-}
-
-class FxEngine {
+export class FxEngine {
   level: FxLevel = "cosmic";
-  private started = false;
+
+  // ── the scenes ──
+  /** Each scene's controller (scenes/<id>/controller.ts). */
+  private galaxy = new GalaxyScene(this);
+  private solarScene = new SolarScene(this);
+  private rainScene = new RainScene(this);
+  private inkCtl = new InkScene(this);
+  private scenes: Record<SceneId, SceneController> = { eclipse: this.galaxy, solar: this.solarScene, rain: this.rainScene, ink: this.inkCtl };
+
+  /** The scene that's on now. */
+  private get ctl(): SceneController {
+    return this.scenes[this.scene];
+  }
+
+  started = false;
   private raf = 0;
-  private reduced = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
-  private small = typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse), (max-width: 820px)").matches;
+  reduced = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  small = typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse), (max-width: 820px)").matches;
 
   private skyCanvas: HTMLCanvasElement | null = null;
-  private sky: Sky | null = null;
+  sky: Sky | null = null;
   private dustCanvas: HTMLCanvasElement | null = null;
-  private dctx: CanvasRenderingContext2D | null = null;
+  dctx: CanvasRenderingContext2D | null = null;
   private overCanvas: HTMLCanvasElement | null = null;
   private octx: CanvasRenderingContext2D | null = null;
 
-  private W = 0;
-  private H = 0;
+  W = 0;
+  H = 0;
   private dpr = 1;
-  private time = 0;
+  time = 0;
   private last = 0;
   private lastSky = 0;
   /** Effects run on a virtual clock (ms) so they can be slowed down for inspection. */
-  private clock = 0;
+  clock = 0;
   timeScale = 1;
 
-  private mouse = { x: 0, y: 0 };
-  private smouse = { x: 0, y: 0 };
-  private panelEl: HTMLElement | null = null;
-  private panelCircle: (() => { x: number; y: number; r: number }) | null = null;
-  private panel = { x: 0, y: 0, w: 0, h: 0, r: 16, circle: false };
+  mouse = { x: 0, y: 0 };
+  smouse = { x: 0, y: 0 };
+  panelEl: HTMLElement | null = null;
+  panelCircle: (() => { x: number; y: number; r: number }) | null = null;
+  panel = { x: 0, y: 0, w: 0, h: 0, r: 16, circle: false };
   private panelRadius = 16;
 
-  private a: RGB = [0.7, 0.62, 1];
+  a: RGB = [0.7, 0.62, 1];
   private b: RGB = [0.3, 0.35, 0.8];
   private aTo: RGB = [0.7, 0.62, 1];
-  private bTo: RGB = [0.3, 0.35, 0.8];
+  bTo: RGB = [0.3, 0.35, 0.8];
 
-  private calm = false;
+  calm = false;
   /** The cursor as a light source (it can be turned off); eased so the change is a soft fade. */
   cursorLight = true;
-  private cursorK = 1;
+  cursorK = 1;
   /** Nothing drawn over the sky (the "Bare" background): the corona no longer outlines the panel. */
-  private open = false;
+  open = false;
   private openK = 0;
   /** When you last touched anything (fx clock). Left alone, the sky slowly wakes up. */
   private lastInput = 0;
-  private energy = 1;
-  private flare = 0;
+  energy = 1;
+  flare = 0;
   private dim = 0;
   private dimTarget = 0;
-  private diamond = { x: 0, y: 0, v: 0 };
+  diamond = { x: 0, y: 0, v: 0 };
   private shocks: (Timed & { x: number; y: number; strength: number })[] = [];
 
   private particles: Particle[] = [];
   private rings: Ring[] = [];
   private flashes: Flash[] = [];
   private rays: Rays[] = [];
-  private ghosts: Ghost[] = [];
+  ghosts: Ghost[] = [];
   private streaks: Streak[] = [];
   private beams: Beam[] = [];
   private loops: Loop[] = [];
   private trails: Trail[] = [];
-  private motes: Mote[] = [];
-  private cmes: Cme[] = [];
-  private nextCme = 5000;
-  private meteors: Meteor[] = [];
-  private wakes: Wake[] = [];
-  private frags: Frag[] = [];
-  private nextMeteor = 2600;
-  private showerLeft = 0;
   private glyphs: Glyph[] = [];
   private inkBudget = 0;
-  private overDirty = false;
+  overDirty = false;
   private sprites = new Map<string, HTMLCanvasElement>();
   /** Adaptive quality: the sky's render scale drops on slow machines, recovers on fast ones. */
   private skyScale = 1;
@@ -195,87 +149,7 @@ class FxEngine {
 
   /** Which sky: the eclipse, or rain on the window. */
   scene: SceneId = "eclipse";
-  private rainOpts: RainOptions = { lightning: true, city: true, amount: 0.5, blur: 1 };
-  private blurK = 1;
-  private wet = 1;
-  private sceneFade = 1;
-  private cityK = 1;
-  private amountK = 0.5;
-  private strikes: Strike[] = [];
-  private nextStrike = 9000;
-  private roomFlash = 0;
-  private dustClear = false;
-  /** A veil of light over everything, for the instant lightning lights up the room. */
-  private room: HTMLDivElement | null = null;
-
-  /** The solar eclipse: where the sun hangs (CSS px). It glides to a new spot when the layout changes. */
-  private sun = { x: 0, y: 0, r: 50 };
-  private sunPlaced = false;
-  /** What the sun's spot depends on: the page's panels, a friend's page, or nothing yet. */
-  private sunAnchor: "none" | "panel" | "moon" = "none";
-  /** Held somewhere else for now: the intro plays out in the middle of the screen. */
-  private sunHold: { x: number; y: number; r: number } | null = null;
-  private nudges: Nudge[] = [];
-  /** The intro's moon, sliding in over the sun (its offset, in sun radii). */
-  private approach: { x: number; y: number } | null = null;
-  private solarFade = 1;
-  private coronaK = 1;
-  private moonNow = { x: 0, y: 0 };
-  private lightNow = 0;
-  private glareNow = { x: 0, y: -1, v: 0 };
-  private eruption: { t0: number; dur: number; angle: number; size: number } | null = null;
-  private eruptNow: [number, number, number, number] = [0, 0, 0, 0];
-  private nextGlint = 30000;
-  private nextErupt = 45000;
-  private nextDiamond = 90000;
-  /** How strongly the moon wanders (eased down while it's being nudged). */
-  private wanderK = 1;
-  /** size: the Distance setting, 0 (far off) .. 1 (close), 0.5 by default. */
-  private solarOpts: { clouds: boolean; size: number; golden: boolean; tint: [number, number, number] | null } = { clouds: true, size: 0.5, golden: false, tint: null };
-  private goldK = 0;
-  /** The corona's chosen colour as it is right now (rgb), and how much of it (it eases in and out). */
-  private tintNow: [number, number, number, number] = [1, 1, 1, 0];
-  /** The Background setting ("dark" frosts the panels, so the sun keeps to the clearer right-hand column). */
-  private backdrop = "clear";
-  /** Where your writing ends, where the right-hand column starts and where its widgets end (CSS px), measured now and then. */
-  private textRight = 0;
-  private railLeft = 0;
-  private railBottom = 0;
-  private layoutAt = -1e9;
-  private cloudsK = 1;
-
-  // ── ink ──
-  /** The current's own clock (s), and the time not yet simulated (the simulation steps 20 times a second). */
-  private inkT = 40;
-  private inkAcc = 0;
-  private inkBlooms: InkBloom[] = [];
-  private inkNext = 0;
-  /** Steps still to run quickly, to start with ink already in the water. */
-  private inkWarm = 0;
-  private inkReset = false;
-  private inkSteps: InkStep[] = [];
-  private inkMix = 1;
-  /** The cursor's motion, smoothed (screen heights per second). */
-  private stirV = { x: 0, y: 0 };
-  private stirAt = { x: 0, y: 0 };
-  /** How firmly the note's area is kept clear, and how much ink shows behind it (both dip while a drop arrives). */
-  private inkClear = 1;
-  private inkBehind = 0.16;
-  private inkRipples: { x: number; y: number; t0: number; strength: number }[] = [];
-  /** The drop arriving: when it started, where it lands, and what to tell whoever asked. */
-  private arrival: {
-    t0: number;
-    at: { x: number; y: number };
-    landed: boolean;
-    revealed: boolean;
-    out: number;
-    on: { land?: () => void; reveal?: () => void; done?: () => void };
-  } | null = null;
-  private intro: [number, number, number, number] = [0, 0, 0, 0];
-  /** The ink couldn't be drawn here: plain paper (CSS) instead. */
-  private inkStatic = false;
-  /** Until when (effects clock, ms) ink may stay in the middle of the screen — the launch's welcome. */
-  private inkHoldUntil = 0;
+  dustClear = false;
 
   // ── lifecycle ────────────────────────────────────────────────────────────
 
@@ -288,10 +162,9 @@ class FxEngine {
     this.skyCanvas = this.makeCanvas("fx-sky");
     this.sky = Sky.create(this.skyCanvas);
     if (!this.sky) this.skyCanvas.style.display = "none";
-    // Rain needs a little more of the GPU; if this device can't draw it, stay with the eclipse.
-    if (this.scene === "rain" && this.sky && !this.sky.rainReady()) this.scene = "eclipse";
-    if (this.scene === "solar" && this.sky && !this.sky.solarReady()) this.scene = "eclipse";
-    document.documentElement.dataset.scene = this.scene;
+    // Some scenes need a little more of the GPU; if this device can't draw one, stay with the galaxy.
+    if (this.sky && !this.ctl.supported()) this.scene = "eclipse";
+    this.markScene();
     this.dustCanvas = this.makeCanvas("fx-dust");
     this.dctx = this.dustCanvas.getContext("2d");
     this.overCanvas = this.makeCanvas("fx-over");
@@ -299,11 +172,6 @@ class FxEngine {
     document.body.prepend(this.dustCanvas);
     document.body.prepend(this.skyCanvas);
     document.body.append(this.overCanvas);
-    this.room = document.createElement("div");
-    this.room.className = "fx-room";
-    this.room.setAttribute("aria-hidden", "true");
-    this.room.style.display = "none";
-    document.body.append(this.room);
 
     this.resize();
     addEventListener("resize", () => {
@@ -330,10 +198,12 @@ class FxEngine {
       { passive: true },
     );
     for (const type of ["keydown", "pointerdown", "wheel"] as const) addEventListener(type, () => (this.lastInput = this.clock), { passive: true });
-    this.seedMotes();
+    for (const c of Object.values(this.scenes)) c.init?.();
     this.applyLevel();
-    if (this.scene === "ink") {
-      this.startInk();
+    // (a scene that needed the sky to begin with — Ink's water — begins properly now)
+    const ctl = this.ctl;
+    if (ctl.start) {
+      ctl.start();
       this.placeSkyCanvas();
     }
   }
@@ -399,7 +269,7 @@ class FxEngine {
   }
 
   /** Clears a whole 2D layer, wherever it has been shifted to. */
-  private wipe(ctx: CanvasRenderingContext2D) {
+  wipe(ctx: CanvasRenderingContext2D) {
     ctx.clearRect(this.ox, this.oy, this.W, this.H);
   }
 
@@ -409,21 +279,7 @@ class FxEngine {
   }
 
   private get baseSkyScale() {
-    if (this.scene === "rain") {
-      // Drops and falling rain need real resolution: up to 2x (1.6x on phones), within a pixel budget.
-      const dpr = devicePixelRatio || 1;
-      const budget = Math.sqrt(4.2e6 / Math.max(1, this.W * this.H));
-      return Math.min(dpr, this.small ? 1.6 : 2, budget) * (this.effective === "subtle" ? 0.75 : 1);
-    }
-    if (this.scene === "ink") {
-      // Soft ink, but paper with a tooth to it: about one pixel per CSS pixel (less on phones).
-      return Math.min(devicePixelRatio || 1, this.small ? 1.1 : 1.25) * (this.effective === "subtle" ? 0.75 : 1);
-    }
-    if (this.scene === "solar") {
-      // The clouds are drawn small anyway; the moon wants a crisp edge.
-      return Math.min(devicePixelRatio || 1, this.small ? 1.25 : 1.35) * (this.effective === "subtle" ? 0.7 : 1);
-    }
-    return this.small ? 0.55 : Math.min(devicePixelRatio || 1, 1.25) * (this.effective === "subtle" ? 0.6 : 1);
+    return this.ctl.skyScale();
   }
 
   /** Sizes the sky for the current scene, level and measured speed. */
@@ -433,7 +289,7 @@ class FxEngine {
     this.sky.resize(this.W, this.H, scale);
     // The city behind the rain is soft, so it needs a little less than the glass in front of it.
     this.sky.cityScale = Math.min(1.15, Math.max(0.6, scale * 0.75));
-    this.sky.quality = this.effective === "cosmic" && (!this.small || this.rain || this.solar) ? 1 : 0;
+    this.sky.quality = this.effective === "cosmic" && (!this.small || this.ctl.detailOnSmall) ? 1 : 0;
   }
 
   get rain() {
@@ -449,6 +305,11 @@ class FxEngine {
     return this.scene === "ink";
   }
 
+  /** A light scene (paper): effects are ink rather than light. */
+  get light() {
+    return SCENES[this.scene].light;
+  }
+
   /** Whether this device can run the ink in the water (WebGL with float or 8-bit targets). */
   get inkCapable() {
     return Boolean(this.sky?.inkReady());
@@ -459,122 +320,43 @@ class FxEngine {
     return this.reduced;
   }
 
-  /** Switches the sky. The rain sets in gradually; `instant` skips that (e.g. at startup). */
-  /** Clean water, with ink already drifting in it by the time anyone sees it. */
-  private startInk() {
-    this.inkBlooms = [];
-    this.inkRipples = [];
-    this.inkAcc = 0;
-    this.inkNext = this.inkT + 0.3;
-    this.inkWarm = 170;
-    this.inkReset = true;
-    this.inkClear = 1;
-    this.inkBehind = 0.16;
-    this.arrival = null;
-    this.intro = [0, 0, 0, 0];
-    // the cursor's stir starts from where it is (not from a leap across the screen)
-    this.stirAt = { ...this.mouse };
-    this.stirV = { x: 0, y: 0 };
-    // a handful already under way, along the bottom and the sides
-    const aspect = this.W / Math.max(1, this.H);
-    const panel = this.inkPanel();
-    const rect = { x0: panel[0], y0: panel[1], x1: panel[2], y1: panel[3] };
-    for (let i = 0; i < 4; i++) this.inkBlooms.push(newBloom(Math.random, this.inkT + i * 1.6, aspect, rect, false, this.inkScale));
-    this.inkStatic = !this.sky || !this.sky.inkReady();
+  /**
+   * Tells the page which scene it's in: html[data-scene] for its own styles, html[data-tone] for
+   * whether it's a light (paper) one (styles/light.css), and the browser's own colour scheme to match.
+   */
+  private markScene() {
+    const root = document.documentElement;
+    root.dataset.scene = this.scene;
+    root.dataset.tone = this.light ? "light" : "dark";
+    // (the page's own colour under everything: paper for a light scene, else the dark default)
+    if (this.light) root.style.setProperty("--plain", SCENES[this.scene].plain);
+    else root.style.removeProperty("--plain");
+    document.querySelector('meta[name="color-scheme"]')?.setAttribute("content", this.light ? "light" : "dark");
   }
 
   /** The sky canvas: hidden when there's nothing to draw on it (ink this device can't simulate: plain paper). */
   private placeSkyCanvas() {
     if (!this.skyCanvas) return;
-    const on = this.effective !== "off" && Boolean(this.sky) && !(this.inkScene && this.inkStatic);
+    const on = this.effective !== "off" && Boolean(this.sky) && this.ctl.drawsSky();
     this.skyCanvas.style.display = on ? "" : "none";
   }
 
   setScene(scene: SceneId, instant = false) {
     if (scene === this.scene) return;
-    if (scene === "rain" && this.sky && !this.sky.rainReady()) scene = "eclipse";
-    if (scene === "solar" && this.sky && !this.sky.solarReady()) scene = "eclipse";
+    if (this.sky && !this.scenes[scene].supported()) scene = "eclipse";
     if (scene === this.scene) return;
+    const from = this.ctl;
     this.scene = scene;
-    document.documentElement.dataset.scene = scene;
-    document.querySelector('meta[name="color-scheme"]')?.setAttribute("content", scene === "ink" ? "light" : "dark");
+    this.markScene();
     this.barsSoon();
     // (with effects off nothing reads the sky's edges: the bars just take the page's own colour)
     if (this.started && this.effective === "off") setBarColors(null, null);
-    if (scene !== "eclipse") {
-      this.cmes = [];
-      this.meteors = [];
-      this.wakes = [];
-      this.frags = [];
-      this.dustClear = true;
-    }
-    if (scene === "rain") {
-      this.wet = instant ? 1 : 0.15;
-      this.sceneFade = instant ? 1 : 0.6;
-      this.nextStrike = this.clock + rand(4000, 9000);
-    } else {
-      this.strikes = [];
-      this.flashNow = 0;
-      this.setRoomFlash(0);
-    }
-    if (scene === "ink") this.startInk();
-    else this.endArrival();
+    from.leave();
+    // the layer behind the UI is the galaxy's: anywhere else it's cleared, once
+    this.dustClear = true;
+    this.ctl.enter(instant);
     if (this.started) this.placeSkyCanvas();
-    if (scene === "solar") {
-      this.solarFade = instant ? 1 : 0.55;
-      this.nudges = [];
-      this.eruption = null;
-      this.coronaK = 1;
-      this.nextGlint = this.clock + rand(12000, 25000);
-      this.nextErupt = this.clock + rand(20000, 40000);
-      this.nextDiamond = this.clock + rand(50000, 90000);
-      // Straight to its spot (so a view transition's snapshot already has it there).
-      this.sunPlaced = this.started;
-      if (this.started) this.sun = this.sunHome();
-    }
     if (this.started) this.sizeSky();
-  }
-
-  setSolar(o: Partial<{ clouds: boolean; size: number; golden: boolean; tint: [number, number, number] | null }>) {
-    const before = this.solarOpts;
-    this.solarOpts = { ...this.solarOpts, ...o };
-    if (before.golden !== this.solarOpts.golden || before.tint?.join() !== this.solarOpts.tint?.join()) this.barsSoon();
-    // Changes only ease in while you're watching; otherwise they're simply in place next time.
-    if (!this.started || !this.solar) {
-      this.cloudsK = this.solarOpts.clouds ? 1 : 0;
-      this.goldK = this.solarOpts.golden ? 1 : 0;
-      const t = this.solarOpts.tint;
-      this.tintNow = t ? [t[0], t[1], t[2], 1] : [this.tintNow[0], this.tintNow[1], this.tintNow[2], 0];
-    }
-  }
-
-  setBackdrop(id: string) {
-    this.backdrop = id;
-  }
-
-  /** How much nearer (or further) than usual the eclipse looks, from the Distance setting: 0.62 .. 1.62. */
-  get sunScale() {
-    return Math.pow(2, (Math.min(1, Math.max(0, this.solarOpts.size)) - 0.5) * 1.4);
-  }
-
-  /** Where the sun is (CSS px), for things that start from it. */
-  get sunSpot() {
-    return { ...this.sun };
-  }
-
-  setRain(o: Partial<RainOptions>) {
-    this.rainOpts = { ...this.rainOpts, ...o };
-    if (!this.started) {
-      this.cityK = this.rainOpts.city ? 1 : 0;
-      this.amountK = this.rainOpts.amount;
-      this.blurK = this.rainOpts.blur;
-    }
-    if (!this.lightningOn) this.strikes = this.strikes.filter((s) => this.clock - s.t0 < 900);
-  }
-
-  /** Whether lightning may flash at all (never with reduced motion — it's a flashing light). */
-  get lightningOn() {
-    return this.rain && this.rainOpts.lightning && !this.reduced && this.effective !== "off";
   }
 
   /** Fades the sky up from dark — how a scene change looks where view transitions aren't used. */
@@ -597,7 +379,7 @@ class FxEngine {
   /** Watches real frame times; trades sky resolution for smoothness when needed. */
   private adapt(realDt: number) {
     this.frameMs += (realDt * 1000 - this.frameMs) * 0.05;
-    const floor = this.rain || this.solar ? 0.5 : 0.35;
+    const floor = this.ctl.floor;
     if (this.frameMs > 24 && this.skyScale > floor + 0.01) {
       this.slowFor += realDt;
       this.fastFor = 0;
@@ -620,7 +402,7 @@ class FxEngine {
     }
   }
 
-  private get effective(): FxLevel {
+  get effective(): FxLevel {
     if (this.level === "cosmic" && this.reduced) return "subtle";
     return this.level;
   }
@@ -661,13 +443,8 @@ class FxEngine {
   }
 
   private clearAll() {
-    this.strikes = [];
-    this.flashNow = 0;
-    this.setRoomFlash(0);
+    for (const c of Object.values(this.scenes)) c.clear?.();
     this.glyphs = [];
-    this.meteors = [];
-    this.wakes = [];
-    this.frags = [];
     this.particles = [];
     this.rings = [];
     this.flashes = [];
@@ -685,9 +462,7 @@ class FxEngine {
     this.aTo = oklchToRgb(accent);
     this.bTo = oklchToRgb(secondary);
     if (was !== this.aTo.join()) this.barsSoon();
-    const g = goldenShift(accent, ACCENTS.corona.color);
-    this.shiftTo = [g.angle, g.sat];
-    if (!this.started) this.shiftNow = [g.angle, g.sat];
+    for (const c of Object.values(this.scenes)) c.accent?.(accent);
     if (!this.started) {
       this.a = [...this.aTo];
       this.b = [...this.bTo];
@@ -745,7 +520,8 @@ class FxEngine {
     this.energy += (energyTo - this.energy) * Math.min(1, dt * (this.calm ? 1.2 : idle ? 0.35 : 3));
     // The eclipse slows and holds its breath while you write; rain just keeps falling; the clouds
     // under the solar eclipse drift on, a little slower.
-    this.time += dt * (this.rain ? 1 : this.solar ? (0.45 + 0.55 * Math.min(1, this.energy)) * (lvl === "subtle" ? 0.6 : 1) : (0.25 + 0.75 * this.energy) * (lvl === "subtle" ? 0.35 : 1));
+    const ctl = this.ctl;
+    this.time += dt * ctl.timeRate(lvl);
     this.smouse.x += (this.mouse.x - this.smouse.x) * Math.min(1, dt * 4);
     this.smouse.y += (this.mouse.y - this.smouse.y) * Math.min(1, dt * 4);
     for (let i = 0; i < 3; i++) {
@@ -759,47 +535,17 @@ class FxEngine {
     this.openK += ((this.open ? 1 : 0) - this.openK) * Math.min(1, dt * 3);
     this.inkBudget = Math.min(24, this.inkBudget + dt * 40);
     this.trackPanel();
-    if (this.rain) this.stepRain(now, dt, idle);
-    if (this.solar) this.stepSolar(now, dt, idle);
-    if (this.inkScene && !this.inkStatic) this.stepInk(now, dt);
+    ctl.step(now, dt, idle);
 
-    // Sky: the eclipse drifts so slowly while you write that ~30fps is plenty then. Rain never
+    // The sky: the galaxy drifts so slowly while you write that ~30fps is plenty then. Rain never
     // slows down — falling drops stutter visibly at anything less than every frame — and nor does
-    // the solar eclipse while something's happening in it.
-    const throttle = !this.rain && !this.solarBusy && !this.inkScene && this.energy < 0.4 ? 32 : 0;
-    if (this.sky && !(this.inkScene && this.inkStatic) && (this.inkScene || now - this.lastSky > throttle || this.flare > 0.02 || this.shocks.length || this.flashNow > 0.004)) {
+    // the solar eclipse while something's happening in it, or the ink in the water.
+    const throttle = !ctl.busy() && this.energy < 0.4 ? 32 : 0;
+    if (this.sky && ctl.drawsSky() && (ctl.mustRender() || now - this.lastSky > throttle || this.flare > 0.02 || this.shocks.length)) {
       this.renderSky(now);
     }
 
-    if (this.inkScene) {
-      this.drawOverlay(now, dt);
-      return;
-    }
-
-    if (this.rain || this.solar) {
-      this.drawDust(dt);
-      this.drawOverlay(now, dt);
-      return;
-    }
-
-    if (lvl === "cosmic" && !this.calm && !this.open && this.panelEl && now > this.nextCme) {
-      this.spawnCme();
-      this.nextCme = now + rand(7000, 15000) * (idle ? 0.55 : 1);
-    }
-
-    // Shooting stars — now and then a little shower of them.
-    if (lvl === "cosmic" && !this.calm && now > this.nextMeteor) {
-      this.meteor();
-      if (this.showerLeft > 0) {
-        this.showerLeft--;
-        this.nextMeteor = now + rand(160, 520);
-      } else if (Math.random() < 0.1) {
-        this.showerLeft = 3 + ((Math.random() * 4) | 0);
-        this.nextMeteor = now + rand(200, 420);
-      } else this.nextMeteor = now + rand(2200, 6500) * (this.small ? 2 : 1) * (idle ? 0.45 : 1);
-    }
-
-    this.drawDust(dt);
+    ctl.behind(now, dt, idle);
     this.drawOverlay(now, dt);
   };
 
@@ -807,7 +553,6 @@ class FxEngine {
     if (!this.sky) return;
     this.lastSky = now;
     this.shocks = this.shocks.filter((s) => now - s.t0 < s.dur);
-    const bolt = this.strikes[this.strikes.length - 1];
     // Page coordinates → the sky's own (they differ only while a phone keyboard has moved things).
     const { ox, oy } = this;
     this.sky.render({
@@ -824,47 +569,111 @@ class FxEngine {
       shocks: this.shocks.slice(-3).map((s) => ({ x: s.x - ox, y: s.y - oy, age: (now - s.t0) / s.dur, strength: s.strength })),
       cursor: this.cursorK,
       open: this.openK,
-      rain: {
-        flash: this.flashNow,
-        boltX: bolt ? bolt.x : 0,
-        boltSeed: bolt ? bolt.seed : 0,
-        bolt: bolt?.bolt ? Math.min(1, this.flashNow * 2.2) : 0,
-        amount: this.amountK,
-        wet: this.wet,
-        fog: 0.24 + this.amountK * 0.3,
-        city: this.cityK,
-        wind: 0.13 + 0.05 * Math.sin(this.time * 0.07) + 0.035 * Math.sin(this.time * 0.23 + 1),
-        fade: this.sceneFade,
-        blur: this.blurK,
-      },
-      solar: {
-        sun: { x: this.sun.x - ox, y: this.sun.y - oy, r: this.sun.r },
-        moon: this.moonNow,
-        light: this.lightNow,
-        glare: this.glareNow,
-        corona: this.coronaK,
-        erupt: this.eruptNow,
-        fade: this.solarFade,
-        clouds: this.cloudsK,
-        gold: this.goldK,
-        tint: this.tintNow,
-        goldShift: this.goldShift(),
-      },
-      ink: this.inkFrame(),
+      // each scene's part (the renderer reads its own)
+      rain: this.rainScene.frame(),
+      solar: this.solarScene.frame(),
+      ink: this.inkCtl.frame(),
     });
-    this.inkSteps = [];
-    this.inkReset = false;
+    this.ctl.rendered?.();
     this.matchBars(now);
   }
 
-  // ── the phone's bars ─────────────────────────────────────────────────────
+  // ── particular scenes ────────────────────────────────────────────────────
+  // (what the app asks of a particular scene, handed to its controller)
 
-  /** The Golden look turned to the accent's colours: where it's heading, and where it is (it eases). */
-  private shiftTo: [number, number] = [0, 1];
-  private shiftNow: [number, number] = [0, 1];
-  private goldShift(): [number, number] {
-    return this.shiftNow;
+  /** The layer behind the UI is the galaxy's: a scene without one clears it, once. */
+  clearBehind() {
+    const ctx = this.dctx;
+    if (!ctx) return;
+    if (this.dustClear) this.wipe(ctx);
+    this.dustClear = false;
   }
+
+  // the galaxy
+  meteor(o: { fireball?: boolean } = {}) {
+    this.galaxy.meteor(o);
+  }
+
+  // the solar eclipse
+  setSolar(o: Parameters<SolarScene["setSolar"]>[0]) {
+    this.solarScene.setSolar(o);
+  }
+
+  setBackdrop(id: string) {
+    this.solarScene.setBackdrop(id);
+  }
+
+  get sunScale() {
+    return this.solarScene.sunScale;
+  }
+
+  get sunSpot() {
+    return this.solarScene.sunSpot;
+  }
+
+  glint() {
+    this.solarScene.glint();
+  }
+
+  erupt() {
+    this.solarScene.erupt();
+  }
+
+  lensFlare(at?: { x: number; y: number }, delay = 0, strength = 1) {
+    this.solarScene.lensFlare(at, delay, strength);
+  }
+
+  holdSun(spot: { x: number; y: number; r: number } | null, o: { fromBlack?: boolean } = {}) {
+    this.solarScene.holdSun(spot, o);
+  }
+
+  setApproach(moon: { x: number; y: number } | null) {
+    this.solarScene.setApproach(moon);
+  }
+
+  // the rain
+  setRain(o: Partial<RainOptions>) {
+    this.rainScene.setRain(o);
+  }
+
+  get lightningOn() {
+    return this.rainScene.lightningOn;
+  }
+
+  strike(o: { bolt?: boolean; power?: number; x?: number } = {}) {
+    return this.rainScene.strike(o);
+  }
+
+  // the ink
+  inkArrive(on: Parameters<InkScene["inkArrive"]>[0] = {}) {
+    return this.inkCtl.inkArrive(on);
+  }
+
+  inkSkip() {
+    this.inkCtl.inkSkip();
+  }
+
+  get arriving() {
+    return this.inkCtl.arriving;
+  }
+
+  inkWelcome(x: number, y: number, hold = 2600) {
+    return this.inkCtl.inkWelcome(x, y, hold);
+  }
+
+  inkLinger(ms: number, behind = 0.6) {
+    this.inkCtl.inkLinger(ms, behind);
+  }
+
+  inkRipple(x: number, y: number, strength = 1) {
+    this.inkCtl.inkRipple(x, y, strength);
+  }
+
+  inkBloom(x: number, y: number, o: Parameters<InkScene["inkBloom"]>[2] = {}) {
+    this.inkCtl.inkBloom(x, y, o);
+  }
+
+  // ── the phone's bars ─────────────────────────────────────────────────────
 
   /** When to look at the sky's edges next, and what the bars were last given. */
   private barsAt = 0;
@@ -895,671 +704,7 @@ class FxEngine {
     setBarColors(top, bottom);
   }
 
-  // ── ink ──────────────────────────────────────────────────────────────────
-
-  /**
-   * The part of the screen kept clear of ink (behind the note), in screen heights (y up). On a
-   * phone the note is the whole screen, so the clear part is its middle: ink keeps to the sides
-   * and gathers below.
-   */
-  private inkPanel(): [number, number, number, number] {
-    const H = Math.max(1, this.H);
-    let { x, y, w, h } = this.panel;
-    // on a phone (or a note filling the screen) all of it is writing: the ink keeps to a thin
-    // margin down the sides and gathers along the bottom
-    const full = this.small || w > this.W * 0.86;
-    if (full) {
-      x = this.W * 0.07;
-      w = this.W * 0.86;
-      y = this.H * 0.1;
-      h = this.H * 0.74;
-    }
-    if (y > this.H) return [-9, -9, -8.9, -8.9];
-    // and on a big screen it may pool a little way up along the bottom edge, under the note
-    const pool = full ? 0 : Math.min(0.07, 54 / H);
-    return [x / H, Math.max(1 - (y + h) / H, pool), (x + w) / H, 1 - y / H];
-  }
-
-  /** How big the clouds are, for the screen's shape: smaller on a tall, narrow one. */
-  private get inkScale() {
-    const aspect = this.W / Math.max(1, this.H);
-    return Math.min(1, Math.max(0.55, 0.55 + (0.45 * (aspect - 0.45)) / 0.85));
-  }
-
-  private stepInk(now: number, dt: number) {
-    const aspect = this.W / Math.max(1, this.H);
-    const panel = this.inkPanel();
-    const rect = { x0: panel[0], y0: panel[1], x1: panel[2], y1: panel[3] };
-    const steps: InkStep[] = [];
-    const add = (sdt: number) => {
-      // new clouds come along every few seconds (a little less often while you write)
-      while (this.inkT >= this.inkNext) {
-        this.inkBlooms.push(newBloom(Math.random, this.inkNext, aspect, rect, false, this.inkScale));
-        // and the bottom gets an extra one now and then
-        if (Math.random() < 0.3) {
-          const b = newBloom(Math.random, this.inkNext + rand(0.6, 2.2), aspect, rect, false, this.inkScale);
-          b.y = rand(0.01, this.small ? 0.08 : 0.12);
-          this.inkBlooms.push(b);
-        }
-        this.inkNext += rand(4.5, 8.5) * (this.calm ? 1.3 : 1);
-      }
-      const A = new Float32Array(INK_BLOOMS * 4);
-      const B = new Float32Array(INK_BLOOMS * 4);
-      const live = this.inkBlooms.filter((b) => this.inkT >= b.t0 && this.inkT - b.t0 < 14).slice(-INK_BLOOMS);
-      for (let i = 0; i < INK_BLOOMS; i++) {
-        const b = live[i];
-        if (b) {
-          A.set([b.x, b.y, b.r, this.inkT - b.t0], i * 4);
-          B.set([b.amount, b.indigo, b.push, b.seed], i * 4);
-        } else A.set([0, 0, 0.05, -1], i * 4);
-      }
-      steps.push({ t: this.inkT, dt: sdt, A, B });
-      this.inkT += sdt;
-    };
-    // to begin with: a quick run (in bigger steps), so there's already ink in the water
-    let n = 0;
-    while (this.inkWarm > 0 && n < 30) {
-      add(0.15);
-      this.inkWarm--;
-      n++;
-    }
-    // then twenty steps a second
-    const STEP = 0.05;
-    this.inkAcc += dt;
-    let k = 0;
-    while (this.inkAcc >= STEP && k < 3) {
-      add(STEP);
-      this.inkAcc -= STEP;
-      k++;
-    }
-    if (this.inkAcc > STEP * 3) this.inkAcc = 0;
-    this.inkMix = Math.min(1, Math.max(0, this.inkAcc / STEP));
-    this.inkSteps = steps;
-    this.inkBlooms = this.inkBlooms.filter((b) => this.inkT - b.t0 < 14);
-
-    // the cursor stirs the water as it moves (a mouse; a finger is for scrolling)
-    const H = Math.max(1, this.H);
-    const vx = (this.mouse.x - this.stirAt.x) / Math.max(dt, 1e-3) / H;
-    const vy = -(this.mouse.y - this.stirAt.y) / Math.max(dt, 1e-3) / H;
-    this.stirAt = { ...this.mouse };
-    const cap = (v: number) => Math.max(-1.2, Math.min(1.2, v));
-    const kk = Math.min(1, dt * 9);
-    this.stirV.x += (cap(vx) - this.stirV.x) * kk;
-    this.stirV.y += (cap(vy) - this.stirV.y) * kk;
-
-    // ripples run out and die away
-    this.inkRipples = this.inkRipples.filter((r) => now - r.t0 < 3200);
-
-    // the area behind the note clears again after a drop, and its ink goes back to a whisper
-    if (!this.arrival && now > this.inkHoldUntil) {
-      this.inkClear += (1 - this.inkClear) * Math.min(1, dt * 0.45);
-      this.inkBehind += (0.16 - this.inkBehind) * Math.min(1, dt * 0.45);
-    }
-    this.stepArrival(now);
-  }
-
-  /** The drop arriving, frame by frame. */
-  private stepArrival(now: number) {
-    const a = this.arrival;
-    if (!a) {
-      this.intro = [0, 0, 0, 0];
-      return;
-    }
-    // the water's first quick steps (a burst of work) happen in the dark, before the drop falls
-    if (this.inkWarm > 0 && !a.landed && !a.out) a.t0 = now;
-    const t = (now - a.t0) / 1000;
-    if (t >= FALL && !a.landed) this.landDrop(a, now);
-    if (a.landed && !a.revealed && t >= REVEAL) {
-      a.revealed = true;
-      a.on.reveal?.();
-    }
-    const out = a.out > 0 ? Math.min(1, (now - a.out) / SKIP_MS) : 0;
-    this.intro = arrivalLook(t, out);
-    if (this.intro[0] <= 0.001 && (t > CLEARED || out >= 1)) {
-      this.arrival = null;
-      this.intro = [0, 0, 0, 0];
-      a.on.done?.();
-    }
-  }
-
-  /** The drop lands: a cloud of ink blooms out from it, and a ripple runs out across the water. */
-  private landDrop(a: NonNullable<FxEngine["arrival"]>, now: number) {
-    a.landed = true;
-    const H = Math.max(1, this.H);
-    this.inkBlooms.push(...dropInk(a.at.x / H, 1 - a.at.y / H, this.inkT, Math.random, this.inkScale));
-    this.inkRipples.push({ x: a.at.x, y: a.at.y, t0: now, strength: 1.5 });
-    a.on.land?.();
-  }
-
-  /**
-   * Ink arriving: the screen is dark, a single drop falls to the middle, and as it lands a ripple
-   * runs out, the ink blooms and curls away from it, and the paper opens out of the dark around
-   * it. `land` and `reveal` are told when it lands and when the page can start coming back.
-   */
-  inkArrive(on: { land?: () => void; reveal?: () => void; done?: () => void } = {}) {
-    if (!this.inkScene || this.inkStatic || !this.active) return false;
-    const at = { x: this.W / 2, y: this.H / 2 };
-    this.arrival = { t0: this.clock, at, landed: false, revealed: false, out: 0, on };
-    // the ink from the drop is allowed in the middle for a while, then cleared away as the note returns
-    this.inkClear = 0.06;
-    this.inkBehind = 1;
-    this.stepArrival(this.clock);
-    return true;
-  }
-
-  /** Skips to the end of the arrival (a tap, a click or a key): the drop lands at once. */
-  inkSkip() {
-    const a = this.arrival;
-    if (!a || a.out) return;
-    a.out = this.clock;
-    if (!a.landed) this.landDrop(a, this.clock);
-    if (!a.revealed) {
-      a.revealed = true;
-      a.on.reveal?.();
-    }
-  }
-
-  /** Whether a drop is arriving right now. */
-  get arriving() {
-    return Boolean(this.arrival);
-  }
-
-  /** Drops the arrival at once (the scene is changing again): its `done` is still told. */
-  private endArrival() {
-    const a = this.arrival;
-    if (!a) return;
-    this.arrival = null;
-    this.intro = [0, 0, 0, 0];
-    a.on.done?.();
-  }
-
-  /**
-   * The launch's welcome on paper: a slow cloud of ink opening out under the name (at x, y, CSS
-   * px), allowed to linger in the middle of the screen for `hold` ms before the page clears it.
-   */
-  inkWelcome(x: number, y: number, hold = 2600) {
-    if (!this.inkScene || this.inkStatic || !this.active) return false;
-    const H = Math.max(1, this.H);
-    this.inkHoldUntil = this.clock + hold;
-    this.inkClear = 0.05;
-    this.inkBehind = 1;
-    const s = this.inkScale;
-    this.inkBlooms.push({ x: x / H, y: 1 - y / H, r: 0.06 * s, t0: this.inkT + 0.05, amount: 2.3, indigo: 0.12, push: 0.085 * s, seed: Math.random() * 100 });
-    this.inkBlooms.push({ x: x / H - 0.05 * s, y: 1 - y / H - 0.012, r: 0.035 * s, t0: this.inkT + 0.55, amount: 1.5, indigo: 0.6, push: 0.05 * s, seed: Math.random() * 100 });
-    this.inkBlooms.push({ x: x / H + 0.06 * s, y: 1 - y / H + 0.008, r: 0.03 * s, t0: this.inkT + 0.85, amount: 1.3, indigo: 0.25, push: 0.045 * s, seed: Math.random() * 100 });
-    return true;
-  }
-
-  /**
-   * For a moment, ink may show behind the note (a new page's drop, a deleted page's words letting
-   * go): it shows more strongly there, and is cleared more gently, for `ms` — then as usual.
-   */
-  inkLinger(ms: number, behind = 0.6) {
-    if (!this.inkScene) return;
-    this.inkHoldUntil = Math.max(this.inkHoldUntil, this.clock + ms);
-    this.inkBehind = Math.max(this.inkBehind, behind);
-    this.inkClear = Math.min(this.inkClear, 0.3);
-  }
-
-  /** A ripple running out across the water (and the paper). */
-  inkRipple(x: number, y: number, strength = 1) {
-    if (!this.inkScene) return;
-    this.inkRipples.push({ x, y, t0: this.clock, strength });
-    if (this.inkRipples.length > 3) this.inkRipples.shift();
-  }
-
-  /** A fresh cloud of ink blooming at a point on the screen (CSS px). */
-  inkBloom(x: number, y: number, o: { size?: number; amount?: number; indigo?: number; push?: number; splash?: boolean } = {}) {
-    if (!this.inkScene || this.inkStatic) return;
-    const H = Math.max(1, this.H);
-    this.inkBlooms.push({
-      x: x / H,
-      y: 1 - y / H,
-      r: o.size ?? 0.06,
-      t0: this.inkT,
-      amount: o.amount ?? 2,
-      indigo: o.indigo ?? (Math.random() < 0.4 ? rand(0.3, 0.7) : rand(0, 0.1)),
-      push: o.push ?? 0.11,
-      // (past 1000: a drop's splash — it opens out in curling fingers)
-      seed: Math.random() * 100 + (o.splash ? 1000 : 0),
-    });
-  }
-
-  private inkFrame() {
-    const H = Math.max(1, this.H);
-    const now = this.clock;
-    return {
-      steps: this.inkSteps,
-      mix: this.inkMix,
-      reset: this.inkReset,
-      aspect: this.W / H,
-      panel: this.inkPanel(),
-      clear: this.inkClear,
-      stir: [this.mouse.x / H, 1 - this.mouse.y / H, this.stirV.x * 0.4 * this.cursorK * (this.small ? 0 : 1), this.stirV.y * 0.4 * this.cursorK * (this.small ? 0 : 1)] as [number, number, number, number],
-      flow: this.effective === "subtle" ? 0.7 : 1,
-      behind: this.inkBehind,
-      ripples: this.inkRipples.slice(-3).map((r) => [r.x, r.y, (now - r.t0) / 1000, r.strength] as [number, number, number, number]),
-      intro: this.intro,
-      drop: this.arrival ? this.arrival.at : { x: this.W / 2, y: this.H / 2 },
-      fade: 1,
-    };
-  }
-
-  // ── the solar eclipse ────────────────────────────────────────────────────
-
-  /**
-   * Where the sun hangs. With room beside your writing (and panels you can see through), right
-   * there in the open sky, a little above the middle of the screen. Otherwise over the right-hand
-   * column, in the clear sky below its widgets (drifting down as the list grows). On a phone, low
-   * on the right; on a friend's page, high over the note. The Distance setting brings it closer
-   * or sends it further off.
-   */
-  private sunHome() {
-    const W = this.W;
-    const H = this.H;
-    const m = Math.min(W, H);
-    const near = this.sunScale;
-    const fit = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
-    if (this.panelCircle) {
-      const r = fit(m * 0.08 * near, 30, 130);
-      return { x: W / 2, y: Math.max(r * 2.3, H * 0.15), r };
-    }
-    if (this.small) {
-      const r = fit(W * 0.12 * near, 28, 110);
-      return { x: W * 0.62, y: H * 0.56, r };
-    }
-    const r0 = m * 0.088 * near;
-    if (this.panelEl) {
-      this.measureLayout();
-      const gap = this.railLeft - this.textRight;
-      if (this.backdrop !== "dark" && gap > Math.min(r0, 70) * 3.2) {
-        // It keeps its bright inner ring clear of your words — unless you've asked for it closer,
-        // when only the moon itself has to fit.
-        const room = gap / (3.1 - 0.8 * Math.max(0, this.solarOpts.size - 0.5) * 2);
-        return { x: this.textRight + gap / 2, y: H * 0.4, r: fit(Math.min(r0, room), 32, 170) };
-      }
-      const p = this.panel;
-      const right = W - (p.x + p.w);
-      if (right > 220) {
-        const r = fit(Math.min(r0, right * 0.3), 34, 120);
-        return { x: p.x + p.w + right / 2, y: fit(this.railBottom + r * 2.4, H * 0.42, H * 0.72), r };
-      }
-    }
-    return { x: W * 0.76, y: H * 0.4, r: fit(r0, 32, 150) };
-  }
-
-  /** Where your writing ends and the right-hand column begins (and its widgets end), every so often. */
-  private measureLayout() {
-    const t = performance.now();
-    if (t - this.layoutAt < 400) return;
-    this.layoutAt = t;
-    let right = 0;
-    for (const el of document.querySelectorAll<HTMLElement>(".canvas .note-title, .canvas .prose")) right = Math.max(right, el.getBoundingClientRect().right);
-    // no note open: about where one would be
-    this.textRight = right || this.panel.x + this.panel.w / 2 + 330;
-    const rail = document.querySelector<HTMLElement>(".app.has-rail .rail-inner");
-    this.railLeft = rail ? rail.getBoundingClientRect().left : this.W;
-    const last = rail?.lastElementChild;
-    this.railBottom = last ? last.getBoundingClientRect().bottom : 0;
-  }
-
-  /** Something's moving in the solar sky, so it should be drawn every frame. */
-  private get solarBusy() {
-    return (
-      this.solar &&
-      (this.nudges.length > 0 ||
-        this.approach !== null ||
-        this.eruption !== null ||
-        this.solarFade < 0.995 ||
-        this.sunHold !== null ||
-        (this.cloudsK > 0 && this.cloudsK < 1) ||
-        (this.goldK > 0 && this.goldK < 1) ||
-        (this.tintNow[3] > 0 && this.tintNow[3] < 1) ||
-        this.shiftNow[0] !== this.shiftTo[0] ||
-        this.shiftNow[1] !== this.shiftTo[1])
-    );
-  }
-
-  private stepSolar(now: number, dt: number, idle: boolean) {
-    this.solarFade += (1 - this.solarFade) * Math.min(1, dt * 1.6);
-    this.cloudsK += ((this.solarOpts.clouds ? 1 : 0) - this.cloudsK) * Math.min(1, dt * 1.8);
-    if (Math.abs(this.cloudsK - (this.solarOpts.clouds ? 1 : 0)) < 0.002) this.cloudsK = this.solarOpts.clouds ? 1 : 0;
-    // switching looks is a slow change of light, not a cut
-    const goldTo = this.solarOpts.golden ? 1 : 0;
-    this.goldK += (goldTo - this.goldK) * Math.min(1, dt * 1.4);
-    if (Math.abs(this.goldK - goldTo) < 0.002) this.goldK = goldTo;
-    // a new accent turns the Golden look round to its colours (the short way round)
-    {
-      const [ta, ts] = this.shiftTo;
-      const sn = this.shiftNow;
-      let da = ta - sn[0];
-      da = Math.atan2(Math.sin(da), Math.cos(da));
-      const kk = Math.min(1, dt * 2.2);
-      sn[0] += da * kk;
-      sn[1] += (ts - sn[1]) * kk;
-      if (Math.abs(da) < 1e-3 && Math.abs(ts - sn[1]) < 1e-3) this.shiftNow = [ta, ts];
-    }
-    // and a new corona colour washes in the same way
-    const tt = this.solarOpts.tint;
-    const tk = Math.min(1, dt * 1.6);
-    const tn = this.tintNow;
-    const tTo: [number, number, number, number] = tt ? [tt[0], tt[1], tt[2], 1] : [tn[0], tn[1], tn[2], 0];
-    for (let i = 0; i < 4; i++) tn[i] += (tTo[i] - tn[i]) * tk;
-    if (Math.abs(tn[3] - tTo[3]) < 0.002) tn[3] = tTo[3];
-    const to = this.sunHold ?? this.sunHome();
-    // The first time there's a page to hang it by, it goes straight there; after that it glides.
-    const anchor = this.panelCircle ? "moon" : this.panelEl ? "panel" : "none";
-    if (anchor !== this.sunAnchor) {
-      if (this.sunAnchor === "none" && !this.sunHold) this.sunPlaced = false;
-      this.sunAnchor = anchor;
-    }
-    if (!this.sunPlaced) {
-      this.sun = { ...to };
-      this.sunPlaced = true;
-    } else {
-      const k = Math.min(1, dt * 2.2);
-      this.sun.x += (to.x - this.sun.x) * k;
-      this.sun.y += (to.y - this.sun.y) * k;
-      this.sun.r += (to.r - this.sun.r) * k;
-    }
-
-    // The moon: nudged a hair off the sun now and then — or, in the intro, sliding in over it.
-    let ox = 0;
-    let oy = 0;
-    this.nudges = this.nudges.filter((n) => {
-      const t = now - n.t0;
-      const end = n.keys[n.keys.length - 1][0];
-      if (t >= end) return false;
-      // its edge creeps unevenly, so the beads along it flicker
-      const v = Math.max(0, keyed(n.keys, t) + Math.sin(t * 0.047 + n.t0) * 0.0009 + Math.sin(t * 0.031) * 0.0006);
-      // and it may slide along the sun's edge as it goes, so the beads light up one after another
-      const turn = (n.spin ?? 0) * (t / end - 0.5);
-      const c = Math.cos(turn);
-      const sn = Math.sin(turn);
-      ox -= (n.dir.x * c - n.dir.y * sn) * v;
-      oy -= (n.dir.x * sn + n.dir.y * c) * v;
-      return true;
-    });
-    if (this.approach) {
-      ox += this.approach.x;
-      oy += this.approach.y;
-    } else {
-      // It never sits quite still: it wanders a hair to and fro over the sun, so the pink rim of
-      // fire slides slowly round its edge. (Less so while it's being nudged.)
-      this.wanderK += ((this.nudges.length ? 0.25 : 1) - this.wanderK) * Math.min(1, dt * 2);
-      const lt = this.time;
-      ox += (0.0068 * Math.sin(lt * 0.13) + 0.0028 * Math.sin(lt * 0.41 + 1.3)) * this.wanderK;
-      oy += (0.0068 * Math.cos(lt * 0.097) + 0.0028 * Math.cos(lt * 0.37 + 0.4)) * this.wanderK;
-    }
-    this.moonNow = { x: ox, y: oy };
-    const d = Math.hypot(ox, oy);
-    this.lightNow = uncovered(d);
-    // The glare: from the moment the deepest valleys along the moon's edge let the sun through.
-    const g = smooth(0.003, 0.042, d - (MOON_R - 1 - CRAGS));
-    this.glareNow = d > 1e-6 ? { x: -ox / d, y: -oy / d, v: Math.pow(g, 1.5) * (1 + Math.min(1.2, this.lightNow * 10)) } : { x: 0, y: -1, v: 0 };
-    // The corona can only be seen at totality: the least bit of sunlight drowns it out.
-    const coronaTo = 1 - smooth(0.0015, 0.03, this.lightNow);
-    this.coronaK += (coronaTo - this.coronaK) * Math.min(1, dt * (coronaTo > this.coronaK ? 1.5 : 9));
-
-    const e = this.eruption;
-    const ep = e ? (now - e.t0) / e.dur : 1;
-    if (e && ep >= 1) this.eruption = null;
-    this.eruptNow = e && ep < 1 ? [e.angle, Math.max(0, ep), e.size, 1] : [0, 0, 0, 0];
-
-    // Now and then: a glimmer of Baily's beads (gentle enough to come while you write, too —
-    // just less often); a prominence erupting, with a great bubble of corona bursting out behind
-    // it; and, once you've left it alone for a while, the full diamond ring.
-    if (this.full && !document.hidden && !this.sunHold) {
-      if (now > this.nextGlint) {
-        this.glint();
-        this.nextGlint = now + rand(16000, 36000) * (this.calm ? 2 : idle ? 0.7 : 1);
-      }
-      if (!this.calm && now > this.nextErupt) {
-        this.erupt();
-        this.nextErupt = now + rand(28000, 60000) * (idle ? 0.6 : 1);
-      }
-      if (idle && !this.calm && now > this.nextDiamond) {
-        this.solarDiamond(0.8);
-        this.nextDiamond = now + rand(70000, 140000);
-      }
-    }
-  }
-
-  /**
-   * A glimmer: the moon's edge drifts a hair off the sun and slides along it, so Baily's beads
-   * light up one after another — a shimmer of light running round the rim — and go out again.
-   */
-  glint() {
-    if (!this.solar || !this.active) return;
-    const a = rand(0, Math.PI * 2);
-    this.nudges.push({
-      t0: this.clock,
-      dir: { x: Math.cos(a), y: Math.sin(a) },
-      spin: rand(0.5, 0.9) * (Math.random() < 0.5 ? -1 : 1),
-      keys: [
-        [0, 0],
-        [600, 0.02],
-        [1400, 0.0266],
-        [2600, 0.0268],
-        [3500, 0.012],
-        [4000, 0],
-      ],
-    });
-  }
-
-  /** A prominence lifts off the sun's edge and erupts into space, slowly. */
-  erupt() {
-    if (!this.solar || !this.full) return;
-    this.eruption = { t0: this.clock, dur: rand(10000, 14000), angle: rand(0, Math.PI * 2), size: rand(0.85, 1.4) };
-  }
-
-  /**
-   * New note, under the solar eclipse: the moon slips a hair off the sun. Baily's beads flicker
-   * along its edge — then the sunlight bursts out at one point, the diamond ring. It lights the
-   * clouds, flares across the lens, and fades as the moon slides back over.
-   */
-  private solarDiamond(strength = 1) {
-    const s = this.sun;
-    // It breaks out on the side facing the middle of the screen, more or less — or, in the Golden
-    // look, right where the sun is already blazing (up and to the left).
-    const a = this.solarOpts.golden ? Math.atan2(-0.571, -0.821) : Math.atan2(this.H * 0.45 - s.y, this.W * 0.5 - s.x) + rand(-0.55, 0.55);
-    const dir = { x: Math.cos(a), y: Math.sin(a) };
-    const peak = 0.034 + 0.026 * strength;
-    const burst = 520;
-    this.nudges = [
-      {
-        t0: this.clock,
-        dir,
-        keys: [
-          [0, 0],
-          [160, 0.021],
-          [400, 0.027],
-          [burst, peak],
-          [burst + 260, peak],
-          [burst + 1250, 0.03],
-          [burst + 1900, 0.022],
-          [burst + 2500, 0],
-        ],
-      },
-    ];
-    this.lensFlare({ x: s.x + dir.x * s.r, y: s.y + dir.y * s.r }, burst - 40, strength);
-  }
-
-  /**
-   * The sunlight flaring in the lens, over everything: a wash of warm light, and ghosts marching
-   * across the screen from the point where it broke out (by default, wherever it's breaking out now).
-   */
-  lensFlare(at?: { x: number; y: number }, delay = 0, strength = 1) {
-    if (!this.full) return;
-    const s = this.sun;
-    const x = at?.x ?? s.x + this.glareNow.x * s.r;
-    const y = at?.y ?? s.y + this.glareNow.y * s.r;
-    this.flash(x, y, Math.max(this.W, this.H) * 0.75, { dur: 1600, alpha: 0.13 * strength, color: SUNLIGHT, delay });
-    this.flash(x, y, s.r * 1.4, { dur: 700, alpha: 0.75, color: WHITE, delay });
-    const cx = this.W / 2;
-    const cy = this.H / 2;
-    const ghosts: [number, number, boolean, C255, number][] = [
-      [0.32, 16, true, SUNLIGHT, 0.26],
-      [0.58, 44, false, this.accentHot, 0.14],
-      [0.84, 8, false, WHITE, 0.36],
-      [1.16, 26, true, this.accent, 0.22],
-      [1.46, 72, false, SUNLIGHT, 0.09],
-      [1.74, 12, true, WHITE, 0.3],
-    ];
-    const t0 = this.clock + delay;
-    ghosts.forEach(([k, r, hex, color, alpha], i) =>
-      this.ghosts.push({ x: x + (cx - x) * k * 2, y: y + (cy - y) * k * 2, r, hex, color, alpha: alpha * strength, t0: t0 + i * 45, dur: 1400 }),
-    );
-    this.overDirty = true;
-  }
-
-  /**
-   * The solar intro: the moon slides in over the sun in the middle of the screen. `spot` holds
-   * the sun there (null lets it glide home); `moon` is the moon's offset in sun radii (null once
-   * it's home). `fromBlack` fades the sky up from dark.
-   */
-  holdSun(spot: { x: number; y: number; r: number } | null, o: { fromBlack?: boolean } = {}) {
-    this.sunHold = spot;
-    if (spot) {
-      this.sun = { ...spot };
-      this.sunPlaced = true;
-    }
-    if (o.fromBlack) this.solarFade = 0;
-  }
-
-  setApproach(moon: { x: number; y: number } | null) {
-    this.approach = moon;
-  }
-
-  // ── rain: the weather ────────────────────────────────────────────────────
-
-  /** Lightning brightness this frame. */
-  private flashNow = 0;
-
-  private stepRain(now: number, dt: number, idle: boolean) {
-    this.wet += (1 - this.wet) * Math.min(1, dt * 0.32);
-    this.sceneFade += (1 - this.sceneFade) * Math.min(1, dt * 1.6);
-    this.cityK += ((this.rainOpts.city ? 1 : 0) - this.cityK) * Math.min(1, dt * 1.4);
-    this.amountK += (this.rainOpts.amount - this.amountK) * Math.min(1, dt * 0.8);
-    this.blurK += (this.rainOpts.blur - this.blurK) * Math.min(1, dt * 6);
-
-    // Now and then, lightning — but never while you're writing.
-    if (this.lightningOn && !this.calm && !document.hidden && now > this.nextStrike) {
-      const bolt = Math.random() < 0.38;
-      this.strike({ bolt, power: bolt ? rand(0.6, 0.95) : rand(0.25, 0.45) });
-      this.nextStrike = now + rand(11000, 34000) * (idle ? 0.6 : 1) * (1.25 - this.amountK * 0.5);
-    }
-
-    let f = 0;
-    this.strikes = this.strikes.filter((s) => {
-      const t = now - s.t0;
-      let v = 0;
-      let alive = false;
-      for (const p of s.pulses) {
-        const d = t - p.at;
-        if (d < 0) {
-          alive = true;
-          continue;
-        }
-        const e = d < 28 ? d / 28 : Math.exp(-(d - 28) / p.tau);
-        if (e > 0.002) alive = true;
-        v += p.amp * e;
-      }
-      f = Math.max(f, v);
-      return alive;
-    });
-    this.flashNow = f;
-    // The room lights up too, just a little.
-    this.setRoomFlash(Math.min(1, f));
-  }
-
-  private setRoomFlash(v: number) {
-    const q = Math.round(v * 200) / 200;
-    if (q === this.roomFlash || !this.room) return;
-    this.roomFlash = q;
-    this.room.style.display = q > 0 ? "" : "none";
-    this.room.style.opacity = (q * 0.075).toFixed(4);
-  }
-
-  /**
-   * A lightning strike. Distant ones are a flicker in the clouds; nearer ones show the bolt
-   * itself. Flickers are kept slow and few (never more than three in a second).
-   */
-  strike(o: { bolt?: boolean; power?: number; x?: number } = {}) {
-    if (!this.lightningOn) return false;
-    const power = o.power ?? 0.8;
-    const bolt = o.bolt ?? true;
-    const aspect = this.W / Math.max(1, this.H);
-    const x = o.x !== undefined ? o.x / Math.max(1, this.H) : rand(0.12, 0.88) * aspect;
-    const pulses = [{ at: 0, amp: power * rand(0.45, 0.7), tau: 90 }];
-    pulses.push({ at: rand(170, 260), amp: power, tau: bolt ? 150 : 210 });
-    if (Math.random() < 0.6) pulses.push({ at: rand(520, 700), amp: power * rand(0.3, 0.55), tau: 260 });
-    this.strikes.push({ t0: this.clock, pulses, x, seed: Math.random() * 100, bolt });
-    if (this.strikes.length > 3) this.strikes.shift();
-    return true;
-  }
-
-  private spawnCme() {
-    const p = this.panel;
-    const edges: [string, number][] = [
-      ["top", p.w * 0.8],
-      ["right", p.h],
-      ["left", p.h],
-    ];
-    let pick = Math.random() * edges.reduce((a, e) => a + e[1], 0);
-    let edge = "top";
-    for (const [name, w] of edges) {
-      pick -= w;
-      if (pick <= 0) {
-        edge = name;
-        break;
-      }
-    }
-    const f = rand(0.15, 0.85);
-    const base =
-      edge === "top"
-        ? { x: p.x + p.w * f, y: p.y, nx: 0, ny: -1, tx: 1, ty: 0 }
-        : edge === "right"
-          ? { x: p.x + p.w, y: p.y + p.h * f, nx: 1, ny: 0, tx: 0, ty: 1 }
-          : { x: p.x, y: p.y + p.h * f, nx: -1, ny: 0, tx: 0, ty: 1 };
-    this.cmes.push({ ...base, span: rand(16, 34), height: rand(26, 58), tilt: rand(-0.5, 0.5), t0: this.clock, dur: 2800 });
-    // Light the corona around the eruption.
-    this.diamond.x = base.x;
-    this.diamond.y = base.y;
-    this.flareUp(0.4);
-  }
-
-  private drawCmes(ctx: CanvasRenderingContext2D) {
-    const now = this.clock;
-    const hot = this.accentHot.join(",");
-    this.cmes = this.cmes.filter((c) => {
-      const k = (now - c.t0) / c.dur;
-      if (k >= 1) return false;
-      const grow = easeOut(Math.min(1, k * 1.5));
-      const fade = k < 0.5 ? 1 : 1 - (k - 0.5) / 0.5;
-      for (const [scale, w, a] of [
-        [1, 7, 0.12],
-        [1, 1.8, 0.75],
-        [0.62, 1.2, 0.5],
-      ] as const) {
-        const span = c.span * scale;
-        const h = c.height * grow * scale * 1.7;
-        const p0x = c.x - c.tx * span;
-        const p0y = c.y - c.ty * span;
-        const p2x = c.x + c.tx * span;
-        const p2y = c.y + c.ty * span;
-        const cx = c.x + c.nx * h + c.tx * c.tilt * h;
-        const cy = c.y + c.ny * h + c.ty * c.tilt * h;
-        ctx.strokeStyle = `rgba(${hot},${a * fade})`;
-        ctx.lineWidth = w;
-        ctx.beginPath();
-        ctx.moveTo(p0x, p0y);
-        ctx.quadraticCurveTo(cx, cy, p2x, p2y);
-        ctx.stroke();
-      }
-      return true;
-    });
-  }
+  // ── the panel (the moon the corona streams from behind) ─────────────────
 
   private trackPanel() {
     if (this.panelCircle) {
@@ -1577,217 +722,9 @@ class FxEngine {
     }
   }
 
-  // ── dust: motes drifting through the corona light (behind the UI) ────────
-
-  private seedMotes() {
-    const n = this.small ? 34 : this.effective === "subtle" ? 30 : 90;
-    this.motes = Array.from({ length: n }, () => this.newMote(true));
-  }
-
-  private newMote(anywhere: boolean): Mote {
-    const z = Math.random() * 0.8 + 0.2;
-    return {
-      x: Math.random() * this.W,
-      y: anywhere ? Math.random() * this.H : this.H + 10,
-      z,
-      vx: rand(-5, 5) * z,
-      vy: -rand(3, 13) * z,
-      size: rand(0.5, 1.9) * (0.5 + z),
-      phase: Math.random() * Math.PI * 2,
-    };
-  }
-
-  private drawDust(dt: number) {
-    const ctx = this.dctx;
-    if (!ctx) return;
-    if (this.rain || this.solar) {
-      if (this.dustClear) this.wipe(ctx);
-      this.dustClear = false;
-      return;
-    }
-    this.wipe(ctx);
-    ctx.globalCompositeOperation = "lighter";
-    const tint = to255(mixRgb(this.a, [1, 1, 1], 0.55));
-    const sprite = this.sprite(tint);
-    const p = this.panel;
-    const px = (this.smouse.x / Math.max(1, this.W) - 0.5) * 24;
-    const py = (this.smouse.y / Math.max(1, this.H) - 0.5) * 24;
-    const speed = 0.3 + 0.7 * this.energy;
-    for (const m of this.motes) {
-      m.x += m.vx * dt * speed;
-      m.y += m.vy * dt * speed;
-      m.phase += dt * (0.6 + m.z);
-      if (m.y < -12 || m.x < -12 || m.x > this.W + 12) Object.assign(m, this.newMote(false));
-      const x = m.x - px * m.z;
-      const y = m.y - py * m.z;
-      // Brighter where the corona light falls.
-      const dx = Math.max(p.x - x, 0, x - (p.x + p.w));
-      const dy = Math.max(p.y - y, 0, y - (p.y + p.h));
-      const inside = dx === 0 && dy === 0 && !p.circle;
-      if (inside && !this.open) continue;
-      const edge = Math.hypot(dx, dy);
-      const lit = Math.exp(-edge / 140) * (1 + this.flare * 2);
-      const tw = 0.55 + 0.45 * Math.sin(m.phase * 2.1);
-      const alpha = (0.1 + lit * 0.55) * tw * (0.4 + 0.6 * m.z);
-      if (alpha < 0.01) continue;
-      const s = m.size * (2.6 + lit * 2);
-      ctx.globalAlpha = Math.min(1, alpha);
-      ctx.drawImage(sprite, x - s, y - s, s * 2, s * 2);
-    }
-    ctx.globalAlpha = 1;
-    if (this.cmes.length) this.drawCmes(ctx);
-    if (this.meteors.length || this.wakes.length || this.frags.length) this.drawMeteors(ctx, dt);
-    ctx.globalCompositeOperation = "source-over";
-  }
-
-  // ── shooting stars ───────────────────────────────────────────────────────
-
-  /** Spawns one meteor, mostly where it can be seen: through the side glass or around the panel. */
-  meteor(o: { fireball?: boolean } = {}) {
-    if (!this.full || this.rain || this.solar) return;
-    const p = this.panel;
-    const left = Math.max(0, p.x);
-    const right = Math.max(0, this.W - (p.x + p.w));
-    let x: number;
-    const r = Math.random() * (left + right + this.W * 0.25);
-    if (p.circle || r > left + right) x = Math.random() * this.W;
-    else if (r < left) x = Math.random() * left;
-    else x = p.x + p.w + Math.random() * right;
-    const y = rand(0.02, 0.62) * this.H;
-    // Every meteor in a shower streams away from the same radiant, high up and off to the right.
-    const rx = this.W * 1.15;
-    const ry = -this.H * 0.4;
-    let dx = x - rx;
-    let dy = y - ry;
-    const d = Math.hypot(dx, dy) || 1;
-    const jitter = rand(-0.08, 0.08);
-    dx = dx / d;
-    dy = dy / d;
-    const ux = dx * Math.cos(jitter) - dy * Math.sin(jitter);
-    const uy = dx * Math.sin(jitter) + dy * Math.cos(jitter);
-    const fireball = o.fireball ?? Math.random() < 0.06;
-    const speed = fireball ? rand(380, 560) : rand(520, 980);
-    const dur = fireball ? rand(1300, 1700) : rand(450, 1050);
-    const hue = Math.random();
-    const color: C255 = hue < 0.55 ? this.accentHot : hue < 0.8 ? to255(mixRgb(this.bTo, [1, 1, 1], 0.45)) : [255, 236, 214];
-    this.meteors.push({
-      x,
-      y,
-      vx: ux * speed,
-      vy: uy * speed,
-      size: fireball ? rand(2.2, 2.8) : rand(0.9, 1.7),
-      color,
-      flareAt: rand(0.55, 0.85),
-      wake: fireball || Math.random() < 0.3,
-      fireball,
-      t0: this.clock,
-      dur,
-    });
-  }
-
-  private drawMeteors(ctx: CanvasRenderingContext2D, dt: number) {
-    const now = this.clock;
-    ctx.lineCap = "round";
-
-    // Wakes, beneath: they linger, widen and twist as the wind takes them.
-    this.wakes = this.wakes.filter((w) => {
-      const k = (now - w.t0) / w.dur;
-      if (k >= 1) return false;
-      const a = Math.pow(1 - k, 1.6) * 0.2 * Math.min(1, k * 8);
-      const dx = w.x1 - w.x0;
-      const dy = w.y1 - w.y0;
-      const b = w.bend * easeOut(k);
-      const c = w.color.join(",");
-      const g = ctx.createLinearGradient(w.x0, w.y0, w.x1, w.y1);
-      g.addColorStop(0, `rgba(${c},0)`);
-      g.addColorStop(0.55, `rgba(${c},${a})`);
-      g.addColorStop(0.9, `rgba(${c},${a * 0.6})`);
-      g.addColorStop(1, `rgba(${c},0)`);
-      ctx.strokeStyle = g;
-      ctx.lineWidth = w.width * (1 + k * 3);
-      ctx.beginPath();
-      ctx.moveTo(w.x0, w.y0);
-      ctx.quadraticCurveTo((w.x0 + w.x1) / 2 - dy * b, (w.y0 + w.y1) / 2 + dx * b, w.x1, w.y1);
-      ctx.stroke();
-      return true;
-    });
-
-    this.meteors = this.meteors.filter((m) => {
-      const k = (now - m.t0) / m.dur;
-      const t = (Math.min(1, k) * m.dur) / 1000;
-      const hx = m.x + m.vx * t;
-      const hy = m.y + m.vy * t;
-      if (k >= 1) {
-        if (m.wake) {
-          const from = 0.2 * t;
-          this.wakes.push({
-            x0: m.x + m.vx * from,
-            y0: m.y + m.vy * from,
-            x1: hx,
-            y1: hy,
-            bend: rand(-0.08, 0.08),
-            width: m.fireball ? 2.4 : 1.4,
-            color: m.color,
-            t0: now,
-            dur: m.fireball ? 3200 : rand(1600, 2400),
-          });
-        }
-        return false;
-      }
-      // Brightens, flares near the end of its life, then gutters out.
-      let b = Math.pow(Math.sin(Math.PI * k), 0.55);
-      b *= 1 + (m.fireball ? 2.2 : 1.4) * Math.exp(-Math.pow((k - m.flareAt) / 0.07, 2));
-      const speed = Math.hypot(m.vx, m.vy);
-      const len = Math.min(speed * t, speed * (m.fireball ? 0.3 : 0.17));
-      const ux = m.vx / speed;
-      const uy = m.vy / speed;
-      const tx = hx - ux * len;
-      const ty = hy - uy * len;
-      const c = m.color.join(",");
-      const g = ctx.createLinearGradient(hx, hy, tx, ty);
-      g.addColorStop(0, `rgba(255,255,255,${Math.min(1, b * 0.95)})`);
-      g.addColorStop(0.22, `rgba(${c},${Math.min(1, b * 0.6)})`);
-      g.addColorStop(1, `rgba(${c},0)`);
-      ctx.strokeStyle = g;
-      ctx.beginPath();
-      ctx.moveTo(tx, ty);
-      ctx.lineTo(hx, hy);
-      ctx.lineWidth = m.size * 4;
-      ctx.globalAlpha = 0.28;
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-      ctx.lineWidth = m.size;
-      ctx.stroke();
-      const s = m.size * (3.5 + 4.5 * Math.min(2, b));
-      ctx.globalAlpha = Math.min(1, b);
-      ctx.drawImage(this.sprite(m.color), hx - s, hy - s, s * 2, s * 2);
-      ctx.globalAlpha = 1;
-      // Fireballs shed glowing fragments.
-      if (m.fireball && Math.random() < dt * 45) {
-        const life = rand(0.35, 0.8);
-        this.frags.push({ x: hx, y: hy, vx: m.vx * rand(0.1, 0.3) + rand(-20, 20), vy: m.vy * rand(0.1, 0.3) + rand(-20, 20), life, max: life, size: rand(0.8, 1.6), color: m.color });
-      }
-      return true;
-    });
-
-    this.frags = this.frags.filter((f) => {
-      f.life -= dt;
-      if (f.life <= 0) return false;
-      f.x += f.vx * dt;
-      f.y += f.vy * dt;
-      f.vx *= 0.96;
-      f.vy *= 0.96;
-      const s = f.size * 3;
-      ctx.globalAlpha = (f.life / f.max) * 0.85;
-      ctx.drawImage(this.sprite(f.color), f.x - s, f.y - s, s * 2, s * 2);
-      return true;
-    });
-    ctx.globalAlpha = 1;
-  }
-
   // ── overlay: the effects above the UI ────────────────────────────────────
 
-  private sprite(c: C255): HTMLCanvasElement {
+  sprite(c: C255): HTMLCanvasElement {
     const key = c.join(",");
     let s = this.sprites.get(key);
     if (!s) {
@@ -1858,6 +795,7 @@ class FxEngine {
     this.wipe(ctx);
     if (!busy) return;
     ctx.globalCompositeOperation = "lighter";
+    const drops = this.ctl.drops;
 
     const age = (t: Timed) => (now - t.t0) / t.dur;
 
@@ -2131,7 +1069,7 @@ class FxEngine {
       } else {
         const s = p.size * 3.2;
         ctx.globalAlpha = Math.min(1, a);
-        ctx.drawImage(this.rain ? this.dropSprite(p.color) : this.sprite(p.color), p.x - s, p.y - s, s * 2, s * 2);
+        ctx.drawImage(drops ? this.dropSprite(p.color) : this.sprite(p.color), p.x - s, p.y - s, s * 2, s * 2);
         ctx.globalAlpha = 1;
       }
       next.push(p);
@@ -2191,7 +1129,7 @@ class FxEngine {
     const scale = this.full ? 1 : 0.4;
     const count = Math.round((o.count ?? 24) * scale);
     // In the rain, every burst is a splash: droplets that arc and fall.
-    const wet = this.rain;
+    const wet = this.ctl.drops;
     const colors = o.colors ?? (wet ? [WATER, WHITE, this.accentHot] : [this.accent, this.accentHot, WHITE]);
     const spread = o.spread ?? Math.PI * 2;
     const base = o.angle ?? 0;
@@ -2225,7 +1163,7 @@ class FxEngine {
   flash(x: number, y: number, r: number, o: { dur?: number; alpha?: number; color?: C255; delay?: number } = {}) {
     if (!this.active) return;
     // (on paper a flash of light becomes a wash of ink, which needs far less of it)
-    const alpha = (o.alpha ?? 0.5) * (this.inkScene ? 0.32 : 1);
+    const alpha = (o.alpha ?? 0.5) * this.ctl.flashK;
     this.flashes.push({ x, y, r, t0: this.clock + (o.delay ?? 0), dur: o.dur ?? 500, color: o.color ?? this.accent, alpha });
     this.overDirty = true;
   }
@@ -2248,18 +1186,9 @@ class FxEngine {
   /** New note: the diamond ring — the instant sunlight bursts from behind the moon. */
   diamondRing() {
     if (!this.active) return;
-    if (this.rain) {
-      this.thunderclap();
-      return;
-    }
-    if (this.inkScene) {
-      this.inkNewPage();
-      return;
-    }
-    if (this.solar) {
-      this.solarDiamond();
-      return;
-    }
+    // (each scene may play its own: lightning in the rain, the real diamond ring under the solar
+    // eclipse, a drop of ink on paper)
+    if (this.ctl.newNote?.()) return;
     const p = this.panel;
     // On the page's top edge, near the middle (its light washes down over the whole page).
     let x = p.x + p.w * rand(0.44, 0.56);
@@ -2301,39 +1230,6 @@ class FxEngine {
     this.overDirty = true;
   }
 
-  /**
-   * New note, on paper: a drop of ink lands on the fresh page and blooms out under it as the page
-   * develops, a ripple running out from it — then the water carries it off.
-   */
-  private inkNewPage() {
-    const p = this.panel;
-    if (p.circle || !this.inkScene) return;
-    const x = p.x + p.w * rand(0.4, 0.6);
-    const y = p.y + Math.min(p.h * 0.2, 150);
-    this.inkLinger(900);
-    const s = this.inkScale;
-    this.inkBloom(x, y, { size: 0.045 * s, amount: 1.5, push: 0.2 * s, indigo: rand(0.2, 0.55), splash: true });
-    this.inkRipple(x, y, 1);
-    // and a few flecks of ink flicked off the nib
-    if (this.full) this.burst(x, y, { count: 16, speed: 170, size: 1.4, life: 0.6, sparks: 0.25 });
-  }
-
-  /**
-   * New note, in the rain: lightning, close — the bolt, the flash, the room lit up for an
-   * instant, the glass shivering. Without lightning, a big drop hits the glass instead.
-   */
-  private thunderclap() {
-    const p = this.panel;
-    const x = p.circle ? p.x + p.w / 2 : p.x + p.w * rand(0.55, 0.9);
-    const y = p.circle ? Math.min(this.H * 0.4, Math.max(40, p.y + p.h)) : Math.max(30, p.y + 1);
-    if (this.strike({ bolt: true, power: 1, x: x + rand(-80, 80) })) {
-      this.shockwave(x, y, 0.9, 1800);
-      if (this.full) this.burst(x, y, { count: 26, speed: 260, size: 1.6, life: 1, angle: -Math.PI / 2, spread: Math.PI * 0.9 });
-      return;
-    }
-    this.splash(x, y, 1.6);
-  }
-
   /** A drop hits: rings spread, a crown of droplets leaps up and falls back, and the glass ripples. */
   splash(x: number, y: number, size = 1) {
     if (!this.active) return;
@@ -2345,13 +1241,10 @@ class FxEngine {
     this.burst(x, y, { count: Math.round(16 * size), speed: 175 * Math.sqrt(size), size: 1.5, life: 0.8, angle: -Math.PI / 2, spread: Math.PI * 0.85, sparks: 0.35 });
   }
 
-  /** Checking off a to-do: a tiny sunburst — a splash, in the rain. */
+  /** Checking off a to-do: a tiny sunburst (each scene may have its own: a splash, in the rain). */
   sunburst(x: number, y: number) {
     if (!this.active) return;
-    if (this.rain) {
-      this.splash(x, y);
-      return;
-    }
+    if (this.ctl.checked?.(x, y)) return;
     const now = this.clock;
     this.rays.push({ x, y, n: 12, r0: 11, len: this.full ? 26 : 16, color: this.accentHot, spin: 0.35, width: 1.5, t0: now, dur: 520 });
     this.ring(x, y, 9, 34, { dur: 520, width: 1.4 });
@@ -2359,14 +1252,10 @@ class FxEngine {
     this.burst(x, y, { count: 18, speed: 150, size: 1.7, life: 0.65, sparks: 0.5 });
   }
 
-  /** A soft flourish of light (sharing, saving a copy). In a storm, it calls down the lightning. */
+  /** A soft flourish of light (sharing, saving a copy). (Each scene may have its own: in a storm, it calls down the lightning.) */
   beam(x: number, y: number) {
     if (!this.active) return;
-    if (this.rain) {
-      this.strike({ bolt: true, power: 0.85, x: x + rand(-140, 140) });
-      this.splash(x, y, 1.3);
-      return;
-    }
+    if (this.ctl.beam?.(x, y)) return;
     const now = this.clock;
     this.beams.push({ x, y, t0: now, dur: 1100, color: this.accentHot });
     this.ring(x, y, 6, 70, { dur: 700 });
@@ -2390,15 +1279,10 @@ class FxEngine {
     }
   }
 
-  /** Solar prominence: an arc of light erupting from a small eclipse. (In the rain: a drop and its rings.) */
+  /** Solar prominence: an arc of light erupting from a small eclipse. (Each scene may have its own: in the rain, a drop and its rings.) */
   prominence(x: number, y: number, r: number) {
     if (!this.full) return;
-    if (this.rain) {
-      this.ring(x, y, r * 0.8, r * 2.6, { dur: 950, color: WATER, width: 1, alpha: 0.6 });
-      this.ring(x, y, r * 0.6, r * 3.6, { dur: 1250, delay: 160, color: WATER, width: 0.8, alpha: 0.3 });
-      this.burst(x, y - r * 0.5, { count: 7, speed: 85, size: 1.1, life: 0.7, angle: -Math.PI / 2, spread: 1.4 });
-      return;
-    }
+    if (this.ctl.prominence?.(x, y, r)) return;
     const angle = rand(0, Math.PI * 2);
     this.loops.push({ x, y, r, angle, spread: rand(0.25, 0.5), height: rand(8, 18), color: this.accentHot, t0: this.clock, dur: 1500 });
     this.burst(x + Math.cos(angle) * r, y + Math.sin(angle) * r, { count: 8, speed: 60, size: 1.2, life: 0.9, spread: 1.2, angle });
@@ -2434,7 +1318,7 @@ class FxEngine {
   ink(ch: string, x: number, baseline: number, font: string, ash = false) {
     if (!this.full || this.inkBudget < 1 || !ch.trim()) return;
     this.inkBudget -= 1;
-    this.glyphs.push({ ch, x, y: baseline, font, ash, drip: ash && this.rain, vx: rand(-14, 14), spin: rand(-0.5, 0.5), t0: this.clock, dur: ash ? 900 : 650 });
+    this.glyphs.push({ ch, x, y: baseline, font, ash, drip: ash && this.ctl.drops, vx: rand(-14, 14), spin: rand(-0.5, 0.5), t0: this.clock, dur: ash ? 900 : 650 });
     this.overDirty = true;
   }
 
@@ -2443,8 +1327,9 @@ class FxEngine {
     if (!this.active) return;
     const area = rect.width * rect.height;
     const n = Math.min(this.full ? 220 : 50, Math.round((area / 30) * (o.density ?? 1) * (this.full ? 1 : 0.3)));
-    const colors = o.colors ?? (this.rain ? [WATER, WHITE, this.accentHot] : [this.accentHot, this.accent, [235, 225, 255]]);
-    if (this.rain) {
+    const drops = this.ctl.drops;
+    const colors = o.colors ?? (drops ? [WATER, WHITE, this.accentHot] : [this.accentHot, this.accent, [235, 225, 255]]);
+    if (drops) {
       // In the rain it doesn't burn away — it's washed down, top to bottom, in drops.
       for (let i = 0; i < n; i++) {
         const fy = Math.random();

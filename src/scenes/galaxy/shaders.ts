@@ -4,11 +4,6 @@
  * in a total eclipse. Events (flares, the diamond ring, shockwaves) drive it via uniforms.
  */
 
-export const VERT = /* glsl */ `
-attribute vec2 aPos;
-void main() { gl_Position = vec4(aPos, 0.0, 1.0); }
-`;
-
 export const FRAG = /* glsl */ `
 #ifdef GL_FRAGMENT_PRECISION_HIGH
 precision highp float;

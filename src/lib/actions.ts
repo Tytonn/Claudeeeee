@@ -6,6 +6,10 @@ import { play } from "./sound";
 import { FLUSH_EVENT } from "../components/editor/NoteEditor";
 import { fx } from "../fx/engine";
 import { dissolve, eclipseWipe, inkWash, rainWash } from "../fx/dom";
+import { SCENES, type WipeKind } from "../scenes/meta";
+
+/** How the open note leaves when it's deleted, scene by scene (see SceneMeta.wipe). */
+const WIPES: Record<WipeKind, (note: HTMLElement | null, panel: HTMLElement | null) => void> = { moon: eclipseWipe, rain: rainWash, ink: inkWash };
 import { setEntrance } from "../fx/intent";
 
 export const NEW_COUNTDOWN_EVENT = "umbra:new-countdown";
@@ -60,7 +64,7 @@ export function trashNote(id: string) {
   const wasBlank = isBlank(note);
   if (fx.active && s.ui.activeId === id && s.ui.view === "notes") {
     // The umbra passes over the page and swallows it — or, in the rain, it's washed away.
-    (fx.rain ? rainWash : fx.inkScene ? inkWash : eclipseWipe)(document.querySelector<HTMLElement>(".canvas .note"), document.querySelector<HTMLElement>("main.canvas"));
+    WIPES[SCENES[fx.scene].wipe](document.querySelector<HTMLElement>(".canvas .note"), document.querySelector<HTMLElement>("main.canvas"));
     setEntrance("none");
   } else if (fx.active) {
     dissolve(document.querySelector<HTMLElement>(`[data-note-id="${id}"]`));

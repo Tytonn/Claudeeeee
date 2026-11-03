@@ -16,7 +16,8 @@ import "./styles/overlays.css";
 import "./styles/viewer.css";
 import "./styles/fx.css";
 import "./styles/collab.css";
-// last: the light (Ink) scene, over everything above
+// last: the light scenes (paper), over everything above — and Ink's own touches
+import "./styles/light.css";
 import "./styles/ink.css";
 
 import { useApp } from "./store/app";
@@ -29,6 +30,7 @@ import type { Settings } from "./lib/types";
 import { fx } from "./fx/engine";
 import { refreshPointerLight, startPointerLight } from "./fx/dom";
 import { changeScene } from "./fx/transitions";
+import { SCENES } from "./scenes/meta";
 import { setSoundEnabled, setSoundTheme } from "./lib/sound";
 import { startViewportFit } from "./lib/platform";
 import { startVaultWatch } from "./lib/vault";
@@ -61,7 +63,8 @@ async function boot() {
     });
     fx.setBackdrop(s.backdrop);
     // (Ink's paper stays even with effects off, and so do its sounds; the rain's go with its sky)
-    setSoundTheme(fx.inkScene ? "ink" : fx.rain && s.effects !== "off" ? "rain" : "eclipse");
+    const meta = SCENES[fx.scene];
+    setSoundTheme(meta.soundsWithoutEffects || s.effects !== "off" ? meta.sounds : "eclipse");
     fx.setOpen(s.backdrop === "bare");
     if (fx.cursorLight !== (s.cursorLight !== false)) {
       fx.setCursorLight(s.cursorLight !== false);

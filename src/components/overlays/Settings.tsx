@@ -1,12 +1,12 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useRef, useState } from "react";
 import { motion } from "motion/react";
 import { Download, FileText, LayoutList, Link2, Upload, X } from "lucide-react";
 import { useApp } from "../../store/app";
 import { BOARD, shareUrl, stopShare } from "../../store/shareSync";
 import { exportAll, importBackup } from "../../store/persist";
 import { toast } from "../../store/toasts";
-import { ACCENTS, FONTS, SOLAR_TINTS, TITLE_FONTS, accentColor, sceneOf } from "../../lib/theme";
-import type { AccentId, BackdropId, EffectsId, FontId, RainAmountId, SceneId, SizeId, SolarTintId, TitleFontId } from "../../lib/types";
+import { ACCENTS, FONTS, TITLE_FONTS, accentColor, sceneOf } from "../../lib/theme";
+import type { AccentId, BackdropId, EffectsId, FontId, SizeId, TitleFontId } from "../../lib/types";
 import { displayTitle } from "../../lib/text";
 import { relativeLong } from "../../lib/dates";
 import { download, flushEditor } from "../../lib/actions";
@@ -16,274 +16,28 @@ import { useAccount } from "../../account/account";
 import { Switch } from "../ui/Switch";
 import { Segmented, SegmentedEpoch } from "../ui/Segmented";
 import { IconButton } from "../ui/IconButton";
-import { Eclipse } from "../ui/Eclipse";
-import { changeAccent, changeScene, changeSolarLook } from "../../fx/transitions";
-import { goldenShift } from "../../fx/color";
+import { changeAccent, changeScene } from "../../fx/transitions";
 import { BUILD_SHA, BUILD_TIME, VERSION } from "../../version";
-
-function Row({ label, desc, children, htmlFor }: { label: string; desc?: ReactNode; children: ReactNode; htmlFor?: string }) {
-  return (
-    <div className="set-row">
-      <div className="set-row-text">
-        <label className="set-row-label" htmlFor={htmlFor}>
-          {label}
-        </label>
-        {desc && <div className="set-row-desc">{desc}</div>}
-      </div>
-      <div className="set-row-control">{children}</div>
-    </div>
-  );
-}
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="set-section">
-      <h3 className="label">{title}</h3>
-      <div className="set-card">{children}</div>
-    </section>
-  );
-}
-
-/** The rain card's picture: a still of the scene — bokeh, rain scattered at random, a few drops on the glass. */
-// prettier-ignore
-const RAIN_STREAKS: [number, number, number, number, number, number][] = [[108.2,36.5,106.9,43.4,0.47,0.37],[195.4,30.2,193.4,40.3,0.14,0.58],[18.5,55.5,16.1,68.1,0.26,0.61],[157.2,41.4,155.8,48.8,0.17,0.55],[144.7,53.1,143.7,58.5,0.46,0.45],[65.0,69.8,64.3,73.6,0.27,0.38],[67.7,-0.7,67.0,2.7,0.46,0.42],[233.6,58.4,233.0,61.5,0.49,0.33],[89.1,47.9,88.0,53.7,0.39,0.52],[78.5,67.3,77.9,70.3,0.41,0.32],[165.2,8.3,163.7,16.2,0.42,0.35],[155.6,2.9,154.0,11.3,0.16,0.54],[237.8,39.0,237.2,42.1,0.3,0.54],[241.3,10.2,240.4,14.6,0.38,0.54],[91.8,-0.4,90.9,4.2,0.25,0.48],[88.2,28.4,86.5,37.3,0.37,0.55],[41.3,5.7,40.3,10.8,0.25,0.37],[179.4,65.5,178.5,70.3,0.3,0.45],[15.5,-2.4,14.9,0.5,0.51,0.38],[174.6,-0.8,173.7,3.7,0.4,0.48],[222.9,50.9,222.3,54.1,0.32,0.34],[39.7,22.0,37.6,32.7,0.14,0.54],[107.7,19.2,105.2,32.1,0.26,0.54],[4.7,-4.6,3.6,1.3,0.51,0.33],[177.2,18.2,176.6,21.1,0.36,0.51],[170.5,54.3,169.5,59.5,0.41,0.55],[212.0,25.7,211.2,29.7,0.37,0.48],[147.0,0.1,145.0,10.3,0.18,0.62],[168.2,28.8,166.7,36.7,0.19,0.52],[3.4,39.7,2.3,45.4,0.5,0.35],[189.4,44.2,188.2,50.5,0.16,0.4],[38.1,62.8,35.4,76.9,0.24,0.57],[96.4,13.0,94.1,24.7,0.32,0.76],[140.6,18.1,139.9,21.9,0.29,0.55],[24.0,29.8,23.0,34.9,0.3,0.46],[204.8,41.5,203.9,46.1,0.17,0.55],[192.3,-4.5,191.5,-0.2,0.23,0.52],[62.1,53.2,61.3,57.4,0.2,0.35],[128.8,42.6,127.5,49.1,0.41,0.37],[113.8,7.6,113.0,11.5,0.35,0.33],[52.2,53.2,50.3,62.9,0.24,0.67],[192.4,62.9,191.7,66.3,0.48,0.42],[216.1,-5.5,214.3,3.7,0.33,0.72],[230.2,29.2,227.4,43.5,0.14,0.74],[26.6,12.4,25.0,20.7,0.51,0.46],[82.4,0.3,81.1,6.9,0.31,0.39],[224.1,10.6,223.4,14.0,0.17,0.46],[112.7,70.0,110.3,82.1,0.28,0.62],[162.5,66.6,161.0,74.5,0.47,0.57],[45.8,34.7,44.4,41.9,0.3,0.46],[6.9,63.7,4.9,73.8,0.25,0.64],[129.6,25.4,128.4,31.8,0.33,0.35],[103.6,56.0,102.2,63.1,0.2,0.43],[3.3,13.8,0.7,27.1,0.12,0.55],[75.9,21.0,74.2,30.0,0.34,0.47],[153.0,56.7,151.5,64.5,0.23,0.48],[208.5,11.7,206.1,24.3,0.2,0.55],[220.5,30.6,219.7,34.5,0.23,0.54],[241.6,64.4,240.9,68.0,0.21,0.5],[87.8,64.1,86.3,71.9,0.34,0.32],[152.1,24.7,150.6,32.6,0.37,0.41],[185.1,15.2,184.4,19.0,0.44,0.53]];
-// prettier-ignore
-const RAIN_BOKEH: [number, number, number, string, number][] = [[212.6, 41.3, 9.4, "#8fd0ff", 0.27], [230.6, 49.0, 9.2, "#ffd9a8", 0.33], [171.4, 61.0, 8.4, "#fff0d0", 0.35], [8.0, 43.4, 8.1, "#ff9e7a", 0.37], [25.6, 44.4, 8.0, "#ffa85c", 0.3], [7.8, 30.2, 5.4, "#d6b8ff", 0.31], [89.2, 40.1, 5.3, "#c4ceff", 0.4], [83.7, 73.7, 4.8, "#9fe6c6", 0.31], [63.0, 31.2, 4.6, "#6ed6ff", 0.36], [32.8, 35.4, 4.5, "#fff0d0", 0.21], [226.6, 29.9, 4.2, "#ff9e7a", 0.36], [162.7, 34.5, 4.2, "#fff0d0", 0.37], [228.7, 70.0, 4.0, "#d6b8ff", 0.26], [99.8, 34.1, 3.7, "#8fd0ff", 0.48], [72.5, 68.2, 3.5, "#8fd0ff", 0.44], [91.0, 64.5, 3.2, "#ff5470", 0.5], [44.1, 41.8, 2.8, "#ff9e7a", 0.33], [133.3, 57.8, 2.7, "#d6b8ff", 0.44], [157.3, 56.4, 2.5, "#d6b8ff", 0.38], [175.3, 43.6, 2.4, "#ffa85c", 0.34], [102.6, 53.8, 2.2, "#8fd0ff", 0.36], [112.0, 35.6, 2.2, "#fff0d0", 0.56], [134.4, 49.1, 2.2, "#fff0d0", 0.57], [100.2, 27.1, 2.1, "#ffce92", 0.48]];
-// prettier-ignore
-const RAIN_DROPS: [number, number, number][] = [[77.9, 36.4, 1.8], [70.4, 42.1, 1.7], [163.8, 18.6, 1.2], [62.7, 61.3, 1.5], [153.6, 19.0, 1.7], [148.3, 8.5, 1.2], [15.9, 10.1, 1.1], [121.2, 50.3, 1.9], [45.4, 21.1, 2.0], [196.5, 27.8, 1.3]];
-
-/** Ink on paper: clouds of it pooled low in the corners, a tendril curling up, a drop catching the light. */
-/**
- * Ink: warm paper, a cloud of ink rising from the bottom with a tendril curling away from it,
- * a bluer one at the side, a wisp across the water — and the single drop, falling.
- * (The card shows the middle of this: the cloud and the drop sit there.)
- */
-function InkArt() {
-  return (
-    <svg className="scene-svg" viewBox="0 0 240 72" preserveAspectRatio="xMidYMid slice" aria-hidden>
-      <defs>
-        <linearGradient id="ink-paper" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#f8f5ef" />
-          <stop offset="1" stopColor="#ece6da" />
-        </linearGradient>
-        <radialGradient id="ink-vignette" cx="50%" cy="40%" r="80%">
-          <stop offset="0.55" stopColor="#000" stopOpacity="0" />
-          <stop offset="1" stopColor="#4a3e2e" stopOpacity="0.18" />
-        </radialGradient>
-        <radialGradient id="ink-cloud" cx="50%" cy="60%" r="50%">
-          <stop offset="0" stopColor="#1b1b22" stopOpacity="0.95" />
-          <stop offset="0.55" stopColor="#24242e" stopOpacity="0.7" />
-          <stop offset="1" stopColor="#2a2a36" stopOpacity="0" />
-        </radialGradient>
-        <radialGradient id="ink-indigo" cx="50%" cy="55%" r="50%">
-          <stop offset="0" stopColor="#262b52" stopOpacity="0.85" />
-          <stop offset="0.6" stopColor="#2e3460" stopOpacity="0.45" />
-          <stop offset="1" stopColor="#343a66" stopOpacity="0" />
-        </radialGradient>
-        <radialGradient id="ink-bead" cx="38%" cy="34%" r="70%">
-          <stop offset="0" stopColor="#5a5c70" />
-          <stop offset="0.35" stopColor="#141419" />
-          <stop offset="1" stopColor="#0b0b10" />
-        </radialGradient>
-        <filter id="ink-bleed" x="-40%" y="-40%" width="180%" height="180%">
-          <feTurbulence type="fractalNoise" baseFrequency="0.07" numOctaves="3" seed="7" result="n" />
-          <feDisplacementMap in="SourceGraphic" in2="n" scale="14" xChannelSelector="R" yChannelSelector="G" result="d" />
-          <feGaussianBlur in="d" stdDeviation="0.9" />
-        </filter>
-        <filter id="ink-wisp" x="-40%" y="-40%" width="180%" height="180%">
-          <feTurbulence type="fractalNoise" baseFrequency="0.08" numOctaves="2" seed="3" result="n" />
-          <feDisplacementMap in="SourceGraphic" in2="n" scale="5" xChannelSelector="R" yChannelSelector="G" result="d" />
-          <feGaussianBlur in="d" stdDeviation="1.1" />
-        </filter>
-        <filter id="ink-haze" x="-40%" y="-40%" width="180%" height="180%">
-          <feGaussianBlur stdDeviation="3.2" />
-        </filter>
-      </defs>
-      <rect width="240" height="72" fill="url(#ink-paper)" />
-      {/* the haze the clouds give off into the water */}
-      <g filter="url(#ink-haze)" opacity="0.32">
-        <ellipse cx="96" cy="70" rx="40" ry="16" fill="#2a2a34" />
-        <ellipse cx="168" cy="72" rx="26" ry="11" fill="#2c3258" />
-      </g>
-      {/* the big cloud, rising from the bottom */}
-      <g filter="url(#ink-bleed)">
-        <ellipse cx="94" cy="72" rx="34" ry="15" fill="url(#ink-cloud)" />
-        <ellipse cx="80" cy="62" rx="15" ry="10" fill="url(#ink-cloud)" opacity="0.85" />
-        <ellipse cx="106" cy="60" rx="12" ry="9" fill="url(#ink-cloud)" opacity="0.75" />
-        <ellipse cx="66" cy="70" rx="13" ry="8" fill="url(#ink-cloud)" opacity="0.7" />
-        <ellipse cx="162" cy="72" rx="20" ry="11" fill="url(#ink-indigo)" />
-        <ellipse cx="174" cy="63" rx="9" ry="7" fill="url(#ink-indigo)" opacity="0.8" />
-      </g>
-      {/* tendrils: one rising and curling away from the cloud (soft and wide where it leaves it,
-          finer as it goes), and a bluer one at the side */}
-      <g filter="url(#ink-wisp)" fill="none" strokeLinecap="round">
-        <path d="M98 58 C 106 46, 98 38, 108 31" stroke="#25252e" strokeWidth="4.2" opacity="0.32" />
-        <path d="M100 54 C 108 42, 98 34, 110 28 C 120 23, 128 30, 122 36 C 117 40, 112 35, 116 32" stroke="#23232c" strokeWidth="1.8" opacity="0.5" />
-        <path d="M84 58 C 79 49, 86 43, 81 36" stroke="#2b2b35" strokeWidth="2.2" opacity="0.26" />
-        <path d="M170 60 C 178 51, 168 45, 176 39 C 182 35, 186 41, 181 43" stroke="#2c3258" strokeWidth="2" opacity="0.36" />
-      </g>
-      <rect width="240" height="72" fill="url(#ink-vignette)" />
-      {/* the drop, falling, catching the light */}
-      <ellipse cx="136" cy="17" rx="2.6" ry="3.3" fill="url(#ink-bead)" />
-      <circle cx="135.1" cy="15.9" r="0.75" fill="#fff" opacity="0.9" />
-    </svg>
-  );
-}
-
-function RainArt() {
-  return (
-    <svg className="scene-svg" viewBox="0 0 240 72" preserveAspectRatio="xMidYMid slice" aria-hidden>
-      <defs>
-        <linearGradient id="sc-sky" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#090c14" />
-          <stop offset="0.55" stopColor="#120f17" />
-          <stop offset="1" stopColor="#1c1411" />
-        </linearGradient>
-        <filter id="sc-soft" filterUnits="userSpaceOnUse" x="-20" y="-20" width="280" height="112">
-          <feGaussianBlur stdDeviation="2.1" />
-        </filter>
-        <radialGradient id="sc-drop" cx="0.38" cy="0.34" r="0.7">
-          <stop offset="0" stopColor="#fff" />
-          <stop offset="0.22" stopColor="rgb(255 255 255 / 0.18)" />
-          <stop offset="0.8" stopColor="rgb(0 0 0 / 0.35)" />
-          <stop offset="1" stopColor="rgb(255 255 255 / 0.3)" />
-        </radialGradient>
-      </defs>
-      <rect width="240" height="72" fill="url(#sc-sky)" />
-      <g filter="url(#sc-soft)">
-        {RAIN_BOKEH.map(([x, y, r, c, o], i) => (
-          <circle key={i} cx={x} cy={y} r={r * 1.25} fill={c} fillOpacity={Math.min(0.85, o * 1.35)} />
-        ))}
-        <circle cx={140} cy={44} r={6.8} style={{ fill: "var(--accent)" }} fillOpacity={0.45} />
-      </g>
-      <g stroke="#d4e2ff" strokeLinecap="round">
-        {RAIN_STREAKS.map(([x1, y1, x2, y2, o, w], i) => (
-          <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} strokeOpacity={o} strokeWidth={w} />
-        ))}
-      </g>
-      {RAIN_DROPS.map(([x, y, r], i) => (
-        <circle key={i} cx={x} cy={y} r={r} fill="url(#sc-drop)" />
-      ))}
-    </svg>
-  );
-}
-
-/** The solar eclipse card's picture: totality low over the clouds, the diamond ring just breaking out. */
-const SUN = { x: 150, y: 30, r: 9.6 };
-const SOLAR_RAYS: [number, number, number, number][] = (() => {
-  // a fixed, pseudo-random spray of fine coronal rays (and the long streamers, a little longer)
-  let seed = 7;
-  const rnd = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
-  return Array.from({ length: 64 }, (_, i) => {
-    const a = (i / 64) * Math.PI * 2 + rnd() * 0.09;
-    const streamer = Math.abs(Math.cos(a - 0.35)) > 0.86;
-    const len = (streamer ? 9 : 3.5) + rnd() * (streamer ? 13 : 7);
-    return [a, len, 0.18 + rnd() * 0.32, 0.35 + rnd() * 0.45];
-  });
-})();
-// Cloud towers on the left, lying low under the sun.
-// prettier-ignore
-const SOLAR_PUFFS_BACK: [number, number, number][] = [[2, 58, 12], [16, 50, 11], [30, 46, 10], [42, 52, 11], [56, 49, 12], [70, 56, 11], [86, 60, 10], [102, 63, 9], [120, 66, 9], [138, 68, 8], [156, 69, 8], [174, 66, 9], [192, 63, 10], [210, 59, 11], [226, 56, 12], [242, 58, 11]];
-// prettier-ignore
-const SOLAR_PUFFS_FRONT: [number, number, number][] = [[6, 75, 13], [30, 72, 12], [54, 74, 13], [80, 75, 12], [106, 77, 12], [132, 78, 11], [158, 78, 11], [184, 76, 12], [210, 74, 13], [236, 73, 13]];
-
-function SolarArt({ golden = false, tint = "pearl", accent = "corona" }: { golden?: boolean; tint?: SolarTintId; accent?: AccentId }) {
-  const { x, y, r } = SUN;
-  // Golden takes on the accent's colours (the gold accent: exactly its own)
-  const shift = golden ? goldenShift(ACCENTS[accent]?.color ?? ACCENTS.corona.color, ACCENTS.corona.color) : null;
-  const filter = shift && (shift.angle !== 0 || shift.sat !== 1) ? `hue-rotate(${((shift.angle * 180) / Math.PI).toFixed(1)}deg) saturate(${shift.sat.toFixed(2)})` : undefined;
-  // the corona in its chosen colour (Pearl is its own white light)
-  const tc = !golden && tint !== "pearl" ? SOLAR_TINTS[tint]?.color : undefined;
-  const dx = x + Math.cos(-2.45) * r;
-  const dy = y + Math.sin(-2.45) * r;
-  return (
-    <svg className="scene-svg" viewBox="0 0 240 72" preserveAspectRatio="xMidYMid slice" style={filter ? { filter } : undefined} aria-hidden>
-      <defs>
-        <linearGradient id="so-sky" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor={golden ? "#1d1213" : "#0b0d1c"} />
-          <stop offset="0.45" stopColor={golden ? "#3b2520" : "#24161f"} />
-          <stop offset="0.78" stopColor={golden ? "#5a3424" : "#5e2c1f"} />
-          <stop offset="1" stopColor={golden ? "#7d4a30" : "#9a4d28"} />
-        </linearGradient>
-        <radialGradient id="so-corona">
-          <stop offset="0.3" stopColor={golden ? "#ffcf8a" : "#fff7ec"} stopOpacity="0.95" />
-          <stop offset="0.4" stopColor={golden ? "#ff9a45" : (tc ?? "#fbe8d6")} stopOpacity={golden ? 0.55 : tc ? 0.6 : 0.45} />
-          <stop offset="0.65" stopColor={golden ? "#d9692c" : (tc ?? "#efd8ca")} stopOpacity={golden ? 0.16 : tc ? 0.2 : 0.12} />
-          <stop offset="1" stopColor={golden ? "#d9692c" : (tc ?? "#efd8ca")} stopOpacity="0" />
-        </radialGradient>
-        <radialGradient id="so-glint">
-          <stop offset="0" stopColor="#fff" />
-          <stop offset="0.25" stopColor="#fff3e0" stopOpacity="0.7" />
-          <stop offset="1" stopColor="#ffd9b0" stopOpacity="0" />
-        </radialGradient>
-        <linearGradient id="so-streak" x1="0" x2="1">
-          <stop offset="0" stopColor="#fff" stopOpacity="0" />
-          <stop offset="0.5" stopColor="#fff" stopOpacity="0.85" />
-          <stop offset="1" stopColor="#fff" stopOpacity="0" />
-        </linearGradient>
-        <radialGradient id="so-puff" cx="0.66" cy="0.08" r="0.85">
-          <stop offset="0" stopColor="#8a4a35" />
-          <stop offset="0.3" stopColor="#47282a" />
-          <stop offset="0.75" stopColor="#25171b" />
-          <stop offset="1" stopColor="#1d1317" />
-        </radialGradient>
-        <filter id="so-soft" filterUnits="userSpaceOnUse" x="0" y="-20" width="240" height="112">
-          <feGaussianBlur stdDeviation="0.55" />
-        </filter>
-        <filter id="so-fluff" filterUnits="userSpaceOnUse" x="-10" y="20" width="260" height="70">
-          <feGaussianBlur stdDeviation="1.7" />
-        </filter>
-      </defs>
-      <rect width="240" height="72" fill="url(#so-sky)" />
-      <circle cx={x} cy={y} r={r * 3.4} fill="url(#so-corona)" />
-      <g stroke={golden ? "#ffc27a" : (tc ?? "#fff4e8")} strokeOpacity={golden ? 0.35 : 1} strokeLinecap="round" filter="url(#so-soft)">
-        {SOLAR_RAYS.map(([a, len, o, w], i) => (
-          <line key={i} x1={x + Math.cos(a) * r} y1={y + Math.sin(a) * r} x2={x + Math.cos(a) * (r + len)} y2={y + Math.sin(a) * (r + len)} strokeOpacity={o} strokeWidth={w} />
-        ))}
-      </g>
-      <circle cx={x} cy={y} r={r} fill={golden ? "#1c100c" : "#0a080b"} />
-      <circle cx={x} cy={y} r={r + 0.3} fill="none" stroke={golden ? "#ffb35c" : "#fff"} strokeOpacity={golden ? 0.95 : 0.55} strokeWidth={golden ? 0.9 : 0.6} />
-      <circle cx={dx} cy={dy} r={golden ? 10 : 7} fill="url(#so-glint)" />
-      <rect x={dx - 46} y={dy - 0.3} width={92} height={0.6} fill="url(#so-streak)" />
-      <circle cx={dx} cy={dy} r={1.5} fill="#fff" />
-      <circle cx={x - 26} cy={y + 13} r={0.8} fill="#fff" fillOpacity="0.85" />
-      <g filter="url(#so-fluff)">
-        {SOLAR_PUFFS_BACK.map(([px, py, pr], i) => (
-          <circle key={i} cx={px} cy={py} r={pr + 2.5} fill="url(#so-puff)" />
-        ))}
-        {SOLAR_PUFFS_FRONT.map(([px, py, pr], i) => (
-          <circle key={i} cx={px} cy={py} r={pr} fill="#150e12" />
-        ))}
-      </g>
-    </svg>
-  );
-}
-
-const SCENES: { id: SceneId; name: string; sub: string }[] = [
-  { id: "eclipse", name: "Galaxy", sub: "A living corona in deep space" },
-  { id: "solar", name: "Solar eclipse", sub: "Totality, low over the clouds" },
-  { id: "rain", name: "Rain", sub: "A city at night, through a wet window" },
-  { id: "ink", name: "Ink", sub: "Ink drifting through clear water, on paper" },
-];
+import { SCENES, SCENE_LIST } from "../../scenes/meta";
+import { SCENE_UI } from "../../scenes/ui";
+import { Row, Section } from "./settingsParts";
 
 function ScenePicker() {
   const scene = useApp((s) => s.settings.scene);
-  const golden = useApp((s) => s.settings.solarLook === "golden");
-  const tint = useApp((s) => s.settings.solarTint ?? "pearl");
-  const accent = useApp((s) => s.settings.accent);
   const current = sceneOf(scene);
   return (
     <div className="scenes" role="radiogroup" aria-label="Scene">
-      {SCENES.map((sc) => {
+      {SCENE_LIST.map((sc) => {
         const on = current === sc.id;
+        const Art = SCENE_UI[sc.id].Art;
         return (
           <button key={sc.id} type="button" role="radio" aria-checked={on} className={`scene-card is-${sc.id} ${on ? "is-on" : ""}`} onClick={(e) => changeScene(sc.id, e.clientX, e.clientY)}>
             <span className="scene-art" aria-hidden>
-              {sc.id === "eclipse" ? <Eclipse progress={1} size={34} /> : sc.id === "rain" ? <RainArt /> : sc.id === "ink" ? <InkArt /> : <SolarArt golden={golden} tint={tint} accent={accent} />}
+              <Art />
             </span>
             <span className="scene-text">
               <span className="scene-name">{sc.name}</span>
-              <span className="scene-sub">{sc.sub}</span>
+              <span className="scene-sub">{sc.tagline}</span>
             </span>
             {on && <motion.span key={current} layoutId={`scene-ring-${current}`} className="scene-ring" transition={spring} />}
           </button>
@@ -293,45 +47,11 @@ function ScenePicker() {
   );
 }
 
-/**
- * A 0..1 slider that always slides. If any text on the page happens to be selected (a stray
- * double-click is enough), pressing on a slider and moving picks that text up and drags it
- * instead — the thumb stays put and the cursor turns into a "can't drop here". So: let go of
- * any selection the moment it's pressed, and never let it start a drag.
- */
-function Slider({ value, label, onChange }: { value: number; label: string; onChange: (v: number) => void }) {
-  return (
-    <input
-      type="range"
-      className="range wide"
-      min={0}
-      max={1}
-      step={0.01}
-      value={value}
-      aria-label={label}
-      style={{ "--v": `${value * 100}%` } as React.CSSProperties}
-      onPointerDown={() => {
-        const sel = window.getSelection();
-        if (sel && sel.type === "Range") sel.removeAllRanges();
-      }}
-      onDragStart={(e) => e.preventDefault()}
-      onChange={(e) => onChange(Number(e.target.value))}
-    />
-  );
-}
-
-/** How close the solar eclipse looks: further off (smaller) to closer (bigger). */
-function SunDistance() {
-  const size = useApp((s) => s.settings.solarSize);
-  const setSettings = useApp((s) => s.setSettings);
-  return <Slider label="Distance" value={typeof size === "number" ? size : 0.5} onChange={(solarSize) => setSettings({ solarSize })} />;
-}
-
-/** How out of focus the city behind the rain is. The drops on the glass always stay sharp. */
-function RainBlur() {
-  const blur = useApp((s) => s.settings.cityBlur);
-  const setSettings = useApp((s) => s.setSettings);
-  return <Slider label="Blur" value={typeof blur === "number" ? blur : 1} onChange={(cityBlur) => setSettings({ cityBlur })} />;
+/** The scene's own settings (each scene's rows live with it: scenes/<id>/ui.tsx). */
+function SceneRows() {
+  const scene = useApp((s) => sceneOf(s.settings.scene));
+  const Rows = SCENE_UI[scene].Settings;
+  return Rows ? <Rows /> : null;
 }
 
 function Swatches() {
@@ -354,32 +74,6 @@ function Swatches() {
           onClick={(e) => changeAccent(id, e.clientX, e.clientY)}
         >
           {accent === id && <motion.span key={scene} layoutId={`swatch-ring-${scene}`} className="swatch-ring" transition={spring} />}
-          <span className="swatch-core" />
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/** The corona's colour, in the Corona look. Pearl is the real thing. */
-function CoronaTints() {
-  const tint = useApp((s) => s.settings.solarTint ?? "pearl");
-  const setSettings = useApp((s) => s.setSettings);
-  return (
-    <div className="swatches" role="radiogroup" aria-label="Corona color">
-      {(Object.keys(SOLAR_TINTS) as SolarTintId[]).map((id) => (
-        <button
-          key={id}
-          type="button"
-          role="radio"
-          aria-checked={tint === id}
-          aria-label={SOLAR_TINTS[id].name}
-          title={SOLAR_TINTS[id].name}
-          className="swatch"
-          style={{ "--sw": SOLAR_TINTS[id].color } as React.CSSProperties}
-          onClick={() => setSettings({ solarTint: id })}
-        >
-          {tint === id && <motion.span layoutId="corona-tint-ring" className="swatch-ring" transition={spring} />}
           <span className="swatch-core" />
         </button>
       ))}
@@ -472,6 +166,7 @@ const hasCursor = typeof matchMedia !== "undefined" && matchMedia("(hover: hover
 function SettingsBody({ onClose }: { onClose: () => void }) {
   const settings = useApp((s) => s.settings);
   const setSettings = useApp((s) => s.setSettings);
+  const meta = SCENES[sceneOf(settings.scene)];
   const fileInput = useRef<HTMLInputElement>(null);
   const signedIn = useAccount((s) => Boolean(s.user));
 
@@ -508,70 +203,8 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
                 <ScenePicker />
               </div>
             )}
-            {settings.effects !== "off" && settings.scene === "rain" && (
-              <>
-                <Row label="Lightning" desc="A storm rolls through now and then — never while you're typing.">
-                  <Switch checked={settings.lightning} onChange={(v) => setSettings({ lightning: v })} label="Lightning" />
-                </Row>
-                <Row label="City lights" desc="The blurred lights of the city behind the glass.">
-                  <Switch checked={settings.cityLights} onChange={(v) => setSettings({ cityLights: v })} label="City lights" />
-                </Row>
-                <Row label="How hard it rains">
-                  <Segmented<RainAmountId>
-                    label="How hard it rains"
-                    size="sm"
-                    value={settings.rainAmount}
-                    options={[
-                      { value: "drizzle", label: "Drizzle" },
-                      { value: "rain", label: "Rain" },
-                      { value: "downpour", label: "Downpour" },
-                    ]}
-                    onChange={(rainAmount) => setSettings({ rainAmount })}
-                  />
-                </Row>
-                <Row label="Blur" desc="How out of focus the city is. The drops on the glass stay sharp.">
-                  <RainBlur />
-                </Row>
-              </>
-            )}
-            {settings.effects !== "off" && settings.scene === "solar" && (
-              <>
-                <Row
-                  label="Look"
-                  desc={settings.solarLook === "golden" ? "A ring of fire and the diamond ring blazing, in a warm, smoky sky. It sets the accent to gold — pick another accent to recolour the whole thing." : "The pearly corona streaming out, in a dusky sky."}
-                >
-                  <SegmentedEpoch.Provider value={settings.scene}>
-                    <Segmented<"corona" | "golden">
-                      label="Look"
-                      size="sm"
-                      value={settings.solarLook === "golden" ? "golden" : "corona"}
-                      options={[
-                        { value: "corona", label: "Corona" },
-                        { value: "golden", label: "Golden" },
-                      ]}
-                      onChange={changeSolarLook}
-                    />
-                  </SegmentedEpoch.Provider>
-                </Row>
-                {settings.solarLook !== "golden" && (
-                  <Row label="Corona color" desc="The colour of the light streaming out round the moon. Pearl is how it really looks.">
-                    <CoronaTints />
-                  </Row>
-                )}
-                <Row label="Distance" desc="How close the eclipse looks. Slide right to bring it nearer.">
-                  <SunDistance />
-                </Row>
-                <Row label="Clouds" desc="A bank of cloud drifting by below the sun — and now and then a thin veil across it.">
-                  <Switch checked={settings.solarClouds !== false} onChange={(v) => setSettings({ solarClouds: v })} label="Clouds" />
-                </Row>
-              </>
-            )}
-            {settings.scene === "ink" && (
-              <Row label="Ink settling letters" desc="Each letter you type lands soft and dark, then sharpens as it soaks into the paper.">
-                <Switch checked={settings.inkSettle !== false} onChange={(v) => setSettings({ inkSettle: v })} label="Ink settling letters" />
-              </Row>
-            )}
-            <Row label="Accent" desc={settings.scene === "ink" ? "Tints the caret, checkmarks and links — in a deeper, inkier shade on paper." : "Tints the caret, checkmarks and the glow."}>
+            <SceneRows />
+            <Row label="Accent" desc={meta.light ? "Tints the caret, checkmarks and links — in a deeper, inkier shade on paper." : "Tints the caret, checkmarks and the glow."}>
               <Swatches />
             </Row>
             <Row label="Writing font">
@@ -609,13 +242,7 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
             </Row>
             <Row
               label="Effects"
-              desc={
-                settings.scene === "rain"
-                  ? "The rain, the lightning, splashes and drips. Calm it down any time."
-                  : settings.scene === "solar"
-                    ? "The eclipse, the diamond ring, light trails and embers. Calm it down any time."
-                    : "The living sky, solar flares, light trails and embers. Calm it down any time."
-              }
+              desc={meta.effectsDesc}
             >
               <Segmented<EffectsId>
                 label="Effects"
@@ -630,7 +257,7 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
               />
             </Row>
             {settings.effects !== "off" && (
-              <Row label="Background" desc="How much of the sky shows through. Your words always stay readable.">
+              <Row label="Background" desc={meta.backdropDesc}>
                 <Segmented<BackdropId>
                   label="Background"
                   size="sm"
@@ -649,13 +276,7 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
             {settings.effects !== "off" && hasCursor && (
               <Row
                 label="Cursor light"
-                desc={
-                  settings.scene === "rain"
-                    ? "Your cursor is a warm light held up to the glass, catching the drops."
-                    : settings.scene === "solar"
-                      ? "Your cursor is a faint, warm light in the dusk: it catches the edges of things."
-                      : "Your cursor is a light: it catches the edges of things and brightens the corona."
-                }
+                desc={meta.cursorDesc}
               >
                 <Switch checked={settings.cursorLight !== false} onChange={(v) => setSettings({ cursorLight: v })} label="Cursor light" />
               </Row>

@@ -18,59 +18,80 @@ let tilted: HTMLElement | null = null;
 
 let lit = true;
 
+/** What the cursor's light gives each lit element (each registered in styles/fx.css as not inherited). */
+const LIGHT_VARS = ["--lx", "--ly", "--near", "--sx", "--sy"];
+/** What each lit element has been given already, so an unchanged value isn't written again. */
+let given = new WeakMap<HTMLElement, string[]>();
+
 function apply() {
   raf = 0;
   if (!fx.active) return;
+  const lights = document.querySelectorAll<HTMLElement>("[data-light]");
   // With the cursor's light turned off, things stay as they are: no rim light, no moving shadows.
   if (!fx.cursorLight) {
     if (lit) {
       lit = false;
-      document.querySelectorAll<HTMLElement>("[data-light]").forEach((el) => {
-        for (const v of ["--lx", "--ly", "--near", "--sx", "--sy"]) el.style.removeProperty(v);
+      given = new WeakMap();
+      lights.forEach((el) => {
+        for (const v of LIGHT_VARS) el.style.removeProperty(v);
       });
     }
   } else lit = true;
-  if (lit) document.querySelectorAll<HTMLElement>("[data-light]").forEach((el) => {
-    const r = el.getBoundingClientRect();
-    if (!r.width || r.bottom < 0 || r.top > innerHeight) return;
+
+  // Everything is measured before anything is written: a measurement taken after a write makes
+  // the browser work out the page's styles all over again first — once per element, every move.
+  const vh = innerHeight;
+  const rects = lit ? Array.from(lights, (el) => el.getBoundingClientRect()) : [];
+  const mag = (target?.closest?.("[data-magnetic]") as HTMLElement | null) ?? null;
+  const magRect = mag?.getBoundingClientRect();
+  const tilt = fx.full ? ((target?.closest?.("[data-tilt]") as HTMLElement | null) ?? null) : null;
+  const tiltRect = tilt?.getBoundingClientRect();
+
+  rects.forEach((r, i) => {
+    if (!r.width || r.bottom < 0 || r.top > vh) return;
     const dx = Math.max(r.left - px, 0, px - r.right);
     const dy = Math.max(r.top - py, 0, py - r.bottom);
-    el.style.setProperty("--lx", `${(px - r.left).toFixed(1)}px`);
-    el.style.setProperty("--ly", `${(py - r.top).toFixed(1)}px`);
-    el.style.setProperty("--near", Math.exp(-Math.hypot(dx, dy) / 170).toFixed(3));
     const vx = r.left + r.width / 2 - px;
     const vy = r.top + r.height / 2 - py;
     const d = Math.hypot(vx, vy) || 1;
     const reach = Math.min(1, 520 / d);
-    el.style.setProperty("--sx", ((vx / d) * reach).toFixed(3));
-    el.style.setProperty("--sy", ((vy / d) * reach).toFixed(3));
+    give(lights[i], [
+      `${(px - r.left).toFixed(1)}px`,
+      `${(py - r.top).toFixed(1)}px`,
+      Math.exp(-Math.hypot(dx, dy) / 170).toFixed(3),
+      ((vx / d) * reach).toFixed(3),
+      ((vy / d) * reach).toFixed(3),
+    ]);
   });
 
-  const mag = (target?.closest?.("[data-magnetic]") as HTMLElement | null) ?? null;
   if (magnet && magnet !== mag) magnet.style.translate = "";
-  if (mag) {
-    const r = mag.getBoundingClientRect();
-    const dx = px - (r.left + r.width / 2);
-    const dy = py - (r.top + r.height / 2);
+  if (mag && magRect) {
+    const dx = px - (magRect.left + magRect.width / 2);
+    const dy = py - (magRect.top + magRect.height / 2);
     mag.style.translate = `${(dx * 0.2).toFixed(1)}px ${(dy * 0.26).toFixed(1)}px`;
   }
   magnet = mag;
 
-  const tilt = fx.full ? ((target?.closest?.("[data-tilt]") as HTMLElement | null) ?? null) : null;
   if (tilted && tilted !== tilt) {
     tilted.style.transform = "";
     tilted.style.removeProperty("--gx");
     tilted.style.removeProperty("--gy");
   }
-  if (tilt) {
-    const r = tilt.getBoundingClientRect();
-    const nx = (px - r.left) / r.width - 0.5;
-    const ny = (py - r.top) / r.height - 0.5;
+  if (tilt && tiltRect) {
+    const nx = (px - tiltRect.left) / tiltRect.width - 0.5;
+    const ny = (py - tiltRect.top) / tiltRect.height - 0.5;
     tilt.style.transform = `perspective(720px) rotateX(${(-ny * 10).toFixed(2)}deg) rotateY(${(nx * 12).toFixed(2)}deg) translateZ(4px)`;
     tilt.style.setProperty("--gx", `${((nx + 0.5) * 100).toFixed(1)}%`);
     tilt.style.setProperty("--gy", `${((ny + 0.5) * 100).toFixed(1)}%`);
   }
   tilted = tilt;
+}
+
+/** Gives a lit element its light: only what's changed since last time. */
+function give(el: HTMLElement, values: string[]) {
+  const had = given.get(el);
+  for (let i = 0; i < LIGHT_VARS.length; i++) if (had?.[i] !== values[i]) el.style.setProperty(LIGHT_VARS[i], values[i]);
+  given.set(el, values);
 }
 
 /** Re-applies the cursor light (after it's been turned on or off). */
@@ -118,7 +139,7 @@ export function dissolve(el: HTMLElement | null) {
   const r = el.getBoundingClientRect();
   if (!r.width || !r.height) return;
   const holder = document.createElement("div");
-  holder.className = `fx-ghost fx-dissolve${fx.rain ? " is-rain" : ""}`;
+  holder.className = `fx-ghost fx-dissolve is-${fx.scene}`;
   const o = fx.origin;
   Object.assign(holder.style, { left: `${r.left - o.x}px`, top: `${r.top - o.y}px`, width: `${r.width}px`, height: `${r.height}px` });
   const clone = ghostOf(el);

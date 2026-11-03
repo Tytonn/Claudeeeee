@@ -65,7 +65,34 @@ html[data-fx="cosmic"] .overlay {
 
 /* ── Rim light: elements catch the cursor's light along their edges ─────── */
 
+/* The cursor's light (fx/dom.ts) belongs to each lit element alone, and isn't handed down to
+   everything inside it: so moving the mouse restyles just the lit things and their edges, not
+   the whole of the note within. Each edge (its ::after) takes the light from its element. */
+@property --lx {
+  syntax: "*";
+  inherits: false;
+}
+@property --ly {
+  syntax: "*";
+  inherits: false;
+}
+@property --near {
+  syntax: "*";
+  inherits: false;
+}
+@property --sx {
+  syntax: "*";
+  inherits: false;
+}
+@property --sy {
+  syntax: "*";
+  inherits: false;
+}
+
 html:not([data-fx="off"]) [data-light]::after {
+  --lx: inherit;
+  --ly: inherit;
+  --near: inherit;
   content: "";
   position: absolute;
   inset: 0;

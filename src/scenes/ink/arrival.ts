@@ -1,4 +1,4 @@
-import type { InkBloom } from "./inkBlooms";
+import type { InkBloom } from "./blooms";
 
 /**
  * Arriving in Ink, as numbers: the dark, the drop falling through it, its landing, the paper

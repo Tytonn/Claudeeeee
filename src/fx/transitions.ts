@@ -1,6 +1,7 @@
 import { flushSync } from "react-dom";
 import { useApp } from "../store/app";
 import { accentColor } from "../lib/theme";
+import { GOLDEN_ACCENT, SCENES } from "../scenes/meta";
 import { webkit } from "../lib/platform";
 import { play } from "../lib/sound";
 import type { AccentId, SceneId } from "../lib/types";
@@ -93,7 +94,7 @@ let arrivalGen = 0;
 
 const CURTAIN_MS = 380;
 
-function arriveInInk(set: () => void): boolean {
+function arriveByDrop(to: SceneId, set: () => void): boolean {
   if (!fx.active || fx.reducedMotion || !fx.inkCapable) return false;
   const gen = ++arrivalGen;
   const root = document.documentElement;
@@ -177,7 +178,7 @@ function arriveInInk(set: () => void): boolean {
   addEventListener("keydown", onSkip, true);
 
   arrival = {
-    to: "ink",
+    to,
     cancel: () => {
       // called off part-way: let the drop go and put the page back as it is
       const was = phase;
@@ -202,8 +203,7 @@ function curtain(k: number) {
  * the window; the galaxy opens out from where you clicked, like the accent does; the solar
  * eclipse opens out from the sun itself — and greets you with the diamond ring.
  */
-/** The accent that goes with the Golden eclipse: Corona, the warm yellow gold. */
-export const GOLDEN_ACCENT: AccentId = "corona";
+export { GOLDEN_ACCENT };
 
 /**
  * The solar eclipse's look. Choosing Golden always turns the accent gold to match — every time,
@@ -220,19 +220,19 @@ export function changeScene(id: SceneId, x = innerWidth / 2, y = innerHeight / 2
   // a drop already on its way to Ink: a second click on Ink changes nothing; anything else
   // calls it off, cleanly, and carries on from wherever it had got to
   if (arrival) {
-    if (id === "ink" && arrival.to === "ink") return;
+    if (arrival.to === id) return;
     arrival.cancel();
   }
   if (s.settings.scene === id) return;
-  // The Golden eclipse comes with its own colour: the accent turns gold (you can change it after).
-  const set = () => s.setSettings(id === "solar" && s.settings.solarLook === "golden" ? { scene: id, accent: GOLDEN_ACCENT } : { scene: id });
-  if (id === "ink" && arriveInInk(set)) return;
+  // (some scenes bring something with them: the Golden eclipse turns the accent gold)
+  const set = () => s.setSettings({ ...SCENES[id].chosen?.(s.settings), scene: id });
+  if (SCENES[id].enter === "drop" && arriveByDrop(id, set)) return;
   const start = viewTransitions();
   if (!start) {
     set();
     if (fx.active) {
       fx.fadeSky();
-      if (fx.solar) window.setTimeout(() => fx.diamondRing(), 650);
+      if (SCENES[fx.scene].enter === "sun") window.setTimeout(() => fx.diamondRing(), 650);
     }
     return;
   }
@@ -244,7 +244,8 @@ export function changeScene(id: SceneId, x = innerWidth / 2, y = innerHeight / 2
   });
   t.ready
     .then(() => {
-      if (fx.rain) {
+      const enter = SCENES[fx.scene].enter;
+      if (enter === "rain") {
         root.animate(
           { clipPath: [curtain(-0.18), curtain(0.5), curtain(1.2)] },
           {
@@ -253,7 +254,7 @@ export function changeScene(id: SceneId, x = innerWidth / 2, y = innerHeight / 2
             pseudoElement: "::view-transition-new(root)",
           },
         );
-      } else if (fx.solar) {
+      } else if (enter === "sun") {
         const sun = fx.sunSpot;
         root.animate(
           {

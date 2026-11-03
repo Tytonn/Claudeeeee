@@ -1,14 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { motion } from "motion/react";
 import {
-  Building2,
   CalendarPlus,
-  CloudLightning,
-  CloudRain,
-  Droplet,
-  Cloudy,
-  Eclipse,
-  Orbit,
   CornerDownLeft,
   Download,
   EyeOff,
@@ -39,7 +32,7 @@ import { sortedNotes, useApp } from "../../store/app";
 import { displayTitle, fuzzyScore, snippet } from "../../lib/text";
 import { shortStamp } from "../../lib/dates";
 import { ACCENTS, ALT, FONTS, MOD, SHIFT, accentColor, sceneOf } from "../../lib/theme";
-import type { AccentId, BackdropId, FontId, RainAmountId } from "../../lib/types";
+import type { AccentId, BackdropId, FontId } from "../../lib/types";
 import { NEW_COUNTDOWN_EVENT, flushEditor, newGroup, newNote, openShare } from "../../lib/actions";
 import { lockHidden, openHidden } from "../../lib/vault";
 import { exportAll } from "../../store/persist";
@@ -47,7 +40,9 @@ import { download } from "../../lib/actions";
 import { spring } from "../../lib/motion";
 import { Modal } from "../ui/Modal";
 import { Kbd } from "../ui/Kbd";
-import { changeScene, changeSolarLook } from "../../fx/transitions";
+import { changeScene } from "../../fx/transitions";
+import { SCENE_LIST } from "../../scenes/meta";
+import { SCENE_UI } from "../../scenes/ui";
 import { screenInfo } from "../../lib/platform";
 import { toast } from "../../store/toasts";
 
@@ -219,65 +214,16 @@ function useItems(query: string): Item[] {
       })),
       ...(settings.effects !== "off"
         ? [
-            // every scene but the one you're in
-            ...[
-              { id: "eclipse" as const, label: "Scene: Galaxy", icon: <Orbit size={15} strokeWidth={1.6} />, keywords: "scene theme space stars galaxy nebula sky background corona" },
-              { id: "solar" as const, label: "Scene: Solar eclipse", icon: <Eclipse size={15} strokeWidth={1.6} />, keywords: "scene theme sun eclipse totality corona diamond ring clouds sunset sky background" },
-              { id: "ink" as const, label: "Scene: Ink", icon: <Droplet size={15} strokeWidth={1.6} />, keywords: "scene theme ink water paper light bright white day drop sumi calligraphy background" },
-              { id: "rain" as const, label: "Make it rain", icon: <CloudRain size={15} strokeWidth={1.6} />, keywords: "scene theme rain storm city night window background" },
-            ]
-              .filter((sc) => sc.id !== sceneOf(settings.scene))
-              .map((sc) => ({ id: `scene-${sc.id}`, group: "Appearance", label: sc.label, icon: sc.icon, keywords: sc.keywords, run: () => window.setTimeout(() => changeScene(sc.id), 240) })),
-            ...(settings.scene === "solar"
-              ? [
-                  {
-                    id: "solar-look",
-                    group: "Appearance",
-                    label: settings.solarLook === "golden" ? "Eclipse look: Corona" : "Eclipse look: Golden",
-                    icon: <Eclipse size={15} strokeWidth={1.6} />,
-                    keywords: "eclipse look golden gold orange ring of fire diamond corona silver style sun",
-                    run: () => changeSolarLook(settings.solarLook === "golden" ? "corona" : "golden"),
-                  },
-                  {
-                    id: "clouds",
-                    group: "Appearance",
-                    label: settings.solarClouds !== false ? "Clear the clouds away" : "Bring the clouds back",
-                    icon: <Cloudy size={15} strokeWidth={1.6} />,
-                    keywords: "clouds sky eclipse sun weather",
-                    run: () => s.setSettings({ solarClouds: settings.solarClouds === false }),
-                  },
-                ]
-              : []),
-            ...(settings.scene === "rain"
-              ? [
-                  {
-                    id: "lightning",
-                    group: "Appearance",
-                    label: settings.lightning ? "Turn lightning off" : "Turn lightning on",
-                    icon: <CloudLightning size={15} strokeWidth={1.6} />,
-                    keywords: "storm thunder flash rain",
-                    run: () => s.setSettings({ lightning: !settings.lightning }),
-                  },
-                  {
-                    id: "city",
-                    group: "Appearance",
-                    label: settings.cityLights ? "Turn the city lights off" : "Turn the city lights on",
-                    icon: <Building2 size={15} strokeWidth={1.6} />,
-                    keywords: "bokeh city lights rain blur",
-                    run: () => s.setSettings({ cityLights: !settings.cityLights }),
-                  },
-                  ...(["drizzle", "rain", "downpour"] as RainAmountId[]).map((id) => ({
-                    id: `rain-${id}`,
-                    group: "Appearance",
-                    label: `Rain: ${id[0].toUpperCase()}${id.slice(1)}`,
-                    icon: <CloudRain size={15} strokeWidth={1.6} />,
-                    keywords: "rain amount heavy light storm",
-                    hidden: true,
-                    meta: settings.rainAmount === id ? "current" : undefined,
-                    run: () => s.setSettings({ rainAmount: id }),
-                  })),
-                ]
-              : []),
+            // every scene but the one you're in — then the one you're in's own commands
+            ...SCENE_LIST.filter((sc) => sc.id !== sceneOf(settings.scene)).map((sc) => ({
+              id: `scene-${sc.id}`,
+              group: "Appearance",
+              label: sc.command,
+              icon: SCENE_UI[sc.id].icon,
+              keywords: sc.keywords,
+              run: () => window.setTimeout(() => changeScene(sc.id), 240),
+            })),
+            ...(SCENE_UI[sceneOf(settings.scene)].commands?.(settings, s.setSettings) ?? []).map((c) => ({ ...c, group: "Appearance" })),
             {
               id: "sky",
               group: "Appearance",

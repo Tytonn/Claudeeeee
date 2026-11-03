@@ -78,6 +78,17 @@ export default defineConfig({
         main: fileURLToPath(new URL("./index.html", import.meta.url)),
         share: fileURLToPath(new URL("./share.html", import.meta.url)),
       },
+      output: {
+        codeSplitting: {
+          groups: [
+            // The libraries (React, the editor, the animations…) change far less often than the
+            // app: in a file of their own, a new version of the app doesn't mean fetching them
+            // all again. (Only what loads at the start, and only their scripts: what's loaded
+            // when it's needed stays that way, and the stylesheets stay as one, in their order.)
+            { name: "lib", test: /node_modules[\\/].+\.[cm]?[jt]sx?$/, tags: ["$initial"] },
+          ],
+        },
+      },
     },
   },
 });
