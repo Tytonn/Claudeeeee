@@ -98,6 +98,8 @@ export type Settings = {
   solarLook: "corona" | "golden";
   /** Solar eclipse (Corona look): the colour of the corona. */
   solarTint: SolarTintId;
+  /** A small version number next to the logo (for screenshots). */
+  showVersion: boolean;
   /** The cursor as a light: the glow on the glass and panel edges that follows it. */
   cursorLight: boolean;
   /** Show milliseconds on the clock (off by default)… */

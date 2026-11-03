@@ -63,6 +63,7 @@ import { fx } from "../fx/engine";
 import { AccountButton } from "../account/AccountModal";
 import { navigate } from "../lib/router";
 import { toast } from "../store/toasts";
+import { BUILD_SHA, VERSION } from "../version";
 
 export function noteMenuItems(note: Note, opts: { share?: boolean } = {}): MenuItem[] {
   const { groups, ui } = useApp.getState();
@@ -443,6 +444,7 @@ export function Sidebar() {
     moveNote(id, t === "none" ? null : t.slice(2));
   };
 
+  const showVersion = useApp((s) => s.settings.showVersion === true);
   return (
     <aside className="sidebar" aria-label="Notes">
       <div className="sidebar-inner">
@@ -450,6 +452,11 @@ export function Sidebar() {
           <div className="brand">
             <Logo size={20} />
             <span className="wordmark display">umbra</span>
+            {showVersion && (
+              <span className="app-version" title={`umbra v${VERSION} · build ${BUILD_SHA}`}>
+                v{VERSION}
+              </span>
+            )}
           </div>
           <div className="sb-head-actions">
             <IconButton label="Search" tooltip={false} className="sb-mobile-only" onClick={openSearch}>

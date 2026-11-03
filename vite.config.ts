@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
@@ -47,10 +48,26 @@ function devCsp(): Plugin {
 // apps (Discord, iMessage…) need an absolute og:image, so hand it to index.html.
 process.env.VITE_SITE_URL ??= process.env.URL ?? "";
 
+/** The commit being built: ask git (Netlify's builds have it too); else Netlify's COMMIT_REF. */
+function buildSha(): string {
+  try {
+    const sha = execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+    if (sha) return sha;
+  } catch {
+    /* no git here */
+  }
+  return process.env.COMMIT_REF?.slice(0, 7) || "dev";
+}
+
 // `netlify()` emulates Netlify Functions + Blobs + redirects + headers inside `vite dev`,
 // so sharing works locally exactly like it does in production.
 export default defineConfig({
   plugins: [react(), devShareRoutes(), netlify(), devCsp()],
+  // Which build this is (shown in Settings → About, and next to the logo if you like).
+  define: {
+    __BUILD_SHA__: JSON.stringify(buildSha()),
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+  },
   build: {
     target: "es2022",
     chunkSizeWarningLimit: 1500,

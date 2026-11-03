@@ -2,6 +2,8 @@
  * A few platform facts the layout and effects need to work around.
  */
 
+import { BUILD_SHA, VERSION } from "../version";
+
 const nav = typeof navigator !== "undefined" ? (navigator as Navigator & { standalone?: boolean }) : null;
 const ua = nav?.userAgent ?? "";
 const mq = (q: string) => typeof matchMedia !== "undefined" && matchMedia(q).matches;
@@ -35,6 +37,7 @@ export function screenInfo(): string {
   const root = document.documentElement;
   const vv = window.visualViewport;
   return [
+    `v${VERSION} (${BUILD_SHA})`,
     `page ${innerWidth}×${innerHeight}`,
     `screen ${screen.width}×${screen.height}`,
     vv ? `visible ${Math.round(vv.width)}×${Math.round(vv.height)}` : "",

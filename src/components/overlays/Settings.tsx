@@ -19,6 +19,7 @@ import { IconButton } from "../ui/IconButton";
 import { Eclipse } from "../ui/Eclipse";
 import { changeAccent, changeScene, changeSolarLook } from "../../fx/transitions";
 import { goldenShift } from "../../fx/color";
+import { BUILD_SHA, BUILD_TIME, VERSION } from "../../version";
 
 function Row({ label, desc, children, htmlFor }: { label: string; desc?: ReactNode; children: ReactNode; htmlFor?: string }) {
   return (
@@ -686,9 +687,18 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
             </Row>
           </Section>
 
+          <Section title="About">
+            <Row
+              label="Show version"
+              desc={`A small v${VERSION} next to umbra, top left — handy for screenshots. This is build ${BUILD_SHA}${BUILD_TIME ? `, from ${new Date(BUILD_TIME).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}` : ""}.`}
+            >
+              <Switch checked={settings.showVersion === true} onChange={(v) => setSettings({ showVersion: v })} label="Show version" />
+            </Row>
+          </Section>
+
           <footer className="settings-foot">
             <span className="display">umbra</span>
-            <span className="mono">a quiet place to write</span>
+            <span className="mono">a quiet place to write · v{VERSION}</span>
           </footer>
         </div>
       </div>

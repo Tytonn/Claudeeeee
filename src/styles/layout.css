@@ -199,6 +199,23 @@ html:not(.is-ready) .app {
   letter-spacing: -0.015em;
   padding-bottom: 3px;
 }
+/* The version beside the wordmark (Settings → About → Show version): small, gray, quietly framed. */
+.app-version {
+  margin-left: -2px;
+  padding: 2px 6px 1px;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  color: var(--fg-4);
+  background: rgb(255 255 255 / 0.035);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.08);
+  text-shadow: none;
+  font-variant-numeric: tabular-nums;
+}
 
 .sb-search {
   display: flex;
@@ -846,6 +863,9 @@ html[data-typing] .topbar:hover {
 }
 .app.is-mobile .wordmark {
   font-size: 27px;
+}
+.app.is-mobile .app-version {
+  font-size: 11px;
 }
 .app.is-mobile .sb-item {
   height: 42px;

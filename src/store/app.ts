@@ -25,6 +25,7 @@ export const DEFAULT_SETTINGS: Settings = {
   solarSize: 0.5,
   solarLook: "corona",
   solarTint: "pearl",
+  showVersion: false,
   cursorLight: true,
   clockMs: false,
   clockMsDigits: 3,
