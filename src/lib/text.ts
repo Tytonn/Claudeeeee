@@ -68,9 +68,38 @@ function block(node: JSONContent, indent = ""): string[] {
     }
     case "taskList":
       return listItems(node, (_i, item) => (item.attrs?.checked ? "- [x] " : "- [ ] "), indent);
+    case "table":
+      return tableLines(node).map((l) => indent + l);
     default:
       return node.content ? blocks(node.content) : [];
   }
+}
+
+/** A cell's words on one line (its own lines joined with <br>), with any | escaped. */
+function cellText(cell: JSONContent): string {
+  return blocks(cell.content)
+    .filter((l) => l.trim())
+    .join("<br>")
+    .replace(/\|/g, "\\|");
+}
+
+/** A table as Markdown: its first row is the header, each column's alignment in the --- line. */
+function tableLines(node: JSONContent): string[] {
+  const grid: string[][] = [];
+  const aligns: (string | null)[] = [];
+  (node.content ?? []).forEach((row, r) => {
+    const line: string[] = [];
+    for (const cell of row.content ?? []) {
+      const span = Math.max(1, Number(cell.attrs?.colspan ?? 1) | 0);
+      if (r === 0) for (let i = 0; i < span; i++) aligns.push(typeof cell.attrs?.align === "string" ? cell.attrs.align : null);
+      line.push(cellText(cell), ...Array<string>(span - 1).fill(""));
+    }
+    grid.push(line);
+  });
+  const width = Math.max(1, ...grid.map((l) => l.length));
+  const row = (cells: string[]) => `| ${Array.from({ length: width }, (_, i) => cells[i] ?? "").join(" | ")} |`;
+  const rule = Array.from({ length: width }, (_, i) => (aligns[i] === "center" ? ":---:" : aligns[i] === "right" ? "---:" : aligns[i] === "left" ? ":---" : "---"));
+  return [row(grid[0] ?? []), row(rule), ...grid.slice(1).map(row)];
 }
 
 function blocks(nodes: JSONContent[] | undefined): string[] {

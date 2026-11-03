@@ -32,6 +32,8 @@ const SYNCED_SETTINGS = [
   "accent",
   "font",
   "titleFont",
+  "titleSize",
+  "titleAlign",
   "size",
   "todos",
   "countdowns",

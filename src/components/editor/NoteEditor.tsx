@@ -11,16 +11,16 @@ import { fx } from "../../fx/engine";
 import { play } from "../../lib/sound";
 import { BubbleBar } from "./BubbleBar";
 import { SlashMenu } from "./SlashMenu";
+import { TableTools } from "./TableTools";
 import { wordCount } from "../../lib/text";
 import { formatDate } from "../../lib/dates";
 import { useCollabSession, userFor } from "../../collab/manager";
 import { useYText } from "../../collab/useYText";
 import { TITLE } from "../../collab/fields";
 import { Presence } from "../Presence";
-import { Menu } from "../ui/Menu";
-import { Popover, pointAnchor } from "../ui/Popover";
-import { TITLE_FONTS, isMac } from "../../lib/theme";
-import type { TitleFontId } from "../../lib/types";
+import { isMac, titleAttrs } from "../../lib/theme";
+import type { VirtualElement } from "@floating-ui/react-dom";
+import { TITLE_STYLE_EVENT, TitleStyleMenu } from "./TitleStyle";
 
 const supportsFieldSizing = typeof CSS !== "undefined" && CSS.supports?.("field-sizing", "content");
 
@@ -36,7 +36,7 @@ export function NoteEditor({ noteId, scroller }: Props) {
   const isShared = useApp((s) => Boolean(s.shares[noteId]));
   const updateNote = useApp((s) => s.updateNote);
   const titleRef = useRef<HTMLTextAreaElement>(null);
-  const [titleMenu, setTitleMenu] = useState<{ x: number; y: number } | null>(null);
+  const [titleMenu, setTitleMenu] = useState<Element | VirtualElement | null>(null);
   const titlePress = useRef<{ mouse: boolean; selected: boolean } | null>(null);
   const [noteEl, setNoteEl] = useState<HTMLDivElement | null>(null);
   const wordsRef = useRef<HTMLSpanElement>(null);
@@ -162,6 +162,15 @@ export function NoteEditor({ noteId, scroller }: Props) {
     el.style.height = `${el.scrollHeight}px`;
   }, [note?.title, liveTitle]);
 
+  // ··· → Title style (and the command palette): the same menu, opening under the title.
+  useEffect(() => {
+    const open = () => {
+      if (titleRef.current) setTitleMenu(titleRef.current);
+    };
+    window.addEventListener(TITLE_STYLE_EVENT, open);
+    return () => window.removeEventListener(TITLE_STYLE_EVENT, open);
+  }, []);
+
   // Ctrl/⌘ K with a selection = edit link (handled by the bubble), so expose the editor.
   useEffect(() => {
     if (!editor) return;
@@ -190,8 +199,9 @@ export function NoteEditor({ noteId, scroller }: Props) {
 
   return (
     <div
-      className="note"
+      className={`note ${titleMenu ? "is-styling" : ""}`}
       ref={setNoteEl}
+      {...titleAttrs(note.titleStyle)}
       onMouseDown={(e) => {
         // Clicking the empty space below the text puts the caret at the end.
         if (e.target === e.currentTarget && editor) {
@@ -216,10 +226,11 @@ export function NoteEditor({ noteId, scroller }: Props) {
           titlePress.current = null;
           if (p && (!p.mouse || p.selected)) return;
           e.preventDefault();
-          const r = e.currentTarget.getBoundingClientRect();
-          // From the keyboard (no pointer), it opens under the title.
+          // It opens just under the title (where you clicked along it), so the title itself stays in
+          // view as you change it — and moves down with it as it grows. From the keyboard (no
+          // pointer), under its start.
           const fromKeys = e.clientX === 0 && e.clientY === 0;
-          setTitleMenu({ x: fromKeys ? r.left + 8 : e.clientX, y: fromKeys ? r.bottom : e.clientY });
+          setTitleMenu(fromKeys ? e.currentTarget : underTitle(e.currentTarget, e.clientX));
         }}
         className="note-title display"
         rows={1}
@@ -245,7 +256,7 @@ export function NoteEditor({ noteId, scroller }: Props) {
           }
         }}
       />
-      <TitleFontMenu at={titleMenu} onClose={() => setTitleMenu(null)} />
+      <TitleStyleMenu noteId={noteId} anchor={titleMenu} onClose={() => setTitleMenu(null)} />
       <div className="note-meta mono">
         <span>{formatDate(new Date(note.createdAt), { weekday: false })}</span>
         <span className="sep" />
@@ -272,33 +283,19 @@ export function NoteEditor({ noteId, scroller }: Props) {
       <LightCaret editor={editor} container={noteEl} />
       <InkSettle editor={editor} container={noteEl} />
       {editor && <BubbleBar editor={editor} />}
+      {editor && <TableTools editor={editor} container={noteEl} />}
       <SlashMenu />
     </div>
   );
 }
 
-/** Right-click a title: its typeface, each one shown in itself. */
-function TitleFontMenu({ at, onClose }: { at: { x: number; y: number } | null; onClose: () => void }) {
-  const current = useApp((s) => s.settings.titleFont ?? "display");
-  const anchor = useMemo(() => (at ? pointAnchor(at.x, at.y) : null), [at]);
-  return (
-    <Popover open={Boolean(at)} onClose={onClose} anchor={anchor} placement="bottom-start" offsetPx={4} role="menu">
-      <Menu
-        items={(Object.keys(TITLE_FONTS) as TitleFontId[]).map((id) => ({
-          label: TITLE_FONTS[id].name,
-          icon: (
-            <span className="title-font-aa" style={{ fontFamily: TITLE_FONTS[id].stack, fontStyle: TITLE_FONTS[id].italic ? "italic" : undefined }}>
-              Aa
-            </span>
-          ),
-          checked: current === id,
-          onSelect: () => {
-            useApp.getState().setSettings({ titleFont: id });
-            play("pop");
-          },
-        }))}
-        onClose={onClose}
-      />
-    </Popover>
-  );
+/** A point just under an element's bottom edge, at `x`, that follows the element as it changes size. */
+function underTitle(el: HTMLElement, x: number): VirtualElement {
+  return {
+    contextElement: el,
+    getBoundingClientRect: () => {
+      const y = el.getBoundingClientRect().bottom;
+      return { x, y, left: x, top: y, right: x, bottom: y, width: 0, height: 0, toJSON: () => ({}) } as DOMRect;
+    },
+  };
 }

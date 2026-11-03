@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowLeft, Check, Ellipsis, ImagePlus, Maximize2, Minimize2, PanelLeft, PanelRight, Share } from "lucide-react";
+import { ArrowLeft, Check, Ellipsis, ImagePlus, Maximize2, Minimize2, PanelLeft, PanelRight, Share, Type } from "lucide-react";
 import type { Editor } from "@tiptap/core";
 import { useApp } from "../store/app";
 import { useShareStatus } from "../store/shareSync";
@@ -14,6 +14,7 @@ import { Popover } from "./ui/Popover";
 import { Menu } from "./ui/Menu";
 import { noteMenuItems } from "./Sidebar";
 import { pickImages } from "./editor/image";
+import { TITLE_STYLE_EVENT } from "./editor/TitleStyle";
 import { ShareSheet } from "./overlays/ShareSheet";
 import { usePending } from "./overlays/People";
 
@@ -123,6 +124,8 @@ export function TopBar() {
                         if (ed && !ed.isDestroyed) pickImages(ed);
                       },
                     },
+                    // (what right-click on the title does — here too, for a finger)
+                    { label: "Title style…", icon: <Type size={15} />, onSelect: () => window.dispatchEvent(new Event(TITLE_STYLE_EVENT)) },
                     "divider",
                     ...noteMenuItems(note, { share: false }),
                   ]}

@@ -14,6 +14,8 @@ export type Note = {
   groupId?: string | null;
   /** Kept out of the list and search until hidden notes are unlocked with the PIN. */
   hidden?: boolean;
+  /** This note's own title look (right-click its title); anything left out follows Settings. */
+  titleStyle?: TitleStyle | null;
 };
 
 /** A named group of notes in the sidebar. */
@@ -59,6 +61,10 @@ export type Countdown = {
 export type AccentId = "iris" | "moon" | "sky" | "mint" | "corona" | "ember" | "rose";
 /** The note title's typeface. */
 export type TitleFontId = "display" | "italic" | "serif" | "sans" | "mono";
+export type TitleSizeId = "s" | "m" | "l" | "xl";
+export type TitleAlignId = "left" | "center";
+/** A title's look: its typeface, size and alignment (each optional: the rest come from Settings). */
+export type TitleStyle = { font?: TitleFontId; size?: TitleSizeId; align?: TitleAlignId };
 /** The solar eclipse's corona: Pearl is its natural light. */
 export type SolarTintId = "pearl" | "gold" | "ember" | "rose" | "violet" | "ice" | "mint";
 export type FontId = "sans" | "serif" | "mono";
@@ -75,6 +81,9 @@ export type Settings = {
   font: FontId;
   /** The typeface of every note's title. */
   titleFont: TitleFontId;
+  /** Every title's size and alignment, unless a note has its own (right-click a title → Use for all notes). */
+  titleSize: TitleSizeId;
+  titleAlign: TitleAlignId;
   size: SizeId;
   todos: boolean;
   countdowns: boolean;
@@ -154,7 +163,7 @@ export type SharePayload = {
   from?: string;
   sharedAt: number;
   /** With `collab`, the note itself is in the live doc rather than in here. */
-  note?: { title: string; doc: JSONContent | null; text: string; updatedAt: number; collab?: boolean };
+  note?: { title: string; doc: JSONContent | null; text: string; updatedAt: number; collab?: boolean; titleStyle?: TitleStyle };
   todos?: { text: string; done: boolean }[];
   countdowns?: { title: string; date: string; time?: string | null; repeat?: "yearly" | null; createdAt: number }[];
 };

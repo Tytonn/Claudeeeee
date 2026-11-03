@@ -1,5 +1,5 @@
 import type { JSONContent } from "@tiptap/core";
-import type { Countdown, Note, NoteGroup, ShareRecord, SharePayload, Todo, TodoColor, SharedLink, Vault } from "./types";
+import type { Countdown, Note, NoteGroup, SharePayload, ShareRecord, SharedLink, TitleStyle, Todo, TodoColor, Vault } from "./types";
 
 /**
  * Everything that comes from outside this tab's own code — a shared link's decrypted
@@ -17,6 +17,20 @@ const num = (v: unknown, fallback = Date.now()) => (typeof v === "number" && Num
 const isDoc = (v: unknown): v is JSONContent => isObj(v) && v.type === "doc";
 const validDate = (v: unknown): v is string => typeof v === "string" && ISO_DATE.test(v) && !Number.isNaN(Date.parse(v));
 
+const TITLE_FONT_IDS = ["display", "italic", "serif", "sans", "mono"];
+const TITLE_SIZE_IDS = ["s", "m", "l", "xl"];
+const TITLE_ALIGN_IDS = ["left", "center"];
+
+/** A title's own look, cleaned up (null when there's nothing of its own left). */
+export function normalizeTitleStyle(raw: unknown): TitleStyle | null {
+  if (!isObj(raw)) return null;
+  const out: TitleStyle = {};
+  if (typeof raw.font === "string" && TITLE_FONT_IDS.includes(raw.font)) out.font = raw.font as TitleStyle["font"];
+  if (typeof raw.size === "string" && TITLE_SIZE_IDS.includes(raw.size)) out.size = raw.size as TitleStyle["size"];
+  if (typeof raw.align === "string" && TITLE_ALIGN_IDS.includes(raw.align)) out.align = raw.align as TitleStyle["align"];
+  return Object.keys(out).length ? out : null;
+}
+
 export function normalizeNote(raw: unknown): Note | null {
   if (!isObj(raw) || typeof raw.id !== "string" || !ID.test(raw.id)) return null;
   return {
@@ -30,7 +44,14 @@ export function normalizeNote(raw: unknown): Note | null {
     deletedAt: typeof raw.deletedAt === "number" ? raw.deletedAt : null,
     groupId: typeof raw.groupId === "string" && ID.test(raw.groupId) ? raw.groupId : null,
     hidden: raw.hidden === true,
+    ...withTitleStyle(raw.titleStyle),
   };
+}
+
+/** `{ titleStyle }` when there is one (so a note without stays without the key). */
+function withTitleStyle(raw: unknown): { titleStyle?: TitleStyle } {
+  const ts = normalizeTitleStyle(raw);
+  return ts ? { titleStyle: ts } : {};
 }
 
 export const TODO_COLORS: TodoColor[] = ["red", "orange", "yellow", "green", "blue", "purple"];
@@ -135,7 +156,7 @@ export function sanitizePayload(raw: unknown): SharePayload | null {
 
   if (isObj(raw.note)) {
     const n = raw.note;
-    out.note = { title: str(n.title, 1000), doc: isDoc(n.doc) ? n.doc : null, text: str(n.text), updatedAt: num(n.updatedAt) };
+    out.note = { title: str(n.title, 1000), doc: isDoc(n.doc) ? n.doc : null, text: str(n.text), updatedAt: num(n.updatedAt), ...withTitleStyle(n.titleStyle) };
     if (n.collab === true) out.note.collab = true;
   }
   if (Array.isArray(raw.todos)) {

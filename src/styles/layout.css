@@ -1066,67 +1066,156 @@ html[data-typing] .topbar:hover {
   animation: enter-right 900ms var(--ease-out) 220ms backwards;
 }
 
-/* ── Print: just the note, ink on paper ──────────────────────────────────── */
+/* ── Print (Export as PDF): the note alone, ink on white ──────────────────── */
+
+/* The page: generous margins, the paper size the browser is set to. */
+@page {
+  margin: 20mm 19mm 22mm;
+}
+/* The copy of the note that gets printed (lib/print.ts lays it on the page just before printing,
+   and takes it away after). Never on screen. */
+.print-doc {
+  display: none;
+}
 
 @media print {
   html,
   body,
   #root {
-    height: auto;
-    overflow: visible;
-    background: #fff;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+    /* (a dark scheme would paint the paper's margins dark, and the checkboxes) */
+    color-scheme: light !important;
   }
-  body::before,
-  .sidebar,
-  .rail,
-  .topbar,
-  .canvas-glow,
-  .toasts,
-  .bubble-anchor {
+  /* Everything else steps aside — the app, the sky, the effects, anything floating. */
+  html.is-printing body > :not(.print-doc),
+  html.is-printing body::before,
+  html.is-printing body::after {
     display: none !important;
   }
-  .app {
-    display: block;
-    height: auto;
+  /* (printing with no note open: at least none of the light show) */
+  .fx-sky,
+  .fx-dust,
+  .fx-over,
+  .fx-room,
+  #veil,
+  .toasts,
+  .light-caret,
+  .ink-settle-layer {
+    display: none !important;
   }
-  .canvas {
-    margin: 0;
-    border-radius: 0;
+
+  .print-doc {
+    display: block;
+    /* ink on white, whatever scene you write in */
+    --fg-1: #111114;
+    --fg-body: #1e1d23;
+    --fg-2: #3b3a41;
+    --fg-3: #5f5e66;
+    --fg-4: #86858c;
+    --fg-5: #b5b4ba;
+    --tint: 0 0 0;
+    --canvas: #fff;
+    --line: #dddde1;
+    --line-2: #d0d0d5;
+    --line-3: #c3c3c9;
+    --tbl-line: #d6d6db;
+    --tbl-frame: #c6c6cc;
+    --tbl-head: #f3f3f5;
+    color: var(--fg-body);
+    background: #fff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .print-doc .print-title {
+    margin: 0 0 22pt;
+    font-size: calc(28pt * var(--title-scale, 1) * var(--title-size-k, 1));
+    color: var(--fg-1);
+    text-shadow: none;
+    break-after: avoid;
+  }
+  .print-doc .print-body {
+    font-size: 11.5pt;
+    line-height: 1.62;
+    color: var(--fg-body);
+    text-shadow: none;
+    orphans: 3;
+    widows: 3;
+  }
+  .print-doc .print-body :is(h1, h2, h3, strong, a) {
+    color: var(--fg-1);
+  }
+  .print-doc .print-body :is(h1, h2, h3) {
+    break-after: avoid;
+  }
+  .print-doc .print-body :is(pre, blockquote, figure, tr, li, img) {
+    break-inside: avoid;
+  }
+  .print-doc .print-body a {
+    text-decoration-color: currentColor;
+  }
+  .print-doc .print-body code {
+    color: var(--fg-1);
+    background: #f2f2f4;
+    box-shadow: inset 0 0 0 0.5pt var(--line-2);
+  }
+  /* code blocks: dark on light, every line kept on the page */
+  .print-doc .print-body pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    color: #1d1c22;
+    background: #f5f5f7;
+    box-shadow: inset 0 0 0 0.5pt var(--line-2);
+  }
+  .print-doc .print-body pre :is(code, span) {
+    color: inherit !important;
     background: none;
     box-shadow: none;
-    overflow: visible;
-    animation: none !important;
   }
-  .canvas::before {
+  .print-doc .print-body blockquote {
+    color: var(--fg-2);
+    border-left-color: var(--line-3);
+  }
+  .print-doc .print-body hr {
+    background: var(--line-3);
+  }
+  .print-doc .print-body hr::after {
     display: none;
   }
-  .canvas-scroll {
+  .print-doc .print-body mark {
+    color: inherit;
+    background: #fbefa6;
+  }
+  /* tables: each row whole on its page, the rules a quiet grey */
+  .print-doc .print-body .tableWrapper {
     overflow: visible;
   }
-  .note {
-    max-width: none;
-    padding: 0;
+  .print-doc .print-body table {
+    width: 100% !important;
+    min-width: 0 !important;
   }
-  .note-title,
-  .prose,
-  .prose h1,
-  .prose h2,
-  .prose h3,
-  .prose strong,
-  .prose a {
-    color: #111 !important;
+  /* pictures: the picture itself, no frame, no shadow */
+  .print-doc .note-image-frame {
+    box-shadow: none !important;
+    background: none !important;
   }
-  .note-meta {
-    color: #888;
+  .print-doc .note-image-img {
+    opacity: 1 !important;
+    filter: none !important;
   }
-  .prose code,
-  .prose pre {
-    color: #111;
-    background: #f4f4f5;
+  /* checklists: an outlined box, a filled one when it's done */
+  .print-doc .print-body input[type="checkbox"] {
+    box-shadow: inset 0 0 0 1.2pt #6b6a72;
+  }
+  .print-doc .print-body input[type="checkbox"]:checked {
+    background: #2b2a31;
     box-shadow: none;
+    animation: none;
   }
-  .prose blockquote {
-    color: #444;
+  .print-doc .print-body input[type="checkbox"]::after {
+    border-color: #fff;
   }
 }
 

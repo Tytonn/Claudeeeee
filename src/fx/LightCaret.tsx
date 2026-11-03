@@ -116,6 +116,12 @@ export function LightCaret({ editor, container }: { editor: Editor | null; conta
       last = at;
     };
     const schedule = () => {
+      // Going out never waits for the next frame (a slow one mustn't leave it lit where it was —
+      // say, behind a whole table column you've just selected).
+      if (!fx.active || !editor.isFocused || !editor.state.selection.empty) {
+        el.classList.remove("is-on");
+        last = null;
+      }
       if (!raf) raf = requestAnimationFrame(place);
     };
     const onTransaction = ({ transaction }: { transaction: Transaction }) => {

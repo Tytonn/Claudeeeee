@@ -36,6 +36,8 @@ export function buildPayload(
     payload.note = s.shares[anchor]?.collab
       ? { title: "", doc: null, text: "", updatedAt: 0, collab: true }
       : { title: note.title, doc: note.doc, text: note.text, updatedAt: note.updatedAt };
+    // its own title look goes with it (how you like titles in general stays yours)
+    if (note.titleStyle) payload.note.titleStyle = note.titleStyle;
   }
   if (includes.includeTodos) payload.todos = s.todos.map((t) => ({ text: t.text, done: t.done }));
   if (includes.includeCountdowns) {

@@ -3,6 +3,7 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import { buildExtensions } from "../components/editor/extensions";
 import { useAccount } from "../account/account";
 import { BubbleBar } from "../components/editor/BubbleBar";
+import { TableTools } from "../components/editor/TableTools";
 import { SlashMenu } from "../components/editor/SlashMenu";
 import { LightCaret } from "../fx/LightCaret";
 import { useApp } from "../store/app";
@@ -123,6 +124,7 @@ export function LiveNote({ session, onTitle }: { session: CollabSession; onTitle
       <EditorContent editor={editor} className="note-body" />
       <LightCaret editor={editor} container={noteEl} />
       {editor && canEdit && <BubbleBar editor={editor} />}
+      {editor && canEdit && <TableTools editor={editor} container={noteEl} />}
       <SlashMenu />
     </div>
   );

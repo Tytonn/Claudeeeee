@@ -15,10 +15,12 @@ import {
   Minus,
   Pilcrow,
   Quote,
+  Table2,
   type LucideIcon,
 } from "lucide-react";
 import { fuzzyScore } from "../../lib/text";
 import { pickImages } from "./image";
+import { insertTable } from "./tables";
 
 export type SlashItem = {
   id: string;
@@ -85,6 +87,14 @@ export const SLASH_ITEMS: SlashItem[] = [
     icon: ListChecks,
     keywords: ["todo", "task", "checkbox", "check"],
     run: (e, r) => e.chain().focus().deleteRange(r).toggleTaskList().run(),
+  },
+  {
+    id: "table",
+    title: "Table",
+    hint: "",
+    icon: Table2,
+    keywords: ["grid", "rows", "columns", "cells", "spreadsheet", "tabular", "chart", "matrix"],
+    run: (e, r) => insertTable(e, r),
   },
   {
     id: "image",
@@ -174,7 +184,8 @@ export const SlashCommand = Extension.create({
           const $from = state.doc.resolve(range.from);
           return !$from.parent.type.spec.code;
         },
-        items: ({ query }) => filterSlash(query),
+        // (no table inside a table)
+        items: ({ query, editor }) => filterSlash(query).filter((it) => it.id !== "table" || !editor.isActive("table")),
         command: ({ editor, range, props }) => props.run(editor, range),
         render: () => ({
           onStart: (props) => {

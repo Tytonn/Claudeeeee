@@ -29,6 +29,7 @@ import { ACCENTS, RAIN_AMOUNT, SOLAR_TINTS, accentColor, applyTheme, hexRgb, sce
 import type { Settings } from "./lib/types";
 import { fx } from "./fx/engine";
 import { refreshPointerLight, startPointerLight } from "./fx/dom";
+import { startPrint } from "./lib/print";
 import { changeScene } from "./fx/transitions";
 import { SCENES } from "./scenes/meta";
 import { setSoundEnabled, setSoundTheme } from "./lib/sound";
@@ -76,6 +77,7 @@ async function boot() {
   syncFx(settings, true);
   fx.init();
   startPointerLight();
+  startPrint();
   if (import.meta.env.DEV) Object.assign(window as object, { __fx: fx, __app: useApp, __syncNow: syncNow, __changeScene: changeScene });
   useApp.subscribe(
     (s) => s.settings,

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import type { JSONContent } from "@tiptap/core";
-import type { Countdown, Note, NoteGroup, Settings, SharedLink, ShareRecord, Todo, Vault } from "../lib/types";
+import type { Countdown, Note, NoteGroup, Settings, SharedLink, ShareRecord, TitleStyle, Todo, Vault } from "../lib/types";
 import { uid } from "../lib/id";
 import { isBlank } from "../lib/text";
 
@@ -9,6 +9,8 @@ export const DEFAULT_SETTINGS: Settings = {
   accent: "iris",
   font: "sans",
   titleFont: "display",
+  titleSize: "m",
+  titleAlign: "left",
   size: "m",
   todos: true,
   countdowns: true,
@@ -88,8 +90,12 @@ export type AppState = {
   setUI(patch: Partial<UIState>): void;
   setSettings(patch: Partial<Settings>): void;
 
-  createNote(init?: Partial<Pick<Note, "title" | "doc" | "text" | "groupId" | "hidden">>): string;
+  createNote(init?: Partial<Pick<Note, "title" | "doc" | "text" | "groupId" | "hidden" | "titleStyle">>): string;
   updateNote(id: string, patch: Partial<Note>, touch?: boolean): void;
+  /** Changes a note's own title look (null: back to how every title looks). */
+  setTitleStyle(id: string, patch: TitleStyle | null): void;
+  /** Every note back to the usual title look; gives back what they had (to undo). */
+  clearTitleStyles(): Record<string, TitleStyle>;
   selectNote(id: string | null): void;
   trashNote(id: string): void;
   restoreNote(id: string): void;
@@ -212,6 +218,7 @@ export const useApp = create<AppState>()(
         updatedAt: t,
         groupId: init.groupId && get().groups.some((g) => g.id === init.groupId) ? init.groupId : null,
         hidden: init.hidden === true,
+        ...(init.titleStyle && Object.keys(init.titleStyle).length ? { titleStyle: { ...init.titleStyle } } : {}),
       };
       const prev = get().ui.activeId;
       set((s) => {
@@ -229,6 +236,36 @@ export const useApp = create<AppState>()(
         if (!cur) return s;
         return { notes: { ...s.notes, [id]: { ...cur, ...patch, updatedAt: touch ? now() : cur.updatedAt } } };
       });
+    },
+
+    setTitleStyle(id, patch) {
+      set((s) => {
+        const cur = s.notes[id];
+        if (!cur) return s;
+        // A choice that matches every other title isn't this note's own.
+        const usual: TitleStyle = { font: s.settings.titleFont, size: s.settings.titleSize, align: s.settings.titleAlign };
+        const next: TitleStyle = patch ? { ...cur.titleStyle, ...patch } : {};
+        for (const k of Object.keys(next) as (keyof TitleStyle)[]) if (next[k] === undefined || next[k] === usual[k]) delete next[k];
+        const { titleStyle: _drop, ...rest } = cur;
+        const note: Note = Object.keys(next).length ? { ...rest, titleStyle: next } : rest;
+        return { notes: { ...s.notes, [id]: { ...note, updatedAt: now() } } };
+      });
+    },
+
+    clearTitleStyles() {
+      const had: Record<string, TitleStyle> = {};
+      set((s) => {
+        let notes = s.notes;
+        for (const [id, n] of Object.entries(s.notes)) {
+          if (!n.titleStyle) continue;
+          had[id] = n.titleStyle;
+          if (notes === s.notes) notes = { ...s.notes };
+          const { titleStyle: _drop, ...rest } = n;
+          notes[id] = { ...rest, updatedAt: now() };
+        }
+        return notes === s.notes ? s : { notes };
+      });
+      return had;
     },
 
     selectNote(id) {
@@ -300,6 +337,7 @@ export const useApp = create<AppState>()(
         text: src.text,
         groupId: src.groupId ?? null,
         hidden: src.hidden === true,
+        titleStyle: src.titleStyle ?? null,
       });
       return copy;
     },

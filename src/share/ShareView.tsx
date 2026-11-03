@@ -8,6 +8,7 @@ import { ApiError, fetchShare, joinShare } from "../lib/api";
 import { open, writeTokenFor } from "../lib/crypto";
 import type { SharePayload } from "../lib/types";
 import { sanitizePayload } from "../lib/sanitize";
+import { titleAttrs } from "../lib/theme";
 import { safeDoc } from "../components/editor/safeDoc";
 import { fx } from "../fx/engine";
 import { useScramble } from "../fx/useScramble";
@@ -119,7 +120,7 @@ function ImportDialog({ payload, open: isOpen, onClose }: { payload: SharePayloa
     const s = useApp.getState();
     let noteId: string | null = null;
     if (hasNote && note && payload.note) {
-      noteId = s.createNote({ title: payload.note.title, doc: payload.note.doc ?? undefined, text: payload.note.text });
+      noteId = s.createNote({ title: payload.note.title, doc: payload.note.doc ?? undefined, text: payload.note.text, titleStyle: payload.note.titleStyle ?? null });
     }
     if (hasTodos && todos) s.importTodos(payload.todos!);
     if (hasCds && cds) s.importCountdowns(payload.countdowns!);
@@ -503,7 +504,7 @@ export function ShareView({ id, keyRaw, embedded = false }: { id: string; keyRaw
                 {heroOnly && <HeroCountdown c={cds[0].c} now={now} />}
 
                 {payload.note && live && (
-                  <article className={`viewer-note ${firstReveal ? "decrypt" : ""}`} ref={titleRef}>
+                  <article className={`viewer-note ${firstReveal ? "decrypt" : ""}`} ref={titleRef} {...titleAttrs(payload.note.titleStyle)}>
                     <div className="decrypt-body">
                       {session?.synced ? (
                         <ErrorBoundary fallback={<div className="doc-error">This note couldn't be displayed.</div>}>
@@ -522,7 +523,7 @@ export function ShareView({ id, keyRaw, embedded = false }: { id: string; keyRaw
                 )}
 
                 {payload.note && !live && (
-                  <article className={`viewer-note ${firstReveal ? "decrypt" : ""}`} ref={titleRef}>
+                  <article className={`viewer-note ${firstReveal ? "decrypt" : ""}`} ref={titleRef} {...titleAttrs(payload.note.titleStyle)}>
                     {pulse > 0 && (
                       <motion.div key={pulse} className="viewer-pulse" aria-hidden initial={{ opacity: 1 }} animate={{ opacity: 0 }} transition={{ duration: 1.6, ease: "easeOut" }} />
                     )}

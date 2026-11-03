@@ -37,6 +37,8 @@ const GROUPS: { title: string; items: [string, string | string[]][] }[] = [
       ["Checklist", ["[]", "space"]],
       ["Quote", [">", "space"]],
       ["Code block", ["```"]],
+      ["Next table cell", "Tab"],
+      ["Export as PDF", `${MOD} P`],
     ],
   },
   {

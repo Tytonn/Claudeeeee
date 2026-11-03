@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import { useEditorState } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
+import { CellSelection } from "@tiptap/pm/tables";
 import { motion } from "motion/react";
 import { Bold, Check, Code, Highlighter, Italic, Link2, Strikethrough, Unlink } from "lucide-react";
 import { MOD, SHIFT } from "../../lib/theme";
@@ -87,6 +88,9 @@ export function BubbleBar({ editor }: { editor: Editor }) {
       shouldShow={({ editor: e, from, to }) => {
         if (from === to || !e.isEditable) return false;
         if (e.isActive("codeBlock")) return false;
+        // Whole cells selected (a table's row or column): the table's own menu is the one that
+        // matters, and the shortcuts (⌘B…) still format every selected cell.
+        if (e.state.selection instanceof CellSelection) return false;
         const text = e.state.doc.textBetween(from, to, " ");
         return text.trim().length > 0;
       }}

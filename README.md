@@ -20,9 +20,9 @@
 - Plus: a short eclipse intro once per visit (followed by an invitation to sign in, if you aren't), a light trail when you switch notes, the new accent color flooding the screen from the swatch you clicked, a live clock (with optional milliseconds), and a sky that slowly wakes up if you leave it alone.
 - **Settings → Effects:** *Max* (everything), *Subtle* (a calm sky and small flourishes) or *Off*. If your system asks for reduced motion, umbra uses *Subtle* automatically.
 - **Settings → Background:** *Dark* (smoked glass), *Glass* (more sky), *Clear* (the default: the sky almost fully, with a soft shade behind your words), *Crystal* (no glass at all — just outlines over the open sky, with a crisp little drop shadow behind every word) or *Bare* (nothing at all: no panels, no outlines, no shade — the sky's light even carries on behind your words instead of stopping at the page's edge). Also in the command palette: *Show more of the sky*.
-- **Settings → Title font:** the typeface of every note's title — *Display* (the tall, narrow serif), *Display italic*, *Serif*, *Sans* or *Mono*. Or just right-click a title.
+- **Settings → Title font:** the typeface of every note's title — *Display* (the tall, narrow serif), *Display italic*, *Serif*, *Sans* or *Mono*. Right-click a title to give just that note its own look (see *Notes*).
 - On a phone, the status bar and the strip under the gesture bar take on the colors at the top and bottom of the sky, so it runs right to the edges of the screen.
-- **Settings → About → Show version:** a small gray *v1.09* beside the logo, so a screenshot says which version it's from. The exact build (its commit and time) is listed there too, and in the command palette's *Screen info*. The number lives in `src/version.ts` and goes up with every update.
+- **Settings → About → Show version:** a small gray *v1.10* beside the logo, so a screenshot says which version it's from. The exact build (its commit and time) is listed there too, and in the command palette's *Screen info*. The number lives in `src/version.ts` and goes up with every update.
 
 **Solar eclipse** *(Settings → Scene → Solar eclipse)*
 - A real total solar eclipse, seen from the ground, drawn live on the GPU: a black moon in a golden, glowing ring, the pearly corona streaming out around it in long, fine-combed blades, pink prominences standing up off the rim, and a dusky sky with a sunset glowing all the way round the horizon — the way it really looks at totality. Venus and a few stars come out in the dark.
@@ -61,13 +61,16 @@
 - Light on the GPU: the water is simulated at half resolution, 20 times a second (the screen blends smoothly between steps), and the paper is painted once. It pauses when the tab is hidden, and with effects off it's simply paper.
 
 **Notes**
-- A calm rich-text editor: type <kbd>/</kbd> for blocks (headings, lists, checklists, quotes, code, dividers, today's date), select text for a formatting bubble, or just write Markdown (`#`, `-`, `[]`, `>`, ```` ``` ````, `==highlight==`).
+- A calm rich-text editor: type <kbd>/</kbd> for blocks (headings, lists, checklists, tables, quotes, code, dividers, today's date), select text for a formatting bubble, or just write Markdown (`#`, `-`, `[]`, `>`, ```` ``` ````, `==highlight==`).
 - Code blocks with syntax highlighting, smart quotes and dashes, links (<kbd>Ctrl/⌘</kbd>+click to open).
 - **Pictures:** paste or drop one in, or type <kbd>/</kbd> → *Image* (on a phone, that opens your photos and camera). A blurry stand-in holds its exact space at once, then the picture develops in over it. Double-click (or the corner button) to see it full-screen. **Resize** one by dragging either side (a finger works too — it settles on the usual sizes and shows the percentage as you go), or select it and pick *Small*, *Medium*, *Large* or *Full* from the bar on it; its width is kept as a share of the page, so it suits any screen. Pictures are shrunk to a sharp ~2200px and re-encoded in your browser before they go anywhere.
+- **Tables:** <kbd>/</kbd> → *Table*, then just type — <kbd>Tab</kbd> moves to the next cell (and in the last one, makes a new row). Point at a table (or tap into one) and a handle appears on the edge of that row and that column: tap it and the whole row or column lights up, with what you can do to it — insert above, below, left or right, move it, align a column left, center or right, make the first row or column a header, clear it or delete it. A **+** along the bottom and down the right adds a row or a column; drag a column's edge to make it wider or narrower; right-click a cell for everything (merge and split cells too). Wider than the page, it scrolls sideways. Paste a table from a spreadsheet or a web page — or as Markdown, from a chat or a README — and it arrives as a real one; *Copy as Markdown* gives one back.
+- **A title's own look:** right-click a note's title (on a phone: *···* → *Title style*) to pick its typeface, size (*S* to *XL*) and alignment (left or centered) — it changes as you choose, just for that note. *Use for all notes* makes it every title's look; *Reset* puts it back. It goes with the note when you share it.
+- **Export as PDF:** in a note's menu (or the command palette, or just <kbd>Ctrl/⌘</kbd> <kbd>P</kbd>) — the browser's print window opens with just your note on the page, ink on white in your own fonts: its title as it looks in the note, then the words, pictures, tables and checklists. Choose *Save as PDF*. Great for an essay.
 - **Groups:** file notes into groups (folders) — drag a note onto one, or use *Move to group* in its menu. Groups fold up, rename in place, and sync with your account.
-- **A note's menu** (pin, share, duplicate, move to a group, copy, download, trash): right-click it in the list — on a phone or tablet, tap its *···* or hold your finger on it. Groups work the same way.
+- **A note's menu** (pin, share, duplicate, move to a group, copy, download, export as PDF, trash): right-click it in the list — on a phone or tablet, tap its *···* or hold your finger on it. Groups work the same way.
 - **Hidden notes:** *Hide note* takes a note out of your list, search and trash. It's in a note's menu (in your accent color) only while your hidden notes are unlocked. To unlock them, search for **hidden** and enter your 4-digit PIN; they show up in their own section until you lock them (or after a minute away from the app). Forgot the PIN? Your account password lets you choose a new one.
-- Saves instantly as you type. Pin, duplicate, copy as Markdown, download `.md`, trash with undo (auto-empties after 30 days).
+- Saves instantly as you type. Pin, duplicate, copy as Markdown, download `.md`, export as PDF, trash with undo (auto-empties after 30 days). Holding <kbd>Backspace</kbd> clears a note and stops there — it never runs on into the title.
 - Empty notes clean themselves up. Your place in each note is remembered.
 
 **To-dos** *(optional)*
@@ -97,7 +100,7 @@
 **Everything else**
 - Command palette (<kbd>Ctrl/⌘ K</kbd>) for searching notes and running any command.
 - Focus mode, fade-while-typing, 7 accent colors (each one recolors the whole sky), 3 writing fonts (Sans / Serif / Mono), 3 text sizes, 3 effect levels, optional sounds. On shared links and in live editing, you're shown by your account's username.
-- Works on phones, prints cleanly, keyboard-first everywhere (press <kbd>?</kbd>).
+- Works on phones, prints (and saves as PDF) cleanly, keyboard-first everywhere (press <kbd>?</kbd>).
 - On a phone it moves like a native app: the list and a note slide over each other, search is a button up top that opens with the keyboard ready, and added to the Home Screen it fills the whole screen, edge to edge.
 
 ---
@@ -137,6 +140,8 @@ Already have a Netlify site you want to reuse? Open it → **Site configuration 
 | Focus mode | <kbd>Ctrl/⌘</kbd> <kbd>Shift</kbd> <kbd>F</kbd> |
 | Settings | <kbd>Ctrl/⌘</kbd> <kbd>,</kbd> |
 | Blocks menu | <kbd>/</kbd> |
+| Next / previous table cell | <kbd>Tab</kbd> · <kbd>Shift</kbd> <kbd>Tab</kbd> |
+| Export as PDF (print) | <kbd>Ctrl/⌘</kbd> <kbd>P</kbd> |
 | Link (with text selected) | <kbd>Ctrl/⌘</kbd> <kbd>K</kbd> |
 | All shortcuts | <kbd>?</kbd> |
 

@@ -18,45 +18,197 @@
   overflow: hidden;
   field-sizing: content;
   font-family: var(--title-font, var(--font-display));
-  font-size: calc(clamp(36px, 4.3vw, 48px) * var(--title-scale, 1));
+  font-size: calc(clamp(36px, 4.3vw, 48px) * var(--title-scale, 1) * var(--title-size-k, 1));
   font-style: var(--title-style, normal);
   font-weight: var(--title-weight, 400);
   line-height: var(--title-leading, 1.08);
   letter-spacing: var(--title-tracking, -0.016em);
+  text-align: var(--title-align, start);
   color: var(--fg-1);
   text-wrap: balance;
 }
 .note-title::placeholder {
   color: var(--fg-5);
 }
+/* (while you're choosing a title's look, its size eases from one to the next) */
+.note.is-styling .note-title {
+  transition:
+    font-size 240ms var(--ease-out),
+    letter-spacing 240ms var(--ease-out);
+}
 
-/* The title's typeface (Settings → Title font, or right-click a title). Each one is sized and
-   spaced to sit the way the tall, narrow display face does. */
-html[data-title-font="italic"] {
+/* The title's look: Settings → Title font (every title), or right-click a title (just that one) —
+   its typeface, size and alignment. Each typeface is sized and spaced to sit the way the tall,
+   narrow display face does. The page carries every title's look and a note may carry its own;
+   each rule sets everything it touches, so a note's own always wins. */
+:is(html, .note, .viewer-note, .print-doc)[data-title-font="display"] {
+  --title-font: var(--font-display);
+  --title-style: normal;
+  --title-scale: 1;
+  --title-weight: 400;
+  --title-leading: 1.08;
+  --title-tracking: -0.016em;
+}
+:is(html, .note, .viewer-note, .print-doc)[data-title-font="italic"] {
+  --title-font: var(--font-display);
   --title-style: italic;
+  --title-scale: 1;
+  --title-weight: 400;
+  --title-leading: 1.08;
   --title-tracking: -0.01em;
 }
-html[data-title-font="serif"] {
+:is(html, .note, .viewer-note, .print-doc)[data-title-font="serif"] {
   --title-font: "Newsreader Variable", "Newsreader", "Iowan Old Style", Georgia, serif;
+  --title-style: normal;
   --title-scale: 0.86;
   --title-weight: 500;
   --title-leading: 1.1;
   --title-tracking: -0.022em;
 }
-html[data-title-font="sans"] {
+:is(html, .note, .viewer-note, .print-doc)[data-title-font="sans"] {
   --title-font: var(--font-sans);
+  --title-style: normal;
   --title-scale: 0.76;
   --title-weight: 600;
   --title-leading: 1.12;
   --title-tracking: -0.034em;
 }
-html[data-title-font="mono"] {
+:is(html, .note, .viewer-note, .print-doc)[data-title-font="mono"] {
   --title-font: var(--font-mono);
+  --title-style: normal;
   --title-scale: 0.68;
   --title-weight: 500;
   --title-leading: 1.16;
   --title-tracking: -0.045em;
 }
+:is(html, .note, .viewer-note, .print-doc)[data-title-size="s"] {
+  --title-size-k: 0.78;
+}
+:is(html, .note, .viewer-note, .print-doc)[data-title-size="m"] {
+  --title-size-k: 1;
+}
+:is(html, .note, .viewer-note, .print-doc)[data-title-size="l"] {
+  --title-size-k: 1.22;
+}
+:is(html, .note, .viewer-note, .print-doc)[data-title-size="xl"] {
+  --title-size-k: 1.46;
+}
+:is(html, .note, .viewer-note, .print-doc)[data-title-align="left"] {
+  --title-align: start;
+  --title-meta: flex-start;
+}
+:is(html, .note, .viewer-note, .print-doc)[data-title-align="center"] {
+  --title-align: center;
+  --title-meta: center;
+}
+/* The title's own look (right-click a title): each typeface as an "Aa" in itself, then its size
+   and alignment. */
+.popover.title-style {
+  width: 292px;
+}
+.ts {
+  padding: 10px 10px 8px;
+}
+.ts-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 2px 4px 10px;
+}
+.ts-scope {
+  font-size: 11px;
+  color: var(--fg-4);
+}
+.ts-fonts {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.ts-font {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  height: 62px;
+  padding: 0 0 8px;
+  border-radius: 10px;
+  color: var(--fg-3);
+  outline: none;
+  transition:
+    background-color var(--t-fast) var(--ease),
+    box-shadow var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease),
+    transform 160ms var(--ease);
+}
+.ts-font:hover {
+  color: var(--fg-2);
+  background: var(--hover);
+}
+.ts-font:active {
+  transform: scale(0.95);
+}
+.ts-font:focus-visible {
+  box-shadow: inset 0 0 0 1.5px var(--accent-3);
+}
+.ts-font.is-on {
+  color: var(--accent-text);
+  background: var(--accent-1);
+  box-shadow: inset 0 0 0 1px var(--accent-3);
+}
+.ts-aa {
+  line-height: 1;
+  color: var(--fg-1);
+}
+.ts-font.is-on .ts-aa {
+  color: var(--accent-text);
+}
+.ts-name {
+  font-size: 10.5px;
+  letter-spacing: 0.01em;
+}
+.ts-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 4px;
+}
+.ts-label {
+  font-size: 12.5px;
+  color: var(--fg-2);
+}
+.ts-sep {
+  height: 1px;
+  margin: 8px 2px 5px;
+  background: var(--line-2);
+}
+.ts-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--fg-2);
+  text-align: left;
+  transition:
+    background-color var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
+}
+.ts-action svg {
+  color: var(--fg-3);
+}
+.ts-action:hover,
+.ts-action:focus-visible {
+  color: var(--fg-1);
+  background: rgb(var(--tint) / 0.065);
+  outline: none;
+}
+
 .note-title.static {
   margin-bottom: 30px;
 }
@@ -65,6 +217,7 @@ html[data-title-font="mono"] {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: var(--title-meta, flex-start);
   gap: 10px;
   margin: 16px 0 36px;
   font-size: 11px;
@@ -452,6 +605,218 @@ html[data-font="mono"] .prose blockquote p {
   outline: 1px solid var(--accent-3);
   outline-offset: 2px;
   border-radius: 4px;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────────────── */
+
+/* A table sits in the note like a ruled card: a soft frame with rounded corners, hairline rules
+   between the cells, the header row a shade brighter. Wider than the page, it scrolls sideways.
+   (Its rules have tokens of their own: a backdrop may hide the note's lines, never a table's.) */
+.prose {
+  --tbl-line: rgb(var(--tint) / 0.075);
+  --tbl-frame: rgb(var(--tint) / 0.12);
+  --tbl-head: rgb(var(--tint) / 0.04);
+  --tbl-r: 11px;
+}
+.prose .tableWrapper {
+  position: relative;
+  margin: 1.5em 0;
+  padding: 1px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-3) transparent;
+}
+.prose > .tableWrapper:first-child {
+  margin-top: 0;
+}
+.prose table {
+  width: 100%;
+  margin: 0;
+  border: 0;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+  border-radius: var(--tbl-r);
+  box-shadow: 0 0 0 1px var(--tbl-frame);
+}
+.prose th,
+.prose td {
+  position: relative;
+  min-width: 1em;
+  padding: 0.5em 0.8em;
+  vertical-align: top;
+  text-align: left;
+  font-size: 0.95em;
+  line-height: 1.6;
+  border: 0;
+  border-right: 1px solid var(--tbl-line);
+  border-bottom: 1px solid var(--tbl-line);
+  overflow-wrap: anywhere;
+}
+.prose tr > :last-child {
+  border-right: 0;
+}
+.prose tr:last-child > * {
+  border-bottom: 0;
+}
+.prose th {
+  font-weight: 600;
+  color: var(--fg-1);
+  background: var(--tbl-head);
+}
+.prose tr:first-child > :first-child {
+  border-top-left-radius: var(--tbl-r);
+}
+.prose tr:first-child > :last-child {
+  border-top-right-radius: var(--tbl-r);
+}
+.prose tr:last-child > :first-child {
+  border-bottom-left-radius: var(--tbl-r);
+}
+.prose tr:last-child > :last-child {
+  border-bottom-right-radius: var(--tbl-r);
+}
+.prose :is(td, th) > * + * {
+  margin-top: 0.45em;
+}
+.prose :is(td, th) :is(ul, ol) {
+  padding-left: 1.2em;
+}
+/* Selected cells (a whole row or column, or a drag across them) light up in the accent. */
+.prose .selectedCell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  background: color-mix(in oklch, var(--accent) 15%, transparent);
+  pointer-events: none;
+}
+/* A column's edge, while you drag it wider or narrower. */
+.prose .column-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -1.5px;
+  bottom: -1px;
+  z-index: 2;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent-3);
+  pointer-events: none;
+}
+.ProseMirror.resize-cursor {
+  cursor: col-resize;
+}
+
+/* The table's tools: a handle on the edge of the row and the column you're at, and a + along the
+   bottom and down the right for one more. */
+.tt-ui {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 6;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.tt-ui > * {
+  pointer-events: auto;
+}
+.tt-handle {
+  position: absolute;
+  translate: -50% -50%;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 6px;
+  color: var(--fg-3);
+  background: var(--float-solid);
+  box-shadow:
+    0 0 0 1px var(--line-3),
+    0 3px 10px -3px rgb(var(--shade) / calc(0.55 * var(--shade-k)));
+  cursor: pointer;
+  transition:
+    color var(--t-fast) var(--ease),
+    background-color var(--t-fast) var(--ease),
+    box-shadow var(--t-fast) var(--ease);
+}
+.tt-col {
+  width: 26px;
+  height: 14px;
+}
+.tt-row {
+  width: 14px;
+  height: 26px;
+}
+.tt-handle:hover {
+  color: var(--accent-text);
+  box-shadow:
+    0 0 0 1px var(--accent-3),
+    0 3px 12px -3px var(--accent-3);
+}
+.tt-handle.is-open {
+  color: var(--accent-ink);
+  background: var(--accent);
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 0 14px -2px var(--accent-3);
+}
+.tt-add-wrap {
+  position: absolute;
+  display: flex;
+}
+.tt-add-row {
+  height: 24px;
+  padding-top: 7px;
+}
+.tt-add-col {
+  width: 24px;
+  padding-left: 7px;
+}
+.tt-add {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 7px;
+  color: var(--fg-4);
+  background: rgb(var(--tint) / 0.025);
+  box-shadow: inset 0 0 0 1px var(--tbl-line);
+  cursor: pointer;
+  transition:
+    color var(--t-fast) var(--ease),
+    background-color var(--t-fast) var(--ease),
+    box-shadow var(--t-fast) var(--ease),
+    transform 160ms var(--ease);
+}
+.tt-add:hover {
+  color: var(--accent-text);
+  background: var(--accent-1);
+  box-shadow: inset 0 0 0 1px var(--accent-3);
+}
+.tt-add:active {
+  transform: scale(0.97);
+}
+/* (bigger to hit with a finger) */
+@media (pointer: coarse) {
+  .tt-col {
+    width: 34px;
+    height: 20px;
+  }
+  .tt-row {
+    width: 20px;
+    height: 34px;
+  }
+  .tt-add-row {
+    height: 26px;
+    padding-top: 5px;
+  }
+  .tt-add-col {
+    width: 28px;
+    padding-left: 6px;
+  }
 }
 
 /* ── Formatting bubble ───────────────────────────────────────────────────── */

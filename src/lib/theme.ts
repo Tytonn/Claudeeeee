@@ -1,4 +1,4 @@
-import type { AccentId, FontId, RainAmountId, SceneId, Settings, SizeId, SolarTintId, TitleFontId, TodoColor } from "./types";
+import type { AccentId, FontId, RainAmountId, SceneId, Settings, SizeId, SolarTintId, TitleAlignId, TitleFontId, TitleSizeId, TitleStyle, TodoColor } from "./types";
 import { PAPER, SCENES, isLightScene, sceneOf } from "../scenes/meta";
 
 // (where they've always been imported from)
@@ -78,7 +78,28 @@ export const SIZES: Record<SizeId, { name: string; px: number }> = {
   l: { name: "Large", px: 18.5 },
 };
 
-export function applyTheme(s: Pick<Settings, "accent" | "font" | "size"> & Partial<Pick<Settings, "backdrop" | "titleFont" | "scene">>) {
+/** A title's sizes (as a step up or down from the usual), and its alignments. */
+export const TITLE_SIZES: Record<TitleSizeId, { name: string; short: string }> = {
+  s: { name: "Small", short: "S" },
+  m: { name: "Medium", short: "M" },
+  l: { name: "Large", short: "L" },
+  xl: { name: "Extra large", short: "XL" },
+};
+export const TITLE_ALIGNS: Record<TitleAlignId, { name: string }> = {
+  left: { name: "Left" },
+  center: { name: "Center" },
+};
+
+/** A note's own title look as attributes for its page (the styles read them; see editor.css). */
+export function titleAttrs(style: TitleStyle | null | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (style?.font && style.font in TITLE_FONTS) out["data-title-font"] = style.font;
+  if (style?.size && style.size in TITLE_SIZES) out["data-title-size"] = style.size;
+  if (style?.align && style.align in TITLE_ALIGNS) out["data-title-align"] = style.align;
+  return out;
+}
+
+export function applyTheme(s: Pick<Settings, "accent" | "font" | "size"> & Partial<Pick<Settings, "backdrop" | "titleFont" | "titleSize" | "titleAlign" | "scene">>) {
   const root = document.documentElement;
   root.dataset.backdrop = s.backdrop === "dark" || s.backdrop === "glass" || s.backdrop === "crystal" || s.backdrop === "bare" ? s.backdrop : "clear";
   root.style.setProperty("--accent", accentColor(s.accent, sceneOf(s.scene)));
@@ -89,6 +110,8 @@ export function applyTheme(s: Pick<Settings, "accent" | "font" | "size"> & Parti
   root.style.setProperty("--editor-size", `${(base * adjust).toFixed(2)}px`);
   root.dataset.font = s.font;
   root.dataset.titleFont = s.titleFont && s.titleFont in TITLE_FONTS ? s.titleFont : "display";
+  root.dataset.titleSize = s.titleSize && s.titleSize in TITLE_SIZES ? s.titleSize : "m";
+  root.dataset.titleAlign = s.titleAlign && s.titleAlign in TITLE_ALIGNS ? s.titleAlign : "left";
 }
 
 /**

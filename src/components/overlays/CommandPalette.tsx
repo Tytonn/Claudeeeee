@@ -5,6 +5,7 @@ import {
   CornerDownLeft,
   Download,
   EyeOff,
+  FileDown,
   FileText,
   FolderPlus,
   Hourglass,
@@ -29,6 +30,8 @@ import {
   Monitor,
 } from "lucide-react";
 import { sortedNotes, useApp } from "../../store/app";
+import { TITLE_STYLE_EVENT } from "../editor/TitleStyle";
+import { exportPdf } from "../../lib/print";
 import { displayTitle, fuzzyScore, snippet } from "../../lib/text";
 import { shortStamp } from "../../lib/dates";
 import { ACCENTS, ALT, FONTS, MOD, SHIFT, accentColor, sceneOf } from "../../lib/theme";
@@ -149,7 +152,26 @@ function useItems(query: string): Item[] {
         ? [{ id: "lock", group: "Actions", label: "Lock hidden notes", icon: <Lock size={15} strokeWidth={1.6} />, keywords: "hidden private vault pin", run: () => lockHidden() }]
         : []),
       ...(activeId && notes[activeId] && !notes[activeId].deletedAt
-        ? [{ id: "share", group: "Actions", label: "Share this note…", icon: <Share size={15} strokeWidth={1.6} />, keywords: "send link friend", run: () => openShare(activeId) }]
+        ? [
+            { id: "share", group: "Actions", label: "Share this note…", icon: <Share size={15} strokeWidth={1.6} />, keywords: "send link friend", run: () => openShare(activeId) },
+            {
+              id: "title-style",
+              group: "Actions",
+              label: "Title style…",
+              icon: <Type size={15} strokeWidth={1.6} />,
+              keywords: "title font typeface size bigger smaller align center heading look",
+              // (once the palette has gone)
+              run: () => requestAnimationFrame(() => window.dispatchEvent(new Event(TITLE_STYLE_EVENT))),
+            },
+            {
+              id: "pdf",
+              group: "Actions",
+              label: "Export as PDF…",
+              icon: <FileDown size={15} strokeWidth={1.6} />,
+              keywords: "pdf print save export essay document paper",
+              run: () => void exportPdf(activeId),
+            },
+          ]
         : []),
       {
         id: "new-cd",

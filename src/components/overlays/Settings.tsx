@@ -210,7 +210,7 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
             <Row label="Writing font">
               <Segmented label="Writing font" value={settings.font} options={fontOptions} onChange={(font) => setSettings({ font })} />
             </Row>
-            <Row label="Title font" desc="For every note's title. You can also right-click a title to change it.">
+            <Row label="Title font" desc="For every note's title. Right-click a title to give just that note its own font, size and alignment.">
               <Segmented<TitleFontId>
                 label="Title font"
                 size="sm"

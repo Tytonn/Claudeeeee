@@ -8,6 +8,7 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
+  FileDown,
   FileText,
   Folder,
   FolderInput,
@@ -52,6 +53,7 @@ import {
   togglePin,
   trashNote,
 } from "../lib/actions";
+import { exportPdf } from "../lib/print";
 import { hideNote, lockHidden, unhideNote } from "../lib/vault";
 import { sidebarSections, type Section } from "../lib/noteList";
 import { Logo } from "./ui/Eclipse";
@@ -90,6 +92,7 @@ export function noteMenuItems(note: Note, opts: { share?: boolean } = {}): MenuI
     "divider",
     { label: "Copy as Markdown", icon: <FileText size={15} />, onSelect: () => void copyMarkdown(note.id) },
     { label: "Download .md", icon: <Download size={15} />, onSelect: () => downloadMarkdown(note.id) },
+    { label: "Export as PDF…", icon: <FileDown size={15} />, onSelect: () => void exportPdf(note.id) },
     "divider",
     { label: "Move to trash", icon: <Trash2 size={15} />, danger: true, onSelect: () => trashNote(note.id) },
   ];

@@ -987,6 +987,13 @@ html[data-backdrop="bare"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(.viewe
   background: none;
 }
 
+/* Over the open sky (Crystal, Bare) a table's rules are drawn a little firmer, so it still reads as one. */
+html:is([data-backdrop="crystal"], [data-backdrop="bare"]):is([data-fx="cosmic"], [data-fx="subtle"]) .prose {
+  --tbl-line: rgb(var(--tint) / 0.14);
+  --tbl-frame: rgb(var(--tint) / 0.2);
+  --tbl-head: rgb(var(--tint) / 0.055);
+}
+
 /* Invisible measuring copies of text (the to-do strike) must never cast a shadow, or they
    show up as ghosts once text gets its halo in Clear/Crystal. */
 .todo-strike {

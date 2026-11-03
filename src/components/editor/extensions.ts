@@ -30,8 +30,10 @@ import sql from "highlight.js/lib/languages/sql";
 import typescript from "highlight.js/lib/languages/typescript";
 import xml from "highlight.js/lib/languages/xml";
 import yaml from "highlight.js/lib/languages/yaml";
+import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
 import { SlashCommand } from "./slash";
 import { NoteImage } from "./image";
+import { TableMarkdownPaste } from "./tables";
 import type { ImageAuth } from "../../lib/images";
 
 // A curated set keeps the bundle lean; auto-detection picks between these.
@@ -39,7 +41,10 @@ const lowlight = createLowlight({ bash, c, cpp, csharp, css, diff, go, java, jav
 
 type NavOptions = { onExitTop: () => void };
 
-/** Arrow-up / backspace at the very top of the body jumps back into the title. */
+/**
+ * Arrow-up on the body's first line moves back up into the title. (Backspace never does: holding
+ * it down clears the note and stops there — the title is only ever reached on purpose.)
+ */
 const TitleNav = Extension.create<NavOptions>({
   name: "titleNav",
   addOptions() {
@@ -63,21 +68,6 @@ const TitleNav = Extension.create<NavOptions>({
     return {
       ArrowUp: () => {
         if (inFirstTextblock() && this.editor.view.endOfTextblock("up")) {
-          this.options.onExitTop();
-          return true;
-        }
-        return false;
-      },
-      Backspace: () => {
-        const { selection, doc } = this.editor.state;
-        const first = doc.firstChild;
-        if (
-          selection.empty &&
-          first?.type.name === "paragraph" &&
-          selection.$from.depth === 1 &&
-          selection.$from.index(0) === 0 &&
-          selection.$from.parentOffset === 0
-        ) {
           this.options.onExitTop();
           return true;
         }
@@ -125,6 +115,12 @@ export function buildExtensions(opts: { onExitTop?: () => void; editable?: boole
     CodeBlockLowlight.configure({ lowlight, defaultLanguage: null }),
     CharacterCount,
     NoteImage.configure({ auth: opts.imageAuth ?? (() => null) }),
+    // Tables: columns can be dragged wider or narrower by their edges (when you can edit).
+    Table.configure({ resizable: true, cellMinWidth: 72, handleWidth: 6, allowTableNodeSelection: false }),
+    TableRow,
+    TableHeader,
+    TableCell,
+    TableMarkdownPaste,
   ];
 
   if (opts.collab) {
