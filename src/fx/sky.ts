@@ -93,7 +93,7 @@ export type InkFrame = {
   /** In real water only: how much light from the surface plays on the paper. */
   light: number;
   /** In real water only: how finely the ink is drawn. */
-  detail: "standard" | "high" | "max";
+  detail: "standard" | "high";
 };
 
 export type SkyFrame = {

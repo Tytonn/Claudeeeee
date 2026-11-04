@@ -340,8 +340,10 @@ vec2 extra(vec2 p) {
     float push = B.z * exp(-A.w / mix(1.5, 1.05, kind)) * r * exp(-r * r * mix(.55, .3, kind));
     v += d / max(length(d), 1e-4) * push;
   }
-  vec3 n5 = fnoise(p * 22.7 + vec2(7.7, 2.2), t * .45);
-  v += vec2(n5.z, -n5.y) * .0026 * min(young, 1.5) * uFlow;
+  if (young > .01) {
+    vec3 n5 = fnoise(p * 22.7 + vec2(7.7, 2.2), t * .45);
+    v += vec2(n5.z, -n5.y) * .0026 * min(young, 1.5) * uFlow;
+  }
   return v;
 }
 
@@ -349,15 +351,17 @@ void main() {
   vec2 uv = gl_FragCoord.xy / uRes;
   vec2 S = vec2(uAspect, 1.);
   vec2 p = uv * S;
-  // carried along: where this ink was a moment ago (two half-steps, for curved paths)
-  vec2 v1 = texture2D(uVel, uv).xy + extra(p);
+  // carried along: where this ink was a moment ago (two half-steps, for curved paths; the finer
+  // churn barely changes over half a step, so it's worked out once)
+  vec2 ex = extra(p);
+  vec2 v1 = texture2D(uVel, uv).xy + ex;
   vec2 mid = p - v1 * uDt * .5;
-  vec2 v2 = texture2D(uVel, mid / S).xy + extra(mid);
+  vec2 v2 = texture2D(uVel, mid / S).xy + ex;
   vec2 from = (p - v2 * uDt) / S;
   vec4 d = cubic(from);
   // and it diffuses a little, so its edges soften as it ages (new ink stays crisp)
-  vec2 ex = 1. / uRes;
-  vec3 around = (tex(from + vec2(ex.x, 0.)).rgb + tex(from - vec2(ex.x, 0.)).rgb + tex(from + vec2(0., ex.y)).rgb + tex(from - vec2(0., ex.y)).rgb) * .25;
+  vec2 tx = 1. / uRes;
+  vec3 around = (tex(from + vec2(tx.x, 0.)).rgb + tex(from - vec2(tx.x, 0.)).rgb + tex(from + vec2(0., tx.y)).rgb + tex(from - vec2(0., tx.y)).rgb) * .25;
   d.rgb = mix(d.rgb, around, clamp(uSoften * uDt, 0., 1.));
 
   for (int i = 0; i < ${N}; i++) {
@@ -425,8 +429,33 @@ void main() {
 }
 `;
 
+export const FL_BLUR_UNIFORMS = ["uSrc", "uRes", "uDir"];
+
+/* The ink, softly blurred (one direction at a time, at a low resolution): how it looks through
+   frosted paper, and the shape its shadows and light follow. (Read from a smaller target, the
+   ink's mipmaps give an even average to start from: nothing blocky, nothing flickering.) */
+export const FL_BLUR_FRAG = /* glsl */ `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+uniform sampler2D uSrc;
+uniform vec2 uRes;
+uniform vec2 uDir;  // a step along the blur, in this target's texels
+void main() {
+  vec2 uv = gl_FragCoord.xy / uRes;
+  vec2 d = uDir / uRes;
+  vec3 c = texture2D(uSrc, uv).rgb * .2270270270;
+  c += (texture2D(uSrc, uv + d * 1.3846153846).rgb + texture2D(uSrc, uv - d * 1.3846153846).rgb) * .3162162162;
+  c += (texture2D(uSrc, uv + d * 3.2307692308).rgb + texture2D(uSrc, uv - d * 3.2307692308).rgb) * .0702702703;
+  gl_FragColor = vec4(c, 1.);
+}
+`;
+
 export const FL_VIEW_UNIFORMS = [
   "uInk",
+  "uBlur",
   "uPaper",
   "uRes",
   "uTime",
@@ -434,7 +463,6 @@ export const FL_VIEW_UNIFORMS = [
   "uPanelR",
   "uColumn",
   "uBehind",
-  "uMips",
   "uRipple0",
   "uRipple1",
   "uRipple2",
@@ -443,6 +471,8 @@ export const FL_VIEW_UNIFORMS = [
   "uFade",
   "uA",
   "uLight",
+  "uPaperK",
+  "uCausticK",
 ];
 
 /*
@@ -452,7 +482,8 @@ export const FL_VIEW_UNIFORMS = [
  * ripples of a drop, and the arrival.
  */
 export const FL_VIEW_FRAG = /* glsl */ `${INK_COMMON}
-uniform sampler2D uInk;   // the ink now: r charcoal, g indigo, b the accent's (with mipmaps, if uMips)
+uniform sampler2D uInk;   // the ink now: r charcoal, g indigo, b the accent's
+uniform sampler2D uBlur;  // …and softly blurred (as seen through frosted paper; for its shadows and light)
 uniform sampler2D uPaper; // the paper, painted once
 uniform vec2 uRes;        // this canvas, px
 uniform float uTime;
@@ -460,7 +491,6 @@ uniform vec4 uPanel;      // the note: x0, y0, x1, y1, px (y up)
 uniform float uPanelR;
 uniform vec4 uColumn;     // the words: x0, y0, x1, y1, px (y up)
 uniform float uBehind;    // how much ink shows behind the words (1: all of it, as a drop arrives)
-uniform float uMips;
 uniform vec4 uRipple0;
 uniform vec4 uRipple1;
 uniform vec4 uRipple2;
@@ -469,14 +499,15 @@ uniform vec2 uDrop;       // where the drop lands, px
 uniform float uFade;
 uniform vec3 uA;          // the accent: the third ink's colour
 uniform float uLight;     // how much light from the surface plays on the paper
+uniform float uPaperK;    // how deep the paper is (1: as painted)
+uniform float uCausticK;  // how brightly that light shows on it
 
-vec3 inkAt(vec2 uv, float blur) {
-  if (uMips > .5) return max(texture2D(uInk, uv, blur).rgb, 0.);
-  // (no mipmaps: a few taps instead)
-  if (blur < .5) return max(texture2D(uInk, uv).rgb, 0.);
-  vec2 s = exp2(blur) * .7 / uRes * vec2(uRes.x / uRes.y, 1.) * uRes.y / 540.;
-  return max((texture2D(uInk, uv + vec2(s.x, s.y)).rgb + texture2D(uInk, uv + vec2(-s.x, s.y)).rgb
-            + texture2D(uInk, uv + vec2(s.x, -s.y)).rgb + texture2D(uInk, uv - s).rgb) * .25, 0.);
+vec3 inkAt(vec2 uv) {
+  return max(texture2D(uInk, uv).rgb, 0.);
+}
+float softAt(vec2 uv) {
+  vec3 b = max(texture2D(uBlur, uv).rgb, 0.);
+  return b.r + b.g + b.b;
 }
 
 float roundedBox(vec2 p, vec2 c, vec2 h, float r) {
@@ -509,7 +540,7 @@ float caustics(vec2 p, float t) {
   }
   c /= 4.;
   c = 1.17 - pow(c, 1.4);
-  return pow(abs(c), 5.);
+  return pow(abs(c), 3.);
 }
 
 /* How strongly the words keep the ink at a distance: 1 in their column (soft at its sides), and
@@ -543,37 +574,36 @@ void main() {
 
   // behind the words, the ink is seen through a frosted sheet: softer, and fainter
   float wm = words(frag, H) * (1. - uBehind);
-  float frost = wm * 2.8;
-  vec3 k = inkAt(iuv, frost);
+  vec3 k = inkAt(iuv);
+  if (wm > .001) k = mix(k, max(texture2D(uBlur, iuv).rgb, 0.), min(1., wm * 1.2));
   float D = k.r + k.g + k.b;
 
-  // the billows' shape, for the light (read a little softer)
-  vec2 hs = vec2(H * .0065) / uRes;
-  float soft = frost + 1.;
-  float dl = dot(inkAt(iuv - vec2(hs.x, 0.), soft), vec3(1.));
-  float dr = dot(inkAt(iuv + vec2(hs.x, 0.), soft), vec3(1.));
-  float db = dot(inkAt(iuv - vec2(0., hs.y), soft), vec3(1.));
-  float dt = dot(inkAt(iuv + vec2(0., hs.y), soft), vec3(1.));
+  // the billows' shape, for the light (read from the soft ink)
+  vec2 hs = vec2(H * .009) / uRes;
+  float dl = softAt(iuv - vec2(hs.x, 0.));
+  float dr = softAt(iuv + vec2(hs.x, 0.));
+  float db = softAt(iuv - vec2(0., hs.y));
+  float dt = softAt(iuv + vec2(0., hs.y));
   vec2 g = vec2(dr - dl, dt - db);
   vec2 L = normalize(vec2(-.38, 1.));
   float lit = dot(g, L) / (length(g) + .12);
   // ink above this point (toward the light) shades it: the billows' undersides are deeper
-  float above = dot(inkAt(iuv + vec2(-.38, 1.) * H * .011 / uRes, soft + .5), vec3(1.));
+  float above = softAt(iuv + vec2(-.38, 1.) * H * .011 / uRes);
   float self = smoothstep(.1, 2.2, above - D * .6);
 
   // the paper at the back of the water, and light from the surface playing over it
-  // (a shade deeper than the lighter ink's paper: the light from the surface shows on it)
-  vec3 paper = texture2D(uPaper, uv).rgb * .95 + shade;
-  vec2 cp = vec2(uv.x * aspect, uv.y) * 1.15 + vec2(.13 * sin(uTime * .021), .1 * uTime * .006);
-  float cz = caustics(cp, uTime * .19 + 23.);
-  float cz2 = caustics(cp * 1.9 + 3.7, uTime * .23 + 7.);
+  // (a shade deeper than the lighter ink's paper, so the light from the surface shows on it)
+  vec3 paper = texture2D(uPaper, uv).rgb * uPaperK + shade;
+  vec2 cp = vec2(uv.x * aspect, uv.y) * 1.9 + vec2(.13 * sin(uTime * .021), .1 * uTime * .006);
+  float cz = caustics(cp, uTime * .27 + 23.);
+  float cz2 = caustics(cp * 1.7 + 3.7, uTime * .32 + 7.);
   // (it falls off with depth: brightest near the surface)
   float depth = mix(.55, 1., smoothstep(.05, .95, uv.y));
   // the ink's shadow on the paper: the light comes from above, so it falls a little below
-  vec3 ks = inkAt(iuv + vec2(.25, -1.) * H * .02 / uRes, 3.5 + frost * .4);
-  float sh = 1. - exp(-dot(ks, vec3(1.)) * .3);
-  float light = (cz * .75 + cz2 * .35) * depth * uLight * (1. - sh) * (1. - .75 * wm);
-  paper *= 1. + light * .13;
+  float sh = 1. - exp(-softAt(iuv + vec2(.25, -1.) * H * .02 / uRes) * .3);
+  float light = (cz * .8 + cz2 * .45) * depth * uLight * (1. - sh) * (1. - .4 * wm);
+  // (where the light gathers, the paper is lit to white)
+  paper = mix(paper, vec3(1., .994, .982), clamp(light * uCausticK, 0., 1.));
   paper *= 1. - .17 * sh * (1. - .75 * wm);
 
   // the ink: charcoal and indigo soak the light out of it; the accent's takes its colour

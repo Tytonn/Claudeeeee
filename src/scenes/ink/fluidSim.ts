@@ -4,6 +4,8 @@ import type { InkFrame, InkStep } from "../../fx/sky";
 import {
   FL_ADVECT_FRAG,
   FL_ADVECT_UNIFORMS,
+  FL_BLUR_FRAG,
+  FL_BLUR_UNIFORMS,
   FL_COPY_FRAG,
   FL_COPY_UNIFORMS,
   FL_CURL_FRAG,
@@ -44,14 +46,19 @@ export const FLUID = {
   fade: 0.016,
   /** How quickly ink diffuses (per s). */
   soften: 0.35,
+  /** How deep the paper is behind the water (1: as painted), and how brightly the surface's light shows on it. */
+  paper: 0.86,
+  caustics: 0.78,
 };
 
 /** How finely the ink is drawn (the Ink detail setting): ink texels per sky pixel, and the most along the longer side. */
 const DETAIL = {
   standard: [0.5, 1600],
   high: [0.75, 2400],
-  max: [1, 3200],
 } as const;
+
+/** The softly blurred ink: texels per sky pixel, the most along the longer side, and how far each blur step reaches (its texels). */
+const BLUR = { scale: 0.2, most: 560, reach: 1.6 };
 
 type Passes = {
   force: Program;
@@ -63,6 +70,7 @@ type Passes = {
   advect: Program;
   dye: Program;
   mix: Program;
+  blur: Program;
   copy: Program;
 };
 
@@ -80,8 +88,10 @@ export class InkFluid {
   private curl: Target | null = null;
   /** The ink, twice (one read, one written): [0] is the newest. */
   private dye: [Target, Target] | null = null;
-  /** This frame's ink. */
+  /** This frame's ink, and the same softly blurred (one direction, then both). */
   private now: Target | null = null;
+  private blurA: Target | null = null;
+  private blurB: Target | null = null;
   /** Whether this frame's ink has mipmaps (else the picture blurs with a few taps). */
   mips = true;
   /** How finely the ink is drawn (its textures are remade, the ink carried across, when it changes). */
@@ -108,12 +118,13 @@ export class InkFluid {
     const advect = grad && b(FL_ADVECT_FRAG, FL_ADVECT_UNIFORMS, "ink advect");
     const dye = advect && b(FL_DYE_FRAG, FL_DYE_UNIFORMS, "ink dye");
     const mix = dye && b(FL_MIX_FRAG, FL_MIX_UNIFORMS, "ink mix");
-    const copy = mix && b(FL_COPY_FRAG, FL_COPY_UNIFORMS, "ink copy");
-    if (!force || !curl || !vort || !div || !pressure || !grad || !advect || !dye || !mix || !copy) {
+    const blur = mix && b(FL_BLUR_FRAG, FL_BLUR_UNIFORMS, "ink blur");
+    const copy = blur && b(FL_COPY_FRAG, FL_COPY_UNIFORMS, "ink copy");
+    if (!force || !curl || !vort || !div || !pressure || !grad || !advect || !dye || !mix || !blur || !copy) {
       this.broken = true;
       return false;
     }
-    this.p = { force, curl, vort, div, pressure, grad, advect, dye, mix, copy };
+    this.p = { force, curl, vort, div, pressure, grad, advect, dye, mix, blur, copy };
     return true;
   }
 
@@ -164,7 +175,8 @@ export class InkFluid {
     const v = this.size(FLUID.velScale, FLUID.velMax);
     const [ds, dm] = DETAIL[this.detail] ?? DETAIL.high;
     const d = this.size(ds, dm);
-    if (this.vel && this.vel[0].w === v.w && this.vel[0].h === v.h && this.dye && this.dye[0].w === d.w && this.dye[0].h === d.h) return true;
+    const bl = this.size(BLUR.scale, BLUR.most);
+    if (this.vel && this.vel[0].w === v.w && this.vel[0].h === v.h && this.dye && this.dye[0].w === d.w && this.dye[0].h === d.h && this.blurA?.w === bl.w && this.blurA.h === bl.h) return true;
     const mk = (s: { w: number; h: number }, mip = false) => this.target(s.w, s.h, mip);
     const vel = [mk(v), mk(v)] as const;
     const pres = [mk(v), mk(v)] as const;
@@ -172,7 +184,9 @@ export class InkFluid {
     const curl = mk(v);
     const dye = [mk(d), mk(d)] as const;
     const now = mk(d, true);
-    const all = [...vel, ...pres, div, curl, ...dye, now];
+    const blurA = mk(bl);
+    const blurB = mk(bl);
+    const all = [...vel, ...pres, div, curl, ...dye, now, blurA, blurB];
     if (all.some((t) => !t)) {
       for (const t of all) if (t) dropTarget(this.sky.gl, t);
       this.broken = true;
@@ -192,6 +206,8 @@ export class InkFluid {
     this.curl = curl;
     this.dye = [dye[0]!, dye[1]!];
     this.now = now;
+    this.blurA = blurA;
+    this.blurB = blurB;
     return true;
   }
 
@@ -210,16 +226,16 @@ export class InkFluid {
 
   private drop() {
     const gl = this.sky.gl;
-    for (const t of [...(this.vel ?? []), ...(this.pres ?? []), this.div, this.curl, ...(this.dye ?? []), this.now]) if (t) dropTarget(gl, t);
+    for (const t of [...(this.vel ?? []), ...(this.pres ?? []), this.div, this.curl, ...(this.dye ?? []), this.now, this.blurA, this.blurB]) if (t) dropTarget(gl, t);
     this.vel = this.pres = this.dye = null;
-    this.div = this.curl = this.now = null;
+    this.div = this.curl = this.now = this.blurA = this.blurB = null;
   }
 
   /** Everything on the GPU is gone (the context was lost): make it all again when next asked. */
   restore() {
     this.p = null;
     this.vel = this.pres = this.dye = null;
-    this.div = this.curl = this.now = null;
+    this.div = this.curl = this.now = this.blurA = this.blurB = null;
     this.broken = false;
     this.mips = true;
   }
@@ -324,16 +340,20 @@ export class InkFluid {
     this.dye = dye;
   }
 
-  /** This frame's ink (between the last two steps), softened copies and all: its texture. */
-  frame(mix: number): WebGLTexture {
+  /** This frame's ink (between the last two steps), and the same softly blurred: their textures. */
+  frame(mix: number): { ink: WebGLTexture; soft: WebGLTexture } {
     const gl = this.sky.gl;
+    const P = this.p!;
     const dye = this.dye!;
     const now = this.now!;
-    this.pass(this.p!.mix, now, [["uA", dye[1].tex], ["uB", dye[0].tex]], (l) => gl.uniform1f(l.uMix, mix));
+    this.pass(P.mix, now, [["uA", dye[1].tex], ["uB", dye[0].tex]], (l) => gl.uniform1f(l.uMix, mix));
     if (this.mips) {
       gl.bindTexture(gl.TEXTURE_2D, now.tex);
       gl.generateMipmap(gl.TEXTURE_2D);
     }
-    return now.tex;
+    // a Gaussian blur, across and then down, at a low resolution
+    this.pass(P.blur, this.blurA!, [["uSrc", now.tex]], (l) => gl.uniform2f(l.uDir, BLUR.reach, 0));
+    this.pass(P.blur, this.blurB!, [["uSrc", this.blurA!.tex]], (l) => gl.uniform2f(l.uDir, 0, BLUR.reach));
+    return { ink: now.tex, soft: this.blurB!.tex };
   }
 }

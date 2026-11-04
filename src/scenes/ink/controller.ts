@@ -14,7 +14,7 @@ import { newBloom, newDrop, type InkBloom, type InkColours } from "./blooms";
  * a deleted one, the launch's welcome).
  */
 /** How finely the ink in real water is drawn. */
-export type InkDetail = "standard" | "high" | "max";
+export type InkDetail = "standard" | "high";
 
 /** How fast real water runs, against the clock (it's slow, heavy ink: a little slower than life). */
 const PACE = 0.72;
@@ -30,7 +30,7 @@ export class InkScene implements SceneController {
 
   /** How low the sky's resolution may go to keep up (less far, the finer you've asked the ink to be). */
   get floor() {
-    return this.detail === "max" ? 0.75 : this.detail === "high" ? 0.5 : 0.35;
+    return this.detail === "high" ? 0.5 : 0.35;
   }
 
   /** The current's own clock (s), and the time not yet simulated (the simulation steps 20 times a second). */

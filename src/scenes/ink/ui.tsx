@@ -87,7 +87,7 @@ function InkArt() {
 function InkSettings() {
   const on = useApp((s) => s.settings.inkSettle !== false);
   const colours = useApp((s) => (s.settings.inkColours === "accent" ? "accent" : "sumi"));
-  const detail = useApp((s) => (s.settings.inkDetail === "standard" || s.settings.inkDetail === "max" ? s.settings.inkDetail : "high"));
+  const detail = useApp((s) => (s.settings.inkDetail === "standard" ? "standard" : "high"));
   const scene = useApp((s) => s.settings.scene);
   const effects = useApp((s) => s.settings.effects);
   const setSettings = useApp((s) => s.setSettings);
@@ -109,15 +109,14 @@ function InkSettings() {
               onChange={(v) => setSettings({ inkColours: v })}
             />
           </Row>
-          <Row label="Ink detail" desc="How finely the ink is drawn. Sharper asks more of your graphics card.">
-            <Segmented<"standard" | "high" | "max">
+          <Row label="Ink detail" desc="How finely the ink is drawn. Standard is lighter on your graphics card.">
+            <Segmented<"standard" | "high">
               label="Ink detail"
               size="sm"
               value={detail}
               options={[
                 { value: "standard", label: "Standard" },
                 { value: "high", label: "High" },
-                { value: "max", label: "Max" },
               ]}
               onChange={(v) => setSettings({ inkDetail: v })}
             />
