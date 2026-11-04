@@ -49,6 +49,7 @@ const SYNCED_SETTINGS = [
   "solarSize",
   "solarLook",
   "solarTint",
+  "solarGoldenTried",
   "showVersion",
   "cityBlur",
   "cursorLight",

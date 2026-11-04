@@ -84,7 +84,7 @@ function SolarSettings() {
     <>
       <Row
         label="Look"
-        desc={settings.solarLook === "golden" ? "A ring of fire and the diamond ring blazing, in a warm, smoky sky. It sets the accent to gold — pick another accent to recolour the whole thing." : "The pearly corona streaming out, in a dusky sky."}
+        desc={settings.solarLook === "golden" ? "A ring of fire and the diamond ring blazing, in a warm, smoky sky — in gold, or in whatever accent you pick: the whole thing takes it on." : "The pearly corona streaming out, in a dusky sky."}
       >
         <SegmentedEpoch.Provider value={settings.scene}>
           <Segmented<"corona" | "golden">

@@ -1,7 +1,7 @@
 import { flushSync } from "react-dom";
 import { useApp } from "../store/app";
 import { accentColor } from "../lib/theme";
-import { GOLDEN_ACCENT, SCENES } from "../scenes/meta";
+import { GOLDEN_ACCENT, SCENES, goldenFirstTime } from "../scenes/meta";
 import { webkit } from "../lib/platform";
 import { play } from "../lib/sound";
 import type { AccentId, SceneId } from "../lib/types";
@@ -207,13 +207,16 @@ function curtain(k: number) {
 export { GOLDEN_ACCENT };
 
 /**
- * The solar eclipse's look. Choosing Golden always turns the accent gold to match — every time,
- * even if it's chosen again — and you're free to pick another accent after.
+ * The solar eclipse's look. The first time Golden is chosen it comes with its own colour — the
+ * accent turns gold to match; after that the accent is left as it is (pick any one: the whole
+ * eclipse takes it on).
  */
 export function changeSolarLook(look: "corona" | "golden") {
   const s = useApp.getState();
-  if (look === "golden") s.setSettings({ solarLook: look, accent: GOLDEN_ACCENT });
-  else if (s.settings.solarLook !== look) s.setSettings({ solarLook: look });
+  if (look === "golden") {
+    if (s.settings.solarLook === "golden" && s.settings.solarGoldenTried) return;
+    s.setSettings({ solarLook: look, ...goldenFirstTime(s.settings) });
+  } else if (s.settings.solarLook !== look) s.setSettings({ solarLook: look });
 }
 
 export function changeScene(id: SceneId, x = innerWidth / 2, y = innerHeight / 2) {

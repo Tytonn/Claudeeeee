@@ -29,6 +29,7 @@ export const DEFAULT_SETTINGS: Settings = {
   solarSize: 0.5,
   solarLook: "corona",
   solarTint: "pearl",
+  solarGoldenTried: false,
   showVersion: false,
   cursorLight: true,
   inkLetters: false,

@@ -41,6 +41,17 @@ function readLocal<T>(key: string, fallback: T): T {
   }
 }
 
+/** Whether what's saved under `key` has `field` at all (before defaults are filled in). */
+function savedHas(key: string, field: string): boolean {
+  try {
+    const raw = localStorage.getItem(key);
+    const v = raw ? JSON.parse(raw) : null;
+    return Boolean(v && typeof v === "object" && field in v);
+  } catch {
+    return false;
+  }
+}
+
 function writeLocal(key: string, value: unknown) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
@@ -121,6 +132,9 @@ export async function loadAll() {
   }
 
   const settings = readLocal<Settings>(SETTINGS_KEY, DEFAULT_SETTINGS);
+  // (saved before the Golden look turned the accent gold only the first time: anyone already on it
+  // has had that, so it isn't done to them again)
+  if (settings.solarLook === "golden" && !savedHas(SETTINGS_KEY, "solarGoldenTried")) settings.solarGoldenTried = true;
   const ui = readLocal<{ activeId: string | null }>(UI_KEY, { activeId: null });
 
   if (storageOk && !seeded && Object.keys(notes).length === 0) {

@@ -3,6 +3,11 @@ import type { AccentId, SceneId, Settings } from "../lib/types";
 /** The accent that goes with the Golden eclipse: Corona, the warm yellow gold. */
 export const GOLDEN_ACCENT: AccentId = "corona";
 
+/** The first time the Golden eclipse is chosen, the accent turns gold to match; after that, it's left alone. */
+export function goldenFirstTime(s: Settings): Partial<Settings> {
+  return s.solarGoldenTried ? {} : { accent: GOLDEN_ACCENT, solarGoldenTried: true };
+}
+
 /**
  * The scenes: everything about each one that isn't drawing it — what it's called, how it's
  * described, whether it's a light one (the whole interface goes to paper), the colour of the
@@ -114,8 +119,9 @@ export const SCENES: Record<SceneId, SceneMeta> = {
     enter: "sun",
     wipe: "moon",
     effectsDesc: "The eclipse, the diamond ring, light trails and embers. Calm it down any time.",
-    // the Golden eclipse comes with its own colour: the accent turns gold (you can change it after)
-    chosen: (s) => (s.solarLook === "golden" ? { accent: GOLDEN_ACCENT } : {}),
+    // the Golden eclipse comes with its own colour the first time: the accent turns gold (and then
+    // stays whatever you pick)
+    chosen: (s) => (s.solarLook === "golden" ? goldenFirstTime(s) : {}),
     cursorDesc: "Your cursor is a faint, warm light in the dusk: it catches the edges of things.",
     backdropDesc: "How much of the sky shows through. Your words always stay readable.",
   },

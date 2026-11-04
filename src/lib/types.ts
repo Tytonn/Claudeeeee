@@ -114,6 +114,9 @@ export type Settings = {
   solarLook: "corona" | "golden";
   /** Solar eclipse (Corona look): the colour of the corona. */
   solarTint: SolarTintId;
+  /** Solar eclipse: the Golden look has turned the accent gold once already. It does that only the
+   *  first time it's chosen — after that the accent stays whatever you've picked. */
+  solarGoldenTried: boolean;
   /** A small version number next to the logo (for screenshots). */
   showVersion: boolean;
   /** The cursor as a light: the glow on the glass and panel edges that follows it. */
