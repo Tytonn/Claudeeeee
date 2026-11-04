@@ -195,7 +195,7 @@ void main() {
   // (the galaxy's own eclipse burns brighter — it's the one light in the sky — and only quietens a
   // little while you write)
   // (a flare is bright enough on its own: then the eclipse's extra brightness steps back)
-  power *= mix(1., 1.45 * (.62 + .18 * uEnergy) / (.45 + .35 * uEnergy) / (1. + uFlare * 1.6), uMoon);
+  power *= mix(1., 1.2 * (.62 + .18 * uEnergy) / (.45 + .35 * uEnergy) / (1. + uFlare * 1.6), uMoon);
   vec3 hot = mix(uA, vec3(1.), .55);
   float far = exp(-dn / (.13 + .05 * uEnergy + .12 * uFlare * near));
 
@@ -211,9 +211,9 @@ void main() {
       float seas = fbm(mp * 2.4 + vec2(3.7, 1.9));
       float lit = .6 + .4 * dot(mp, -lightDir);
       vec3 face = vec3(.009, .010, .015) + mix(uB, vec3(.55, .6, .72), .6) * (.011 + .018 * smoothstep(.62, .3, seas)) * lit * (1. - .4 * dot(mp, mp));
-      vec3 through = col * vec3(.7, .74, .82) * (.78 + .22 * dot(mp, lightDir));
+      vec3 through = col * vec3(1.04, 1.06, 1.1) * (.93 + .07 * dot(mp, lightDir));
       float r2 = dot(mp, mp);
-      vec3 glass = face + through * (.72 + .28 * smoothstep(.15, 1., r2)) + mix(hot, uB, .4) * (.012 + .05 * pow(r2, 5.)) * side;
+      vec3 glass = face * .6 + through * (.9 + .1 * smoothstep(.15, 1., r2)) + mix(hot, uB, .4) * (.01 + .04 * pow(r2, 5.)) * side;
       col = mix(col, glass, smoothstep(1.2, -1.2, d) * uMoon);
     }
     if (d > -3. && d < uScale * .07) {
@@ -224,18 +224,18 @@ void main() {
       float flame = step(0., d) * exp(-d / max(tall, 1.)) * smoothstep(.2, .6, prom) * (.55 + .45 * fbm(vec2(ang * 46., d / uScale * 70. - uTime * .25)));
       // (the chromosphere only a hint of pink: the limb burns white-blue, as on its card)
       vec3 chromo = mix(mix(vec3(1., .4, .5), uA, .2), mix(hot, vec3(1.), .5), .55);
-      col += chromo * (limb * .3 + flame * .45) * uMoon * power;
+      col += chromo * (limb * .1 + flame * .25) * uMoon * power;
       // the pearly inner corona, hugging the limb
-      col += mix(hot, vec3(1.), .6) * exp(-max(d, 0.) / (uScale * .013)) * step(0., d) * .3 * uMoon * power * side;
+      col += mix(hot, vec3(1.), .6) * exp(-max(d, 0.) / (uScale * .012)) * step(0., d) * .08 * uMoon * power * side;
     }
     // and its soft glow, further out
-    col += mix(hot, vec3(1.), .4) * exp(-max(d, 0.) / (uScale * .045)) * smoothstep(-2., 1., d) * .08 * uMoon * power * (.5 + side);
+    col += mix(hot, vec3(1.), .4) * exp(-max(d, 0.) / (uScale * .045)) * smoothstep(-2., 1., d) * .04 * uMoon * power * (.5 + side);
   }
   col += mix(uA, uB, .25) * halo * power * .3 * side * around;
-  col += mix(uB, uA, .6) * exp(-dn / .3) * .035 * power * (1. + gust * .6) * around;
+  col += mix(uB, uA, .6) * exp(-dn / .3) * (.035 + .05 * uMoon) * power * (1. + gust * .6) * around;
   col += mix(hot, uA, .35) * st * far * .24 * (1. + gust * .8) * side * power * inside * edgeless;
-  col += hot * outer * (.11 + rays * .3) * (1. + gust) * side * power * inside * edgeless;
-  col += mix(hot, vec3(1.), .5) * rim * (.38 + .22 * uMoon) * side * power * inside * (1. - openK);
+  col += hot * outer * (.11 + rays * .3) * (1. + gust) * side * power * inside * edgeless * (1. - .2 * uMoon);
+  col += mix(hot, vec3(1.), .5) * rim * .38 * (1. - .42 * uMoon) * side * power * inside * (1. - openK);
 
   // Diamond ring: a single blinding point of sunlight on the rim.
   if (uRing.z > 0.) {
