@@ -20,7 +20,7 @@ function focusTodo(id: string | undefined, where: "start" | "end" = "end") {
   requestAnimationFrame(() => {
     const el = document.querySelector<HTMLInputElement>(`[data-todo="${id}"]`);
     if (!el) return;
-    el.focus();
+    focusInPlace(el);
     const pos = where === "end" ? el.value.length : 0;
     el.setSelectionRange(pos, pos);
   });
@@ -167,6 +167,48 @@ function useRowMenu(row: React.RefObject<HTMLElement | null>) {
 
 /** Where in a to-do's words a tap landed (as a caret position). */
 let measure: CanvasRenderingContext2D | null = null;
+/**
+ * Puts the caret in a to-do's box without the page sliding to "show" it: on an iPhone the whole
+ * screen would otherwise ride up when the keyboard opens, though the to-dos are never near it.
+ * (Within the column, a box out of sight is still brought into view, no further than needed.)
+ */
+function focusInPlace(el: HTMLInputElement | null) {
+  if (!el) return;
+  el.focus({ preventScroll: true });
+  el.scrollIntoView({ block: "nearest", inline: "nearest" });
+}
+
+/**
+ * The same for a finger: a quick, still tap on a to-do's box (not already being typed in) focuses
+ * it by hand, without the slide, the caret where the finger lifted. A held finger (selecting, or a
+ * to-do's menu), a swipe, or a tap in a box you're typing in: all as usual.
+ */
+const stillTap = (() => {
+  let start: { x: number; y: number; t: number } | null = null;
+  return {
+    onTouchStart: (e: React.TouchEvent<HTMLInputElement>) => {
+      const t = e.touches[0];
+      start = e.touches.length === 1 && t ? { x: t.clientX, y: t.clientY, t: performance.now() } : null;
+    },
+    onTouchEnd: (e: React.TouchEvent<HTMLInputElement>) => {
+      const s = start;
+      start = null;
+      const el = e.currentTarget;
+      const t = e.changedTouches[0];
+      if (!s || !t || !e.cancelable || document.activeElement === el) return;
+      if (performance.now() - s.t > 350 || Math.hypot(t.clientX - s.x, t.clientY - s.y) > 10) return;
+      e.preventDefault();
+      el.focus({ preventScroll: true });
+      const at = caretAt(el, t.clientX);
+      try {
+        el.setSelectionRange(at, at);
+      } catch {
+        /* noop */
+      }
+    },
+  };
+})();
+
 function caretAt(input: HTMLInputElement, clientX: number): number {
   measure ??= document.createElement("canvas").getContext("2d");
   const text = input.value;
@@ -297,6 +339,7 @@ function TodoRow({ todo, prevId, nextId, addInput }: RowProps) {
       <Checkbox checked={settling} onToggle={onCheck} label={todo.text} />
       <span className="todo-text-wrap" onClick={(e) => tapToEdit(e)}>
         <input
+          {...stillTap}
           data-todo={todo.id}
           className="todo-text"
           value={todo.text}
@@ -323,11 +366,11 @@ function TodoRow({ todo, prevId, nextId, addInput }: RowProps) {
               e.preventDefault();
               useApp.getState().removeTodo(todo.id);
               if (prevId) focusTodo(prevId);
-              else addInput.current?.focus();
+              else focusInPlace(addInput.current);
             } else if (e.key === "ArrowUp") {
               e.preventDefault();
               if (prevId) focusTodo(prevId);
-              else addInput.current?.focus();
+              else focusInPlace(addInput.current);
             } else if (e.key === "ArrowDown") {
               e.preventDefault();
               focusTodo(nextId);
@@ -579,7 +622,7 @@ export function Todos() {
             </motion.span>
           )}
         </AnimatePresence>
-        <IconButton size="sm" label="Add to-do" onClick={() => input.current?.focus()}>
+        <IconButton size="sm" label="Add to-do" onClick={() => focusInPlace(input.current)}>
           <Plus size={15} strokeWidth={1.8} />
         </IconButton>
       </header>
@@ -596,6 +639,7 @@ export function Todos() {
         </span>
         <input
           ref={input}
+          {...stillTap}
           value={draft}
           placeholder="Add a to-do"
           aria-label="New to-do"
