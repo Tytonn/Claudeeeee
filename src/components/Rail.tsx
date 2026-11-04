@@ -143,7 +143,15 @@ export function Rail() {
       <div className="rail-inner">
         <header className="rail-head">
           {isMobile && (
-            <IconButton label="Back" tooltip={false} onClick={() => setUI({ mobile: useApp.getState().ui.activeId ? "editor" : "list" })}>
+            <IconButton
+              label="Back"
+              tooltip={false}
+              onClick={() => {
+                // back where Today was opened from: the list, or the note you were in
+                const { railFrom, activeId } = useApp.getState().ui;
+                setUI({ mobile: railFrom === "editor" && activeId ? "editor" : "list" });
+              }}
+            >
               <ArrowLeft size={17} strokeWidth={1.7} />
             </IconButton>
           )}

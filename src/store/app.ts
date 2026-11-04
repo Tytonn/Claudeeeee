@@ -59,6 +59,8 @@ export type UIState = {
   openShared: string | null;
   focus: boolean;
   mobile: "list" | "editor" | "rail";
+  /** On a phone: where Today (the to-dos and countdowns) was opened from — its back arrow goes there. */
+  railFrom: "list" | "editor";
   savedAt: number;
   /** Hidden notes are showing (this session only — every reload starts locked). */
   unlocked: boolean;
@@ -182,6 +184,7 @@ export const useApp = create<AppState>()(
       openShared: null,
       focus: false,
       mobile: "list",
+      railFrom: "list",
       savedAt: 0,
       unlocked: false,
       vault: null,
@@ -206,7 +209,12 @@ export const useApp = create<AppState>()(
     },
 
     setUI(patch) {
-      set((s) => ({ ui: { ...s.ui, ...patch } }));
+      set((s) => {
+        const ui = { ...s.ui, ...patch };
+        // (opening Today on a phone remembers where from, for its back arrow)
+        if (patch.mobile === "rail" && s.ui.mobile !== "rail") ui.railFrom = s.ui.mobile;
+        return { ui };
+      });
     },
 
     setSettings(patch) {
