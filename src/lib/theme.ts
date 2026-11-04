@@ -1,4 +1,4 @@
-import type { AccentId, FontId, RainAmountId, SceneId, Settings, SizeId, SolarTintId, TitleAlignId, TitleFontId, TitleSizeId, TitleStyle, TodoColor } from "./types";
+import type { AccentId, BackdropId, FontId, RainAmountId, SceneId, Settings, SizeId, SolarTintId, TitleAlignId, TitleFontId, TitleSizeId, TitleStyle, TodoColor } from "./types";
 import { PAPER, SCENES, isLightScene, sceneOf } from "../scenes/meta";
 
 // (where they've always been imported from)
@@ -17,6 +17,18 @@ export const ACCENTS: Record<AccentId, { name: string; color: string; nebula: st
   ember: { name: "Ember", color: "oklch(0.76 0.145 46)", nebula: "oklch(0.5 0.17 355)", paper: "oklch(0.57 0.155 42)" },
   rose: { name: "Rose", color: "oklch(0.79 0.115 356)", nebula: "oklch(0.5 0.15 300)", paper: "oklch(0.53 0.15 2)" },
 };
+
+/** Settings → Transparency: how much of the scene shows through the panels, least to most — Frosted
+ *  (heavy frosted glass, or paper), Soft (lighter, more of the scene), Clear (the scene almost fully,
+ *  a soft shade behind your words), Outline (no glass, just outlines) and Full (nothing at all). Saved
+ *  by their old names, from when it was Background: dark, glass, clear, crystal, bare. */
+export const TRANSPARENCY: readonly { id: BackdropId; name: string }[] = [
+  { id: "dark", name: "Frosted" },
+  { id: "glass", name: "Soft" },
+  { id: "clear", name: "Clear" },
+  { id: "crystal", name: "Outline" },
+  { id: "bare", name: "Full" },
+];
 
 /** The accent as this scene shows it: light on the dark skies, ink-deep on paper. */
 export function accentColor(id: AccentId | string | undefined, scene: SceneId | string | undefined): string {

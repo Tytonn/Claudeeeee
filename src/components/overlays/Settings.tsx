@@ -5,7 +5,7 @@ import { useApp } from "../../store/app";
 import { BOARD, shareUrl, stopShare } from "../../store/shareSync";
 import { exportAll, importBackup } from "../../store/persist";
 import { toast } from "../../store/toasts";
-import { ACCENTS, FONTS, TITLE_FONTS, accentColor, sceneOf } from "../../lib/theme";
+import { ACCENTS, FONTS, TITLE_FONTS, TRANSPARENCY, accentColor, sceneOf } from "../../lib/theme";
 import type { AccentId, BackdropId, EffectsId, FontId, SizeId, TitleFontId } from "../../lib/types";
 import { displayTitle } from "../../lib/text";
 import { relativeLong } from "../../lib/dates";
@@ -209,6 +209,17 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
             <Row label="Accent" desc={meta.light ? "Tints the caret, checkmarks and links — in a deeper, inkier shade on paper." : "Tints the caret, checkmarks and the glow."}>
               <Swatches />
             </Row>
+            {settings.effects !== "off" && (
+              <Row label="Transparency" desc={meta.backdropDesc}>
+                <Segmented<BackdropId>
+                  label="Transparency"
+                  size="sm"
+                  value={settings.backdrop}
+                  options={TRANSPARENCY.map((t) => ({ value: t.id, label: t.name }))}
+                  onChange={(backdrop) => setSettings({ backdrop })}
+                />
+              </Row>
+            )}
             <Row label="Writing font">
               <Segmented label="Writing font" value={settings.font} options={fontOptions} onChange={(font) => setSettings({ font })} />
             </Row>
@@ -258,23 +269,6 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
                 onChange={(effects) => setSettings({ effects })}
               />
             </Row>
-            {settings.effects !== "off" && (
-              <Row label="Background" desc={meta.backdropDesc}>
-                <Segmented<BackdropId>
-                  label="Background"
-                  size="sm"
-                  value={settings.backdrop}
-                  options={[
-                    { value: "dark", label: "Dark" },
-                    { value: "glass", label: "Glass" },
-                    { value: "clear", label: "Clear" },
-                    { value: "crystal", label: "Crystal" },
-                    { value: "bare", label: "Bare" },
-                  ]}
-                  onChange={(backdrop) => setSettings({ backdrop })}
-                />
-              </Row>
-            )}
             {settings.effects !== "off" && hasCursor && (
               <Row
                 label="Cursor light"

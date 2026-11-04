@@ -65,7 +65,7 @@ export type SceneMeta = {
   /** Settings → Effects and Cursor light, as they are in this scene. */
   effectsDesc: string;
   cursorDesc: string;
-  /** Settings → Background: what shows through. */
+  /** Settings → Transparency: what shows through. */
   backdropDesc: string;
   /** Anything else that changes with it when it's chosen (the Golden eclipse turns the accent gold). */
   chosen?: (settings: Settings) => Partial<Settings>;

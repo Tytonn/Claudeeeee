@@ -34,8 +34,8 @@ import { TITLE_STYLE_EVENT } from "../editor/TitleStyle";
 import { exportPdf } from "../../lib/print";
 import { displayTitle, fuzzyScore, snippet } from "../../lib/text";
 import { shortStamp } from "../../lib/dates";
-import { ACCENTS, ALT, FONTS, MOD, SHIFT, accentColor, sceneOf } from "../../lib/theme";
-import type { AccentId, BackdropId, FontId } from "../../lib/types";
+import { ACCENTS, ALT, FONTS, MOD, SHIFT, TRANSPARENCY, accentColor, sceneOf } from "../../lib/theme";
+import type { AccentId, FontId } from "../../lib/types";
 import { NEW_COUNTDOWN_EVENT, flushEditor, newGroup, newNote, openShare } from "../../lib/actions";
 import { lockHidden, openHidden } from "../../lib/vault";
 import { exportAll } from "../../store/persist";
@@ -250,9 +250,9 @@ function useItems(query: string): Item[] {
             {
               id: "sky",
               group: "Appearance",
-              label: seeThrough ? "Darker background" : "Show more of the sky",
+              label: seeThrough ? "Frost the panels (less transparency)" : "Show more of the sky (more transparency)",
               icon: <Sparkles size={15} strokeWidth={1.6} />,
-              keywords: "background clear glass dark transparent see through sky stars",
+              keywords: "transparency transparent background clear glass frosted dark see through sky stars",
               run: () => s.setSettings({ backdrop: seeThrough ? "dark" : "clear" }),
             },
             {
@@ -263,12 +263,13 @@ function useItems(query: string): Item[] {
               keywords: "cursor mouse glow light spotlight",
               run: () => s.setSettings({ cursorLight: settings.cursorLight === false }),
             },
-            ...(["dark", "glass", "clear", "crystal", "bare"] as BackdropId[]).map((id) => ({
+            ...TRANSPARENCY.map(({ id, name }) => ({
               id: `backdrop-${id}`,
               group: "Appearance",
-              label: `Background: ${id[0].toUpperCase()}${id.slice(1)}`,
+              label: `Transparency: ${name}`,
               icon: <Sparkles size={15} strokeWidth={1.6} />,
-              keywords: "background clear glass dark transparent sky",
+              // (and by the names it had when it was Background)
+              keywords: `transparency transparent background see through panels glass sky ${id}`,
               hidden: true,
               meta: settings.backdrop === id ? "current" : undefined,
               run: () => s.setSettings({ backdrop: id }),

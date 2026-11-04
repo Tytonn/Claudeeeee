@@ -120,7 +120,7 @@ export class FxEngine {
   /** The cursor as a light source (it can be turned off); eased so the change is a soft fade. */
   cursorLight = true;
   cursorK = 1;
-  /** Nothing drawn over the sky (the "Bare" background): the corona no longer outlines the panel. */
+  /** Nothing drawn over the sky (Transparency: Full): the corona no longer outlines the panel. */
   open = false;
   private openK = 0;
   /** When you last touched anything (fx clock). Left alone, the sky slowly wakes up. */

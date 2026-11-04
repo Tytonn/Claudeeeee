@@ -29,7 +29,7 @@ uniform vec4 uShock2;    // shockwaves: xy, age 0..1, strength
 uniform float uScale;    // min(uRes)
 uniform float uQuality;  // 1 = full, 0 = light
 uniform float uCursor;   // how much the cursor lights the sky, 0..1
-uniform float uOpen;     // 1 = the "Bare" background: no panel to see, so no edge to the light
+uniform float uOpen;     // 1 = Transparency: Full ("bare"): no panel to see, so no edge to the light
 uniform float uMoon;     // the galaxy's own eclipse, 0..1: the circle is a solid moon hanging in the sky (0: the page, or a friend's moon)
 uniform float uCoronaK;  // how bright the corona is, 0..1 (1 but while it hands over between the page and the eclipse)
 
@@ -162,10 +162,10 @@ void main() {
   // The broad glow belongs to the sky around the panel only. Inside it, anything that
   // depends on the angle from the panel's center would pinch to a point right there.
   float around = smoothstep(-uScale * .012, 0., d);
-  // With nothing drawn over the sky ("Bare"), there's no moon to hide behind: the soft light
+  // With nothing drawn over the sky (Transparency: Full), there's no moon to hide behind: the soft light
   // carries straight on behind the words instead of stopping at an edge, and the bright
   // rim and the rays that hug the panel's outline give way to rays that only begin further out.
-  // (the galaxy's own eclipse is a real moon, though, whatever the Background)
+  // (the galaxy's own eclipse is a real moon, though, whatever the Transparency)
   float openK = uOpen * (1. - uMoon);
   around = mix(around, 1., openK);
   float edgeless = mix(1., smoothstep(uScale * .02, uScale * .16, d), openK);

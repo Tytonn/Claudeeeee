@@ -5,7 +5,7 @@ declare const __BUILD_TIME__: string;
  * umbra's version: what you see next to the logo (Settings → About → Show version) and in
  * Settings. It goes up by one with every update.
  */
-export const VERSION = "1.20";
+export const VERSION = "1.21";
 
 /** Exactly which build this is: its commit, and when it was built (filled in at build time). */
 export const BUILD_SHA: string = typeof __BUILD_SHA__ === "string" ? __BUILD_SHA__ : "dev";

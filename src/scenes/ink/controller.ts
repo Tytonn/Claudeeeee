@@ -68,7 +68,7 @@ export class InkScene implements SceneController {
   private colours: InkColours = "sumi";
   /** How finely it's drawn (real water only). */
   private detail: InkDetail = "high";
-  /** The Background setting: how much paper is between the words and the water. */
+  /** The Transparency setting: how much paper is between the words and the water. */
   private backdrop = "clear";
   /** When a finished paragraph last let a drop fall (effects clock, ms), and on which side of the words. */
   private lastDrip = -1e9;
@@ -435,7 +435,7 @@ export class InkScene implements SceneController {
     if (o.detail) this.detail = o.detail;
   }
 
-  /** The Background setting. */
+  /** The Transparency setting. */
   setBackdrop(id: string) {
     this.backdrop = id;
   }

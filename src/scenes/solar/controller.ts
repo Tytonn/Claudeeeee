@@ -98,7 +98,7 @@ export class SolarScene implements SceneController {
   private goldK = 0;
   /** The corona's chosen colour as it is right now (rgb), and how much of it (it eases in and out). */
   private tintNow: [number, number, number, number] = [1, 1, 1, 0];
-  /** The Background setting ("dark" frosts the panels, so the sun keeps to the clearer right-hand column). */
+  /** The Transparency setting ("dark", shown as Frosted, frosts the panels, so the sun keeps to the clearer right-hand column). */
   private backdrop = "clear";
   /** Where your writing ends, where the right-hand column starts and where its widgets end (CSS px), measured now and then. */
   private textRight = 0;

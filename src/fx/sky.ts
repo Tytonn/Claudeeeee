@@ -145,7 +145,7 @@ export type SkyFrame = {
   shocks: { x: number; y: number; age: number; strength: number }[];
   /** How much the cursor lights things up, 0..1 (it can be turned off). */
   cursor: number;
-  /** 1 when nothing is drawn over the sky ("Bare"): the light ignores the panel's outline. */
+  /** 1 when nothing is drawn over the sky (Transparency: Full): the light ignores the panel's outline. */
   open: number;
   /** The galaxy's own eclipse, 0..1: the corona pours from a solid moon hanging in the sky (not the page). */
   eclipse: number;
