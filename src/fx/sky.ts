@@ -88,6 +88,10 @@ export type InkFrame = {
   /** Where the drop lands (CSS px). */
   drop: { x: number; y: number };
   fade: number;
+  /** In real water only: the words' column, kept softer behind (CSS px: x, y, w, h; w 0: none). */
+  column: [number, number, number, number];
+  /** In real water only: how much light from the surface plays on the paper. */
+  light: number;
 };
 
 export type SkyFrame = {
@@ -208,6 +212,11 @@ export class Sky implements SkyContext {
   /** Whether the ink is kept in half-floats (else 8 bits). */
   get inkHalf() {
     return this.ink.half;
+  }
+
+  /** Whether the ink is in real water here (a fluid simulation), else the lighter fluid-style ink. */
+  get inkFluid() {
+    return this.ink.fluidMode;
   }
 
   /** Whether the solar eclipse can actually be drawn here (compiles it if needed). */

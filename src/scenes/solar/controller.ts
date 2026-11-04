@@ -88,6 +88,12 @@ export class SolarScene implements SceneController {
   private railLeft = 0;
   private railBottom = 0;
   private layoutAt = -1e9;
+  /** Focus mode (the side columns put away), and how wide those columns are: measured with the layout. */
+  private focus = false;
+  private sideW = 264;
+  private railW = 316;
+  /** Where the sun hangs in the usual layout, for focus mode to bring closer (and for what screen). */
+  private usual: { x: number; y: number; r: number; key: string } | null = null;
   private cloudsK = 1;
 
   setSolar(o: Partial<{ clouds: boolean; size: number; golden: boolean; tint: [number, number, number] | null }>) {
@@ -130,7 +136,8 @@ export class SolarScene implements SceneController {
    * there in the open sky, a little above the middle of the screen. Otherwise over the right-hand
    * column, in the clear sky below its widgets (drifting down as the list grows). On a phone, low
    * on the right; on a friend's page, high over the note. The Distance setting brings it closer
-   * or sends it further off.
+   * or sends it further off — and so does focus mode: with the side columns put away the sky comes
+   * closer, the sun staying where it hangs, only bigger.
    */
   private sunHome() {
     const W = this.fx.W;
@@ -149,19 +156,39 @@ export class SolarScene implements SceneController {
     const r0 = m * 0.088 * near;
     if (this.fx.panelEl) {
       this.measureLayout();
-      const gap = this.railLeft - this.textRight;
-      if (this.backdrop !== "dark" && gap > Math.min(r0, 70) * 3.2) {
-        // It keeps its bright inner ring clear of your words — unless you've asked for it closer,
-        // when only the moon itself has to fit.
-        const room = gap / (3.1 - 0.8 * Math.max(0, this.solarOpts.size - 0.5) * 2);
-        return { x: this.textRight + gap / 2, y: H * 0.4, r: fit(Math.min(r0, room), 32, 170) };
+      const key = `${W}x${H} ${this.solarOpts.size} ${this.backdrop}`;
+      if (!this.focus) {
+        const home = this.beside(this.textRight, this.railLeft, this.railBottom, this.fx.panel.x + this.fx.panel.w, r0);
+        this.usual = { ...home, key };
+        return home;
       }
-      const p = this.fx.panel;
-      const right = W - (p.x + p.w);
-      if (right > 220) {
-        const r = fit(Math.min(r0, right * 0.3), 34, 120);
-        return { x: p.x + p.w + right / 2, y: fit(this.railBottom + r * 2.4, H * 0.42, H * 0.72), r };
-      }
+      // Focus mode: where it would hang with the side columns out (as last seen, or as they'd be)…
+      const shift = (this.sideW - this.railW) / 2;
+      const usual = this.usual?.key === key ? this.usual : this.beside(this.textRight + shift, W - this.railW, this.railBottom || H * 0.3, W - this.railW, r0);
+      // …only closer: bigger, though never so big that its bright ring reaches your words
+      const clear = (usual.x - this.textRight) / 1.55;
+      const r = Math.max(usual.r, Math.min(usual.r * 1.38, clear, usual.y / 1.15, 250));
+      return { x: usual.x, y: usual.y, r };
+    }
+    return { x: W * 0.76, y: H * 0.4, r: fit(r0, 32, 150) };
+  }
+
+  /** Where the sun hangs beside your writing, given where it ends and where the right-hand column starts. */
+  private beside(textRight: number, railLeft: number, railBottom: number, panelRight: number, r0: number) {
+    const W = this.fx.W;
+    const H = this.fx.H;
+    const fit = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+    const gap = railLeft - textRight;
+    if (this.backdrop !== "dark" && gap > Math.min(r0, 70) * 3.2) {
+      // It keeps its bright inner ring clear of your words — unless you've asked for it closer,
+      // when only the moon itself has to fit.
+      const room = gap / (3.1 - 0.8 * Math.max(0, this.solarOpts.size - 0.5) * 2);
+      return { x: textRight + gap / 2, y: H * 0.4, r: fit(Math.min(r0, room), 32, 170) };
+    }
+    const right = W - panelRight;
+    if (right > 220) {
+      const r = fit(Math.min(r0, right * 0.3), 34, 120);
+      return { x: panelRight + right / 2, y: fit(railBottom + r * 2.4, H * 0.42, H * 0.72), r };
     }
     return { x: W * 0.76, y: H * 0.4, r: fit(r0, 32, 150) };
   }
@@ -175,10 +202,20 @@ export class SolarScene implements SceneController {
     for (const el of document.querySelectorAll<HTMLElement>(".canvas .note-title, .canvas .prose")) right = Math.max(right, el.getBoundingClientRect().right);
     // no note open: about where one would be
     this.textRight = right || this.fx.panel.x + this.fx.panel.w / 2 + 330;
+    // focus mode, and how wide the side columns are when they're out
+    const app = document.querySelector<HTMLElement>(".app");
+    this.focus = Boolean(app?.classList.contains("is-focus"));
+    if (app && !this.focus) {
+      const cs = getComputedStyle(app);
+      this.sideW = parseFloat(cs.getPropertyValue("--sidebar-w")) || this.sideW;
+      this.railW = parseFloat(cs.getPropertyValue("--rail-w")) || this.railW;
+    }
     const rail = document.querySelector<HTMLElement>(".app.has-rail .rail-inner");
     this.railLeft = rail ? rail.getBoundingClientRect().left : this.fx.W;
     const last = rail?.lastElementChild;
-    this.railBottom = last ? last.getBoundingClientRect().bottom : 0;
+    // (in focus mode the column's put away: where its widgets ended is kept for when it's back)
+    if (last) this.railBottom = last.getBoundingClientRect().bottom;
+    else if (!this.focus) this.railBottom = 0;
   }
 
   /** Something's moving in the solar sky, so it should be drawn every frame. */

@@ -51,6 +51,7 @@ const SYNCED_SETTINGS = [
   "cityBlur",
   "cursorLight",
   "inkSettle",
+  "inkColours",
   "clockMs",
   "clockMsDigits",
   "todoGroups",

@@ -1,3 +1,5 @@
+import { KIND_DROP } from "./fluid";
+
 /**
  * Where and how new ink blooms in the Ink scene: mostly low, and along the sides, now and then
  * up in a corner — never right behind the note. Shared by the engine and the test harness.
@@ -21,11 +23,53 @@ export type InkBloom = {
 
 export type Rect = { x0: number; y0: number; x1: number; y1: number };
 
+/** Ink's colours: charcoal and indigo, or with the accent's ink among them too. */
+export type InkColours = "sumi" | "accent";
+
+/**
+ * A bloom's colours, as the simulations read them: 0..1 how much of it is indigo (the rest
+ * charcoal); 2..3 how much of it is the accent's (the rest charcoal; real water only).
+ */
+export function inkColour(rand: () => number, colours: InkColours = "sumi"): number {
+  const between = (a: number, b: number) => a + (b - a) * rand();
+  if (colours === "accent" && rand() < 0.42) return 2 + between(0.6, 1);
+  return rand() < 0.38 ? between(0.3, 0.8) : between(0, 0.1);
+}
+
+
+/**
+ * A drop of ink plunging into the water from its surface (the top of the screen), in real water:
+ * mostly beside your words, where it shows best, now and then over them. `column` is the words'
+ * column (screen heights); `scale` as for newBloom.
+ */
+export function newDrop(rand: () => number, t0: number, aspect: number, column: Rect | null, scale = 1, colours: InkColours = "sumi"): InkBloom {
+  const between = (a: number, b: number) => a + (b - a) * rand();
+  let x = between(0.05, aspect - 0.05);
+  if (column && rand() < 0.78) {
+    const left = column.x0 - 0.04;
+    const right = aspect - 0.04 - column.x1;
+    if (left > 0.05 || right > 0.05) {
+      const toLeft = rand() < left / Math.max(1e-3, left + right);
+      x = toLeft ? between(0.04, Math.max(0.05, column.x0 - 0.02)) : between(Math.min(aspect - 0.05, column.x1 + 0.02), aspect - 0.04);
+    }
+  }
+  return {
+    x,
+    y: 0.995,
+    r: between(0.03, 0.048) * scale,
+    t0,
+    amount: between(2.3, 3.3),
+    indigo: inkColour(rand, colours),
+    push: between(0.9, 1.4) * scale,
+    seed: KIND_DROP + rand() * 100,
+  };
+}
+
 /**
  * `scale` shrinks the clouds on narrow screens (a phone is tall: a cloud sized by the screen's
  * height would fill its width).
  */
-export function newBloom(rand: () => number, t0: number, aspect: number, panel: Rect | null, big = false, scale = 1): InkBloom {
+export function newBloom(rand: () => number, t0: number, aspect: number, panel: Rect | null, big = false, scale = 1, colours: InkColours = "sumi"): InkBloom {
   const between = (a: number, b: number) => a + (b - a) * rand();
   let x = 0;
   let y = 0;
@@ -59,7 +103,7 @@ export function newBloom(rand: () => number, t0: number, aspect: number, panel: 
     // nowhere beside it: hug the bottom edge, under it
     else y = between(0, Math.max(0.02, panel.y0 - 0.01));
   }
-  const indigo = rand() < 0.38 ? between(0.3, 0.8) : between(0, 0.1);
+  const indigo = inkColour(rand, colours);
   return {
     x,
     y,

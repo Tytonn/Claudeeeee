@@ -162,6 +162,19 @@ html[data-tone="light"][data-backdrop="clear"]:is([data-fx="cosmic"], [data-fx="
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
+/* In real water (see scenes/ink/fluid.ts) the ink swirls all around the note and is seen softly
+   through a frosted column behind the words — so the paper keeps to that column, and the margins
+   either side of it are open water. */
+html[data-tone="light"][data-ink-water][data-backdrop="clear"]:is([data-fx="cosmic"], [data-fx="subtle"]) .app:not(.is-mobile) > .canvas {
+  background: linear-gradient(
+    90deg,
+    rgb(248 245 239 / 0) calc(50% - 420px),
+    rgb(248 245 239 / 0.2) calc(50% - 340px),
+    rgb(248 245 239 / 0.24) 50%,
+    rgb(248 245 239 / 0.2) calc(50% + 340px),
+    rgb(248 245 239 / 0) calc(50% + 420px)
+  );
+}
 /* The side columns are sheets of vellum: the ink still drifts behind them, softened, but
    ink-dark words never sit right over ink-dark clouds. */
 html[data-tone="light"][data-backdrop="clear"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(.sidebar-inner, .rail-inner) {

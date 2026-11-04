@@ -2,11 +2,14 @@ import { VERT, dropTarget, type Program, type Target } from "../../fx/gl";
 import type { SceneRenderer, SkyContext } from "../../fx/renderer";
 import type { SkyFrame } from "../../fx/sky";
 import { INK_COPY_FRAG, INK_COPY_UNIFORMS, INK_PAPER_FRAG, INK_PAPER_UNIFORMS, INK_SIM_FRAG, INK_SIM_UNIFORMS, INK_VIEW_FRAG, INK_VIEW_UNIFORMS } from "./shaders";
+import { FL_VIEW_FRAG, FL_VIEW_UNIFORMS } from "./fluid";
+import { InkFluid } from "./fluidSim";
 
 /**
- * The ink: a small fluid-style simulation stepped in two textures (one read, one written), then
- * the picture — paper (painted once per size), the ink soaking the light out of it, ripples, and
- * the drop arriving. Compiled the first time it's needed.
+ * The ink: in real water where the device can run it (a fluid simulation: see fluid.ts), else a
+ * small fluid-style simulation stepped in two textures (one read, one written); then the picture —
+ * paper (painted once per size), the ink soaking the light out of it, ripples, and the drop
+ * arriving. Compiled the first time it's needed.
  */
 export class InkRenderer implements SceneRenderer {
   private inkSim: Program | null = null;
@@ -21,13 +24,34 @@ export class InkRenderer implements SceneRenderer {
   private paper: Target | null = null;
   /** Ink texels per sky pixel: tendrils need some, but it's all soft enough for half. */
   inkScale = 0.5;
+  /** Real water (a fluid simulation), where this device can run it. */
+  private fluid: InkFluid | null = null;
+  private fluidView: Program | null = null;
+  /** Whether the ink is in real water (decided the first time it's compiled, and only tried once). */
+  fluidMode = false;
+  private fluidTried = false;
 
   constructor(private sky: SkyContext) {}
 
   /** Compiles the ink the first time it's asked for. False if this device can't run it. */
   supported(): boolean {
     if (this.inkBroken) return false;
+    if (this.fluidMode) return Boolean(this.fluid && this.fluidView && this.inkPaper);
     if (this.inkSim && this.inkView && this.inkPaper && this.inkCopy) return true;
+    // real water, if this device can run it
+    if (!this.fluidTried && InkFluid.capable(this.sky.gl, this.sky.gl2)) {
+      this.fluidTried = true;
+      const fluid = new InkFluid(this.sky);
+      const view = fluid.supported() ? this.sky.build(VERT, FL_VIEW_FRAG, FL_VIEW_UNIFORMS, "ink water view") : null;
+      const paper = view ? this.sky.build(VERT, INK_PAPER_FRAG, INK_PAPER_UNIFORMS, "ink paper") : null;
+      if (view && paper) {
+        this.fluid = fluid;
+        this.fluidView = view;
+        this.inkPaper = paper;
+        this.fluidMode = true;
+        return true;
+      }
+    }
     this.inkSim = this.sky.build(VERT, INK_SIM_FRAG, INK_SIM_UNIFORMS, "ink sim");
     this.inkView = this.inkSim ? this.sky.build(VERT, INK_VIEW_FRAG, INK_VIEW_UNIFORMS, "ink view") : null;
     this.inkPaper = this.inkView ? this.sky.build(VERT, INK_PAPER_FRAG, INK_PAPER_UNIFORMS, "ink paper") : null;
@@ -152,7 +176,17 @@ export class InkRenderer implements SceneRenderer {
 
   /** Compiled, with its textures made at the right size. */
   ready() {
-    return this.supported() && this.ensureDye() && this.ensurePaper();
+    if (!this.supported()) return false;
+    if (this.fluidMode) {
+      if (this.fluid!.ensure() && this.ensurePaper()) return true;
+      // (it couldn't make its textures: the lighter ink instead, from here on)
+      this.fluidMode = false;
+      this.fluid = null;
+      this.fluidView = null;
+      this.inkPaper = null;
+      return this.supported() && this.ensureDye() && this.ensurePaper();
+    }
+    return this.ensureDye() && this.ensurePaper();
   }
 
   /** Whether the ink is kept in half-floats (else 8 bits). */
@@ -167,9 +201,19 @@ export class InkRenderer implements SceneRenderer {
     this.dye = null;
     this.paper = null;
     this.inkBroken = false;
+    this.fluid?.restore();
+    this.fluidView = null;
+    // (real water is tried again, next time it's asked)
+    this.fluidMode = false;
+    this.fluid = null;
+    this.fluidTried = false;
   }
 
   render(f: SkyFrame) {
+    if (this.fluidMode) {
+      this.renderWater(f);
+      return;
+    }
     const gl = this.sky.gl;
     const I = f.ink;
     const S = this.inkSim!;
@@ -245,6 +289,52 @@ export class InkRenderer implements SceneRenderer {
     gl.uniform1f(V.loc.uFade, I.fade);
     gl.uniform1f(V.loc.uQuality, this.sky.quality);
     gl.uniform3f(V.loc.uA, f.a[0], f.a[1], f.a[2]);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+
+  /** Real water: the simulation's steps, then the picture. */
+  private renderWater(f: SkyFrame) {
+    const gl = this.sky.gl;
+    const I = f.ink;
+    const fluid = this.fluid!;
+    const V = this.fluidView!;
+    if (I.reset) fluid.clear();
+    for (const st of I.steps) fluid.step(st, I, this.sky.quality < 0.5);
+    const ink = fluid.frame(I.mix);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    const W = this.sky.canvas.width;
+    const Hh = this.sky.canvas.height;
+    gl.viewport(0, 0, W, Hh);
+    gl.useProgram(V.prog);
+    const k = this.sky.scale;
+    const fy = (y: number) => Hh - y * k;
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, ink);
+    gl.uniform1i(V.loc.uInk, 0);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, this.paper!.tex);
+    gl.uniform1i(V.loc.uPaper, 1);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.uniform2f(V.loc.uRes, W, Hh);
+    gl.uniform1f(V.loc.uTime, f.time);
+    const p = f.panel;
+    gl.uniform4f(V.loc.uPanel, p.x * k, Hh - (p.y + p.h) * k, (p.x + p.w) * k, Hh - p.y * k);
+    gl.uniform1f(V.loc.uPanelR, p.r * k);
+    const c = I.column;
+    if (c[2] > 0) gl.uniform4f(V.loc.uColumn, c[0] * k, Hh - (c[1] + c[3]) * k, (c[0] + c[2]) * k, Hh - c[1] * k);
+    else gl.uniform4f(V.loc.uColumn, 0, 0, 0, 0);
+    gl.uniform1f(V.loc.uBehind, I.behind);
+    gl.uniform1f(V.loc.uMips, fluid.mips ? 1 : 0);
+    [V.loc.uRipple0, V.loc.uRipple1, V.loc.uRipple2].forEach((l, i) => {
+      const r = I.ripples[i];
+      if (r) gl.uniform4f(l, r[0] * k, fy(r[1]), r[2], r[3]);
+      else gl.uniform4f(l, 0, 0, 0, 0);
+    });
+    gl.uniform4f(V.loc.uIntro, I.intro[0], I.intro[1], I.intro[2], I.intro[3]);
+    gl.uniform2f(V.loc.uDrop, I.drop.x * k, fy(I.drop.y));
+    gl.uniform1f(V.loc.uFade, I.fade);
+    gl.uniform3f(V.loc.uA, f.a[0], f.a[1], f.a[2]);
+    gl.uniform1f(V.loc.uLight, I.light);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
 }

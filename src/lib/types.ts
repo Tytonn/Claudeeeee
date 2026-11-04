@@ -113,6 +113,8 @@ export type Settings = {
   cursorLight: boolean;
   /** Ink: each letter you type lands in wet, blue-black ink and dries to the page's own tone. */
   inkSettle: boolean;
+  /** Ink: the ink in the water — charcoal and indigo, or with drops of your accent among them. */
+  inkColours: "sumi" | "accent";
   /** Show milliseconds on the clock (off by default)… */
   clockMs: boolean;
   /** …to this many digits. */

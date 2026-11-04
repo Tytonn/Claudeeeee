@@ -2,6 +2,8 @@ import { Droplet, Type } from "lucide-react";
 import { useApp } from "../../store/app";
 import { Row } from "../../components/overlays/settingsParts";
 import { Switch } from "../../components/ui/Switch";
+import { Segmented, SegmentedEpoch } from "../../components/ui/Segmented";
+import { fx } from "../../fx/engine";
 import type { SceneUI } from "../types";
 
 /**
@@ -84,11 +86,34 @@ function InkArt() {
 /** Ink's own settings (letters settle with effects off too: it's how typing feels, not the scene). */
 function InkSettings() {
   const on = useApp((s) => s.settings.inkSettle !== false);
+  const colours = useApp((s) => (s.settings.inkColours === "accent" ? "accent" : "sumi"));
+  const scene = useApp((s) => s.settings.scene);
+  const effects = useApp((s) => s.settings.effects);
   const setSettings = useApp((s) => s.setSettings);
+  // (only where the ink is in real water: the lighter ink keeps to charcoal and indigo)
+  const water = effects !== "off" && fx.sky?.inkFluid !== false;
   return (
-    <Row label="Ink settling letters" desc="Each letter you type lands in wet, blue-black ink and dries as you write on.">
-      <Switch checked={on} onChange={(v) => setSettings({ inkSettle: v })} label="Ink settling letters" />
-    </Row>
+    <>
+      {water && (
+        <Row label="Ink colours" desc="The drops falling into the water: charcoal and indigo, or with drops of your accent colour among them too.">
+          <SegmentedEpoch.Provider value={scene}>
+            <Segmented<"sumi" | "accent">
+              label="Ink colours"
+              size="sm"
+              value={colours}
+              options={[
+                { value: "sumi", label: "Ink" },
+                { value: "accent", label: "+ Accent" },
+              ]}
+              onChange={(v) => setSettings({ inkColours: v })}
+            />
+          </SegmentedEpoch.Provider>
+        </Row>
+      )}
+      <Row label="Ink settling letters" desc="Each letter you type lands in wet, blue-black ink and dries as you write on.">
+        <Switch checked={on} onChange={(v) => setSettings({ inkSettle: v })} label="Ink settling letters" />
+      </Row>
+    </>
   );
 }
 
@@ -104,5 +129,17 @@ export const inkUI: SceneUI = {
       keywords: "ink letters typing wet dry soak settle bleed fountain pen effect",
       run: () => set({ inkSettle: settings.inkSettle === false }),
     },
+    // (only where the ink is in real water)
+    ...(fx.sky?.inkFluid
+      ? [
+          {
+            id: "ink-colours",
+            label: settings.inkColours === "accent" ? "Ink in charcoal and indigo" : "Ink in your accent colour too",
+            icon: <Droplet size={15} strokeWidth={1.6} />,
+            keywords: "ink colour color accent drops water charcoal indigo",
+            run: () => set({ inkColours: settings.inkColours === "accent" ? "sumi" : "accent" }),
+          },
+        ]
+      : []),
   ],
 };

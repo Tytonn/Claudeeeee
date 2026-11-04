@@ -14,7 +14,7 @@
  * drop itself falling through the dark, when Ink first arrives.
  */
 
-const COMMON = /* glsl */ `
+export const INK_COMMON = /* glsl */ `
 #ifdef GL_FRAGMENT_PRECISION_HIGH
 precision highp float;
 #else
@@ -75,7 +75,7 @@ export const INK_BLOOMS = 6;
 
 export const INK_SIM_UNIFORMS = ["uDye", "uRes", "uAspect", "uTime", "uDt", "uBloomA", "uBloomB", "uPanel", "uStir", "uEncode", "uClear", "uFlow"];
 
-export const INK_SIM_FRAG = /* glsl */ `${COMMON}
+export const INK_SIM_FRAG = /* glsl */ `${INK_COMMON}
 uniform sampler2D uDye;   // the ink so far: r charcoal, g indigo
 uniform vec2 uRes;        // the simulation's size, texels
 uniform float uAspect;    // width / height
@@ -294,7 +294,7 @@ export const INK_VIEW_UNIFORMS = [
   "uPaper",
 ];
 
-export const INK_VIEW_FRAG = /* glsl */ `${COMMON}
+export const INK_VIEW_FRAG = /* glsl */ `${INK_COMMON}
 uniform sampler2D uDye0;  // the ink a moment ago
 uniform sampler2D uDye1;  // and now (the simulation steps less often than the screen redraws)
 uniform float uMix;       // how far between them
@@ -453,7 +453,7 @@ export const INK_PAPER_UNIFORMS = ["uRes"];
 /* The paper, painted once (and again only when the window changes size): warm, with a soft
    mottle, a fine tooth and the odd long fibre; a little brighter at the top, deeper toward the
    corners. */
-export const INK_PAPER_FRAG = /* glsl */ `${COMMON}
+export const INK_PAPER_FRAG = /* glsl */ `${INK_COMMON}
 uniform vec2 uRes;
 void main() {
   vec2 frag = gl_FragCoord.xy;

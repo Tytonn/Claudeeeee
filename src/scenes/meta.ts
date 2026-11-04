@@ -134,7 +134,7 @@ export const SCENES: Record<SceneId, SceneMeta> = {
   ink: {
     id: "ink",
     name: "Ink",
-    tagline: "Ink drifting through clear water, on paper",
+    tagline: "Ink plunging into clear water, on paper",
     command: "Scene: Ink",
     keywords: "scene theme ink water paper light bright white day drop sumi calligraphy background",
     light: true,

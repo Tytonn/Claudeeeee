@@ -30,6 +30,7 @@ export const DEFAULT_SETTINGS: Settings = {
   showVersion: false,
   cursorLight: true,
   inkSettle: true,
+  inkColours: "sumi",
   clockMs: false,
   clockMsDigits: 3,
   todoGroups: false,

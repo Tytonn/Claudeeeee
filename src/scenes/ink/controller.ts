@@ -4,7 +4,8 @@ import type { InkStep } from "../../fx/sky";
 import { rand } from "../../fx/util";
 import { CLEARED, FALL, REVEAL, SKIP_MS, arrivalLook, dropInk } from "./arrival";
 import { INK_BLOOMS } from "./shaders";
-import { newBloom, type InkBloom } from "./blooms";
+import { FLUID_BLOOMS } from "./fluid";
+import { newBloom, newDrop, type InkBloom, type InkColours } from "./blooms";
 
 /**
  * Ink: the water's current and the clouds blooming in it (where, how often, how big), the
@@ -51,6 +52,13 @@ export class InkScene implements SceneController {
   private intro: [number, number, number, number] = [0, 0, 0, 0];
   /** The ink couldn't be drawn here: plain paper (CSS) instead. */
   private inkStatic = false;
+  /** The ink is in real water here (drops plunge in from the surface), else the lighter fluid-style ink. */
+  private fluid = false;
+  /** Charcoal and indigo, or the accent's ink among them too (real water only). */
+  private colours: InkColours = "sumi";
+  /** When a finished paragraph last let a drop fall (effects clock, ms), and on which side of the words. */
+  private lastDrip = -1e9;
+  private dripLeft = false;
   /** Until when (effects clock, ms) ink may stay in the middle of the screen — the launch's welcome. */
   private inkHoldUntil = 0;
 
@@ -60,7 +68,6 @@ export class InkScene implements SceneController {
     this.inkRipples = [];
     this.inkAcc = 0;
     this.inkNext = this.inkT + 0.3;
-    this.inkWarm = 170;
     this.inkReset = true;
     this.inkClear = 1;
     this.inkBehind = 0.16;
@@ -69,12 +76,41 @@ export class InkScene implements SceneController {
     // the cursor's stir starts from where it is (not from a leap across the screen)
     this.stirAt = { ...this.fx.mouse };
     this.stirV = { x: 0, y: 0 };
-    // a handful already under way, along the bottom and the sides
+    this.inkStatic = !this.fx.sky || !this.fx.sky.inkReady();
+    this.fluid = !this.inkStatic && Boolean(this.fx.sky?.inkFluid);
+    // (the page's styles keep their paper to the words' column when the water can show around them)
+    document.documentElement.toggleAttribute("data-ink-water", this.fluid);
     const aspect = this.fx.W / Math.max(1, this.fx.H);
     const panel = this.inkPanel();
     const rect = { x0: panel[0], y0: panel[1], x1: panel[2], y1: panel[3] };
+    if (this.fluid) {
+      // a few drops already fallen (and falling), so the water has its ink when it's first seen
+      this.inkWarm = 140;
+      const column = this.columnRect();
+      for (let i = 0; i < 5; i++) this.inkBlooms.push(newDrop(Math.random, this.inkT + 0.5 + i * 2.6, aspect, column, this.inkScale, this.colours));
+      this.inkBlooms.push(newBloom(Math.random, this.inkT + 1, aspect, rect, false, this.inkScale, this.colours));
+      this.inkNext = this.inkT + 14.5;
+      return;
+    }
+    this.inkWarm = 170;
+    // a handful already under way, along the bottom and the sides
     for (let i = 0; i < 4; i++) this.inkBlooms.push(newBloom(Math.random, this.inkT + i * 1.6, aspect, rect, false, this.inkScale));
-    this.inkStatic = !this.fx.sky || !this.fx.sky.inkReady();
+  }
+
+  /** The words' column (screen heights, y up): in real water, ink is seen softly behind it. */
+  private columnRect() {
+    const c = this.column();
+    if (c[2] <= 0) return null;
+    const H = Math.max(1, this.fx.H);
+    return { x0: c[0] / H, y0: 1 - (c[1] + c[3]) / H, x1: (c[0] + c[2]) / H, y1: 1 - c[1] / H };
+  }
+
+  /** The words' column (CSS px: x, y, w, h): the middle of the note, as wide as its writing. */
+  private column(): [number, number, number, number] {
+    const p = this.fx.panel;
+    if (p.circle || p.w <= 0 || p.y > this.fx.H) return [0, 0, 0, 0];
+    const half = Math.min(p.w / 2 - 6, 336);
+    return [p.x + p.w / 2 - half, p.y, half * 2, p.h];
   }
 
   /**
@@ -107,13 +143,40 @@ export class InkScene implements SceneController {
   }
 
   private stepInk(now: number, dt: number) {
+    // (real water that couldn't carry on — its textures couldn't be made at a new size — gives way
+    // to the lighter ink, with clean water)
+    if (this.fluid && !this.fx.sky?.inkFluid) {
+      this.fluid = false;
+      this.inkBlooms = [];
+      this.inkReset = true;
+      document.documentElement.removeAttribute("data-ink-water");
+    }
     const aspect = this.fx.W / Math.max(1, this.fx.H);
     const panel = this.inkPanel();
     const rect = { x0: panel[0], y0: panel[1], x1: panel[2], y1: panel[3] };
     const steps: InkStep[] = [];
+    const column = this.fluid ? this.columnRect() : null;
+    const slots = this.fluid ? FLUID_BLOOMS : INK_BLOOMS;
     const add = (sdt: number) => {
       // new clouds come along every few seconds (a little less often while you write)
       while (this.inkT >= this.inkNext) {
+        if (this.fluid) {
+          // in real water: a drop plunging in from the surface — now and then two together, or a
+          // cloud blooming low or at a side instead
+          const pick = Math.random();
+          if (pick < 0.16) this.inkBlooms.push(newBloom(Math.random, this.inkNext, aspect, rect, false, this.inkScale, this.colours));
+          else {
+            const d = newDrop(Math.random, this.inkNext, aspect, column, this.inkScale, this.colours);
+            this.inkBlooms.push(d);
+            if (pick > 0.8) {
+              const twin = newDrop(Math.random, this.inkNext + rand(0.5, 1.4), aspect, column, this.inkScale, this.colours);
+              twin.x = Math.min(aspect - 0.04, Math.max(0.04, d.x + rand(-0.09, 0.09)));
+              this.inkBlooms.push(twin);
+            }
+          }
+          this.inkNext += rand(4.2, 7.5) * (this.fx.calm ? 1.35 : 1);
+          continue;
+        }
         this.inkBlooms.push(newBloom(Math.random, this.inkNext, aspect, rect, false, this.inkScale));
         // and the bottom gets an extra one now and then
         if (Math.random() < 0.3) {
@@ -123,10 +186,10 @@ export class InkScene implements SceneController {
         }
         this.inkNext += rand(4.5, 8.5) * (this.fx.calm ? 1.3 : 1);
       }
-      const A = new Float32Array(INK_BLOOMS * 4);
-      const B = new Float32Array(INK_BLOOMS * 4);
-      const live = this.inkBlooms.filter((b) => this.inkT >= b.t0 && this.inkT - b.t0 < 14).slice(-INK_BLOOMS);
-      for (let i = 0; i < INK_BLOOMS; i++) {
+      const A = new Float32Array(slots * 4);
+      const B = new Float32Array(slots * 4);
+      const live = this.inkBlooms.filter((b) => this.inkT >= b.t0 && this.inkT - b.t0 < 14).slice(-slots);
+      for (let i = 0; i < slots; i++) {
         const b = live[i];
         if (b) {
           A.set([b.x, b.y, b.r, this.inkT - b.t0], i * 4);
@@ -138,8 +201,8 @@ export class InkScene implements SceneController {
     };
     // to begin with: a quick run (in bigger steps), so there's already ink in the water
     let n = 0;
-    while (this.inkWarm > 0 && n < 30) {
-      add(0.15);
+    while (this.inkWarm > 0 && n < (this.fluid ? 20 : 30)) {
+      add(this.fluid ? 0.1 : 0.15);
       this.inkWarm--;
       n++;
     }
@@ -317,12 +380,48 @@ export class InkScene implements SceneController {
       clear: this.inkClear,
       stir: [this.fx.mouse.x / H, 1 - this.fx.mouse.y / H, this.stirV.x * 0.4 * this.fx.cursorK * (this.fx.small ? 0 : 1), this.stirV.y * 0.4 * this.fx.cursorK * (this.fx.small ? 0 : 1)] as [number, number, number, number],
       flow: this.fx.effective === "subtle" ? 0.7 : 1,
-      behind: this.inkBehind,
+      // (on a phone the words fill the screen: the ink shows a little more strongly behind them)
+      behind: this.fluid && this.fx.small ? Math.max(this.inkBehind, 0.3) : this.inkBehind,
       ripples: this.inkRipples.slice(-3).map((r) => [r.x, r.y, (now - r.t0) / 1000, r.strength] as [number, number, number, number]),
       intro: this.intro,
       drop: this.arrival ? this.arrival.at : { x: this.fx.W / 2, y: this.fx.H / 2 },
       fade: 1,
+      column: this.fluid ? this.column() : ([0, 0, 0, 0] as [number, number, number, number]),
+      light: this.fx.effective === "subtle" ? 0.6 : 1,
     };
+  }
+
+  /** Ink's own settings: its colours (in real water). */
+  setInk(o: { colours?: InkColours }) {
+    if (o.colours) this.colours = o.colours;
+  }
+
+  /**
+   * A paragraph finished (Enter, the caret at x, y CSS px): in real water, a drop of ink lets go
+   * from the surface beside your words (one side, then the other) — no more than one every few
+   * seconds.
+   */
+  paragraph(x: number, _y: number) {
+    if (!this.fx.inkScene || !this.fluid || this.inkStatic || this.arrival || !this.fx.full) return false;
+    const now = this.fx.clock;
+    if (now - this.lastDrip < 3800) return false;
+    this.lastDrip = now;
+    const H = Math.max(1, this.fx.H);
+    const aspect = this.fx.W / H;
+    const col = this.columnRect();
+    const d = newDrop(Math.random, this.inkT + 0.05, aspect, null, this.inkScale * 0.85, this.colours);
+    if (col) {
+      this.dripLeft = !this.dripLeft;
+      let left = this.dripLeft;
+      // (to the side there's room for)
+      if ((left ? col.x0 : aspect - col.x1) < 0.06) left = !left;
+      const room = left ? col.x0 : aspect - col.x1;
+      if (room > 0.06) d.x = left ? Math.max(0.035, col.x0 - rand(0.03, Math.min(0.12, room - 0.02))) : Math.min(aspect - 0.035, col.x1 + rand(0.03, Math.min(0.12, room - 0.02)));
+      else d.x = x / H;
+    }
+    d.amount *= 0.8;
+    this.inkBlooms.push(d);
+    return true;
   }
 
   /**
@@ -358,6 +457,7 @@ export class InkScene implements SceneController {
 
   leave() {
     this.endArrival();
+    document.documentElement.removeAttribute("data-ink-water");
   }
 
   skyScale() {

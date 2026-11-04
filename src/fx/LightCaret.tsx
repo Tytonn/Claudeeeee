@@ -83,6 +83,11 @@ export function LightCaret({ editor, container }: { editor: Editor | null; conta
     let heat = 0;
     let last: { x: number; y: number } | null = null;
     let pending: "type" | "erase" | null = null;
+    /** When Enter was last pressed (a paragraph finishing, if the note gains a block from it). */
+    let enterAt = -1e9;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Enter" && !e.isComposing && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey) enterAt = performance.now();
+    };
 
     const place = () => {
       raf = 0;
@@ -132,6 +137,16 @@ export function LightCaret({ editor, container }: { editor: Editor | null; conta
         return;
       }
       if (transaction.docChanged) {
+        // a paragraph finished: the scene may mark it (in Ink, a drop of ink lets go into the water)
+        if (performance.now() - enterAt < 150 && transaction.doc.childCount > transaction.before.childCount) {
+          enterAt = -1e9;
+          try {
+            const c = editor.view.coordsAtPos(transaction.selection.head);
+            fx.paragraph(c.left, c.top);
+          } catch {
+            /* (no position to give) */
+          }
+        }
         if (fx.full && !fx.light && editor.isFocused && !editor.view.composing) inkFor(editor, transaction);
         pending = transaction.doc.content.size >= transaction.before.content.size ? "type" : "erase";
         heat = Math.min(1, heat + 0.14);
@@ -148,6 +163,7 @@ export function LightCaret({ editor, container }: { editor: Editor | null; conta
     };
 
     editor.on("transaction", onTransaction);
+    dom.addEventListener("keydown", onKey, true);
     editor.on("focus", schedule);
     editor.on("blur", schedule);
     editor.on("selectionUpdate", schedule);
@@ -155,6 +171,7 @@ export function LightCaret({ editor, container }: { editor: Editor | null; conta
     schedule();
     return () => {
       editor.off("transaction", onTransaction);
+      dom.removeEventListener("keydown", onKey, true);
       editor.off("focus", schedule);
       editor.off("blur", schedule);
       editor.off("selectionUpdate", schedule);

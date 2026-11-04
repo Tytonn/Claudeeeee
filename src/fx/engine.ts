@@ -673,6 +673,16 @@ export class FxEngine {
     this.inkCtl.inkBloom(x, y, o);
   }
 
+  /** Ink's own settings (its colours). */
+  setInk(o: Parameters<InkScene["setInk"]>[0]) {
+    this.inkCtl.setInk(o);
+  }
+
+  /** A paragraph finished (Enter) with the caret at x, y (CSS px): the scene may mark it. */
+  paragraph(x: number, y: number) {
+    if (this.active) this.inkCtl.paragraph(x, y);
+  }
+
   // ── the phone's bars ─────────────────────────────────────────────────────
 
   /** When to look at the sky's edges next, and what the bars were last given. */
