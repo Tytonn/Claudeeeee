@@ -27,6 +27,20 @@ const quote = (...parts: Inline[]): JSONContent => ({ type: "blockquote", conten
 const k = (text: string) => t(text, "code");
 const b = (text: string) => t(text, "bold");
 
+/** The tutorial to-dos every new device starts with, and its countdown. */
+export const SEED_TODOS: readonly string[] = ["Check this one off", "Drag the handle to reorder", "Click a to-do to edit it"];
+export const SEED_COUNTDOWN = "New Year";
+
+/** A tutorial to-do just as it came (never checked off, edited or coloured). */
+export function untouchedSeedTodo(t: Todo): boolean {
+  return SEED_TODOS.includes(t.text) && !t.done && !t.color && Math.abs(t.updatedAt - t.createdAt) < 5_000;
+}
+
+/** The New Year countdown just as it came. */
+export function untouchedSeedCountdown(c: Countdown): boolean {
+  return c.title === SEED_COUNTDOWN && c.repeat === "yearly" && Math.abs(c.updatedAt - c.createdAt) < 5_000;
+}
+
 export function seedData(): { notes: Note[]; todos: Todo[]; countdowns: Countdown[] } {
   const now = Date.now();
 
@@ -64,17 +78,13 @@ export function seedData(): { notes: Note[]; todos: Todo[]; countdowns: Countdow
     pinned: false,
   };
 
-  const todos: Todo[] = [
-    "Check this one off",
-    "Drag the handle to reorder",
-    "Click a to-do to edit it",
-  ].map((text, i) => ({ id: uid(), text, done: false, createdAt: now + i, updatedAt: now + i }));
+  const todos: Todo[] = SEED_TODOS.map((text, i) => ({ id: uid(), text, done: false, createdAt: now + i, updatedAt: now + i }));
 
   const nextYear = new Date().getFullYear() + 1;
   const countdowns: Countdown[] = [
     {
       id: uid(),
-      title: "New Year",
+      title: SEED_COUNTDOWN,
       date: toISODate(new Date(nextYear, 0, 1)),
       time: null,
       repeat: "yearly",

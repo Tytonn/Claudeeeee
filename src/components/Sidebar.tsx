@@ -515,7 +515,7 @@ export function Sidebar() {
             <IconButton label="New group" onClick={() => newGroup()}>
               <FolderPlus size={16} strokeWidth={1.7} />
             </IconButton>
-            <IconButton label="New note" kbd={`${ALT} N`} onClick={() => newNote()} data-magnetic>
+            <IconButton label="New note" kbd={`${ALT} N`} onClick={() => newNote()}>
               <SquarePen size={16} strokeWidth={1.7} />
             </IconButton>
           </div>

@@ -13,6 +13,7 @@ import {
   normalizeVault,
 } from "../lib/sanitize";
 import type { Countdown, Note, NoteGroup, Settings, Todo } from "../lib/types";
+import { untouchedSeedCountdown, untouchedSeedTodo } from "../store/seed";
 import { dataKey, onAccountChange, sessionExpired, useAccount, type AccountUser } from "./account";
 
 /**
@@ -208,7 +209,10 @@ function apply(changes: Change[]) {
 const SEED_TITLE = "Welcome to umbra";
 const untouchedSeed = (n: Note) => n.title === SEED_TITLE && Math.abs(n.updatedAt - n.createdAt) < 5_000;
 
-function mergeTodos(local: Todo[], remote: Todo[]): Todo[] {
+/** This device's to-dos merged into the account's — all but its untouched tutorial ones: the
+ *  account has had its own, even if they've long since been checked off and cleared away. */
+export function mergeTodos(localAll: Todo[], remote: Todo[]): Todo[] {
+  const local = localAll.filter((t) => !untouchedSeedTodo(t));
   const out = [...remote];
   const ids = new Map(remote.map((t, i) => [t.id, i]));
   const texts = new Set(remote.map((t) => t.text.trim().toLowerCase()));
@@ -221,7 +225,9 @@ function mergeTodos(local: Todo[], remote: Todo[]): Todo[] {
   return out;
 }
 
-function mergeCountdowns(local: Countdown[], remote: Countdown[]): Countdown[] {
+/** …and its countdowns (all but an untouched New Year). */
+export function mergeCountdowns(localAll: Countdown[], remote: Countdown[]): Countdown[] {
+  const local = localAll.filter((c) => !untouchedSeedCountdown(c));
   const out = [...remote];
   const ids = new Map(remote.map((c, i) => [c.id, i]));
   const same = new Set(remote.map((c) => `${c.title.trim().toLowerCase()}|${c.date}`));
@@ -430,6 +436,9 @@ function finishMerge(remoteHadData: boolean) {
       continue;
     }
     if (key === "settings" && remoteHadData) continue;
+    // (nor its untouched tutorial to-dos and countdown, to an account that has data already)
+    if (key === "todos" && remoteHadData && s.todos.some(untouchedSeedTodo)) drop.push({ key, value: s.todos.filter((t) => !untouchedSeedTodo(t)) });
+    if (key === "countdowns" && remoteHadData && s.countdowns.some(untouchedSeedCountdown)) drop.push({ key, value: s.countdowns.filter((c) => !untouchedSeedCountdown(c)) });
     meta.dirty[key] = Date.now();
   }
   apply(drop);

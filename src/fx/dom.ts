@@ -5,7 +5,6 @@ import { play } from "../lib/sound";
  * The cursor is the sun. Elements marked:
  *   data-light     → catch rim light near the cursor and cast shadows away from it
  *   data-tilt      → tilt in 3D toward the cursor, with a moving glare
- *   data-magnetic  → lean gently toward the cursor
  */
 
 let started = false;
@@ -13,7 +12,6 @@ let px = -9999;
 let py = -9999;
 let target: Element | null = null;
 let raf = 0;
-let magnet: HTMLElement | null = null;
 let tilted: HTMLElement | null = null;
 
 let lit = true;
@@ -42,8 +40,6 @@ function apply() {
   // the browser work out the page's styles all over again first — once per element, every move.
   const vh = innerHeight;
   const rects = lit ? Array.from(lights, (el) => el.getBoundingClientRect()) : [];
-  const mag = (target?.closest?.("[data-magnetic]") as HTMLElement | null) ?? null;
-  const magRect = mag?.getBoundingClientRect();
   const tilt = fx.full ? ((target?.closest?.("[data-tilt]") as HTMLElement | null) ?? null) : null;
   const tiltRect = tilt?.getBoundingClientRect();
 
@@ -63,14 +59,6 @@ function apply() {
       ((vy / d) * reach).toFixed(3),
     ]);
   });
-
-  if (magnet && magnet !== mag) magnet.style.translate = "";
-  if (mag && magRect) {
-    const dx = px - (magRect.left + magRect.width / 2);
-    const dy = py - (magRect.top + magRect.height / 2);
-    mag.style.translate = `${(dx * 0.2).toFixed(1)}px ${(dy * 0.26).toFixed(1)}px`;
-  }
-  magnet = mag;
 
   if (tilted && tilted !== tilt) {
     tilted.style.transform = "";
