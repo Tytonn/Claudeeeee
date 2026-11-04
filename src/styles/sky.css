@@ -1,0 +1,215 @@
+/* ───────────────────────────────────────────────────────────────────────────
+   umbra — the Sky's own touches. It's a light scene, so the interface is light.css's; here
+   that paper turns to cool white glass under a summer sky: whites with a breath of blue, cool
+   blue-grey shade, the effects as light again (a bright day, not ink), and the climb up
+   through cloud at launch.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+html[data-tone="light"][data-scene="sky"] {
+  /* glass, not paper */
+  --bg: #e4eef9;
+  --canvas: #f4f8fd;
+  --raised: #fafcff;
+  --float: rgb(248 251 255 / 0.86);
+  --float-solid: #f7fafe;
+  --paper: 243 248 254;
+  --paper-hi: 246 250 255;
+  --paper-top: 250 252 255;
+  --scrim: 24 44 82;
+
+  /* type: a deep blue-black */
+  --fg-1: #141c2b;
+  --fg-body: #212a3a;
+  --fg-2: #434f64;
+  --fg-3: #687489;
+  --fg-4: #8f99ab;
+  --fg-5: #b9c2d0;
+
+  /* overlays and shadows are cool, the colour of shade on a bright day */
+  --tint: 22 34 58;
+  --shade: 28 56 112;
+  --line: rgb(22 34 58 / 0.085);
+  --line-2: rgb(22 34 58 / 0.12);
+  --line-3: rgb(22 34 58 / 0.17);
+  --hover: rgb(22 34 58 / 0.04);
+  --active: rgb(22 34 58 / 0.065);
+  --press: rgb(22 34 58 / 0.09);
+  --accent-ink: #f8fbff;
+}
+/* Over the sky (a deeper blue than paper is white), the quiet greys stay a little deeper so
+   they read against it. */
+html[data-tone="light"][data-scene="sky"][data-backdrop]:is([data-fx="cosmic"], [data-fx="subtle"]) {
+  --fg-2: #34405a;
+  --fg-3: #4c5874;
+  --fg-4: #5e6a86;
+  --fg-5: #75819b;
+  --line: rgb(22 34 58 / 0.1);
+}
+
+/* Clear: the column of white behind the words is a little stronger than on paper, and the side
+   columns a little more frosted, so the small type keeps clear of the bright sky behind. */
+html[data-tone="light"][data-scene="sky"][data-backdrop="clear"]:is([data-fx="cosmic"], [data-fx="subtle"]) .app:not(.is-mobile) > .canvas {
+  background:
+    linear-gradient(
+      90deg,
+      rgb(var(--paper) / 0) 0%,
+      rgb(var(--paper) / 0.2) 12%,
+      rgb(var(--paper) / 0.4) 30%,
+      rgb(var(--paper) / 0.46) 50%,
+      rgb(var(--paper) / 0.4) 70%,
+      rgb(var(--paper) / 0.2) 88%,
+      rgb(var(--paper) / 0) 100%
+    ),
+    rgb(var(--paper) / 0.12);
+}
+html[data-tone="light"][data-scene="sky"][data-backdrop="clear"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(.sidebar-inner, .rail-inner) {
+  background: rgb(var(--paper-hi) / 0.5);
+  -webkit-backdrop-filter: blur(8px) saturate(1.05);
+  backdrop-filter: blur(8px) saturate(1.05);
+}
+html[data-tone="light"][data-scene="sky"][data-backdrop="clear"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(.canvas, .sidebar-inner, .rail-inner, .viewer-main) {
+  text-shadow:
+    0 0 1px rgb(var(--paper-hi) / 0.6),
+    0 0 10px rgb(var(--paper-hi) / 0.6);
+}
+
+/* Crystal and Bare: nothing between your words and the sky — each letter keeps a crisp, close
+   halo of white (tighter than paper's: over blue a wide one turns to fog). */
+html[data-tone="light"][data-scene="sky"]:is([data-backdrop="crystal"], [data-backdrop="bare"]):is([data-fx="cosmic"], [data-fx="subtle"]) :is(.canvas, .sidebar-inner, .rail-inner, .viewer-main, .viewer-bar) {
+  text-shadow:
+    0 0 1px rgb(var(--paper-hi) / 0.95),
+    0 0 4px rgb(var(--paper-hi) / 0.7),
+    0 0 12px rgb(var(--paper-hi) / 0.35);
+}
+
+/* Glass has no tooth; with the sky put away (effects off), the page is a pale summer blue. */
+html[data-tone="light"][data-scene="sky"] body::before {
+  opacity: 0;
+}
+html[data-tone="light"][data-scene="sky"] body {
+  background:
+    radial-gradient(120% 80% at 50% 110%, rgb(255 255 255 / 0.7), transparent 70%),
+    linear-gradient(180deg, #a9d0f5, #d6e8f8 55%, #edf5fd);
+}
+
+/* The effects are light again: sunlight on a bright day, not ink on paper. */
+html[data-tone="light"][data-scene="sky"] .fx-over {
+  filter: none;
+  mix-blend-mode: normal;
+}
+
+/* The cursor's light on the edges of things: a soft glint of the accent. */
+html[data-tone="light"][data-scene="sky"]:not([data-fx="off"]) [data-light]::after {
+  background: radial-gradient(240px circle at var(--lx, -999px) var(--ly, -999px), color-mix(in oklch, var(--accent) 55%, white), transparent 68%);
+  opacity: calc(var(--near, 0) * 0.55);
+}
+
+/* A new note comes in like the sun out from behind a cloud: a wash of warm light, and the page
+   brightening into focus. */
+html[data-tone="light"][data-scene="sky"] .canvas-dawn {
+  background:
+    radial-gradient(78% 58% at 50% 40%, rgb(255 248 228 / 0.55), transparent 74%),
+    radial-gradient(115% 44% at 50% 48%, color-mix(in oklch, var(--accent) 10%, transparent), transparent 78%);
+  mix-blend-mode: normal;
+}
+html[data-tone="light"][data-scene="sky"]:not([data-fx="off"]) .note-wrap.enter-dawn {
+  animation-name: sky-develop;
+}
+@keyframes sky-develop {
+  0% {
+    opacity: 0;
+    filter: blur(10px) brightness(1.25);
+    transform: scale(0.99) translateY(8px);
+  }
+  45% {
+    opacity: 1;
+    filter: blur(1.5px) brightness(1.06);
+  }
+  100% {
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+}
+
+/* Settings → Sky colours: each swatch a little sky of its own. */
+.sky-swatch .swatch-core {
+  background: var(--sky);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.45),
+    inset 0 0 0 0.5px rgb(0 0 0 / 0.12),
+    0 0 14px -4px var(--sw);
+}
+.scene-card.is-sky .scene-art {
+  background: linear-gradient(180deg, #2a78ee, #9fd8ff);
+}
+
+/* ── The launch, in the Sky (see Intro): inside a cloud, rising; the name condenses out of
+   the mist, then the cloud opens onto the blue and the page comes up. ───────── */
+
+html.intro-sky .app {
+  opacity: 0;
+}
+html.intro-sky-out .app {
+  animation: page-up 1100ms cubic-bezier(0.3, 0.7, 0.2, 1) both;
+}
+.intro.sky {
+  background: none;
+}
+.intro.sky .intro-stage {
+  margin-top: -4vh;
+  transition:
+    transform 900ms cubic-bezier(0.3, 0.6, 0.2, 1),
+    filter 900ms ease,
+    opacity 800ms ease;
+}
+.intro.sky .intro-word {
+  margin-top: 0;
+  font-size: 78px;
+  color: #26375c;
+  text-shadow:
+    0 0 18px rgb(255 255 255 / 0.7),
+    0 0 42px rgb(255 255 255 / 0.5);
+}
+.intro.sky .intro-word span {
+  animation: sky-condense 1300ms cubic-bezier(0.22, 0.75, 0.25, 1) both;
+}
+@keyframes sky-condense {
+  0% {
+    opacity: 0;
+    filter: blur(9px);
+    transform: translateY(10px) scale(1.04);
+  }
+  45% {
+    opacity: 0.9;
+    filter: blur(2px);
+  }
+  100% {
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+}
+.intro.sky .intro-tag {
+  color: rgb(44 62 100 / 0.78);
+  animation-delay: 1.15s;
+}
+.intro.sky.is-out .intro-stage {
+  transform: translateY(-22px);
+  filter: blur(8px);
+  opacity: 0;
+}
+.intro.sky.is-out {
+  transition-duration: 800ms;
+}
+
+/* A deleted page, blown away as mist (see mistAway, fx/dom.ts). */
+.fx-mistout {
+  overflow: hidden;
+}
+.fx-mistout-page {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  will-change: filter, opacity, transform;
+}

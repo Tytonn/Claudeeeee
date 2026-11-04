@@ -194,7 +194,9 @@
   gap: 20px;
   padding: 15px 16px;
 }
-.set-row + .set-row {
+.set-row + .set-row,
+.set-row + .set-row-slide > .set-row,
+.set-row-slide + .set-row {
   border-top: 1px solid var(--line);
 }
 .set-row.column {
@@ -722,14 +724,20 @@
 
 /* ── Scene: what's behind the glass ───────────────────────────────────────── */
 
+/* Three to a row (two on a phone); a row that isn't full shares its width out, so the cards
+   always fill it. */
 .scenes {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 10px;
 }
+.scenes > .scene-card {
+  flex: 1 1 calc((100% - 20px) / 3);
+  min-width: 0;
+}
 @media (max-width: 640px) {
-  .scenes {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .scenes > .scene-card {
+    flex-basis: calc((100% - 10px) / 2);
   }
 }
 .scene-card {
@@ -1195,10 +1203,14 @@
   align-self: center;
   margin-bottom: 4px;
 }
+/* (Nothing clips a field: the glow round a focused box runs out past its rounded corners. The
+   one that slides in — "Password again" — is clipped only while it's sliding: AuthForm.) */
 .auth-field {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+.auth-field.is-sliding {
   overflow: hidden;
 }
 .auth-label {

@@ -361,6 +361,45 @@ export function inkWash(noteEl: HTMLElement | null, panelEl: HTMLElement | null)
 }
 
 /**
+ * Deleting a note, in the Sky: the words turn to mist and the wind takes them — they soften and
+ * thin out like cloud as they're carried off downwind — a gust sweeps through the clouds behind,
+ * and the next page is there underneath, clear.
+ */
+export function mistAway(noteEl: HTMLElement | null, panelEl: HTMLElement | null) {
+  if (!noteEl || !panelEl || !fx.active) return;
+  const pr = panelEl.getBoundingClientRect();
+  if (!pr.width) return;
+  const scroller = panelEl.querySelector<HTMLElement>(".canvas-scroll");
+  const stage = document.createElement("div");
+  stage.className = "fx-ghost fx-mistout";
+  Object.assign(stage.style, overlayBox(panelEl, pr));
+  const page = lift(noteEl, pr, "fx-mistout-page");
+  stage.append(page);
+  document.body.appendChild(stage);
+  play("eclipse");
+  fx.windGust();
+  const dur = fx.full ? 1150 : 650;
+  const done = () => stage.remove();
+  page
+    .animate(
+      [
+        { opacity: 1, filter: "blur(0px)", transform: "none" },
+        { opacity: 0.8, filter: "blur(2.5px)", transform: "translateX(18px) skewX(-2deg)", offset: 0.3 },
+        { opacity: 0, filter: "blur(18px)", transform: "translateX(120px) skewX(-5deg) scale(1.04, 0.97)" },
+      ],
+      { duration: dur, easing: "cubic-bezier(0.42, 0, 0.58, 1)" },
+    )
+    .finished.then(done, done);
+  // the next page comes up clear beneath it
+  scroller?.animate([{ opacity: 0, filter: "blur(6px)" }, { opacity: 1, filter: "blur(0px)" }], {
+    duration: dur * 0.7,
+    delay: dur * 0.35,
+    easing: "cubic-bezier(0.25, 0.6, 0.3, 1)",
+    fill: "backwards",
+  });
+}
+
+/**
  * Deleting a note, in the rain: water sheets down the page from the top and washes the
  * words away with it — running ahead in drips, the last of it sliding and blurring as it
  * goes — and the next page is there behind it, rinsed clean.

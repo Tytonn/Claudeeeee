@@ -12,10 +12,12 @@ type Wake = Timed & { x0: number; y0: number; x1: number; y1: number; bend: numb
 type Frag = { x: number; y: number; vx: number; vy: number; life: number; max: number; size: number; color: C255 };
 
 /**
- * The galaxy (the eclipse): the note is the moon, and the corona streams out from behind it.
- * Its sky is the engine's own; what's its alone is the life behind the interface — dust drifting
- * through the corona light, coronal mass ejections off the panel's edges, and shooting stars
- * (now and then a shower of them, or a fireball).
+ * The galaxy (the eclipse): the note is the moon, and the corona streams out from behind it —
+ * or, with the Eclipse setting, a moon of its own hangs in the sky beside your writing and the
+ * corona pours out round that instead. Its sky is the engine's own; what's its alone is the life
+ * behind the interface — dust drifting through the corona light, coronal mass ejections off the
+ * panel's edges (or the moon's limb), and shooting stars (now and then a shower of them, or a
+ * fireball).
  */
 export class GalaxyScene implements SceneController {
   readonly id = "eclipse" as const;
@@ -37,6 +39,20 @@ export class GalaxyScene implements SceneController {
 
   private spawnCme() {
     const p = this.fx.panel;
+    if (p.circle) {
+      // off the moon's limb: a loop of plasma standing up from a point on its edge (mostly up top)
+      const r = p.w / 2;
+      const a = -Math.PI / 2 + rand(-1.25, 1.25);
+      const nx = Math.cos(a);
+      const ny = Math.sin(a);
+      const base = { x: p.x + r + nx * r, y: p.y + r + ny * r, nx, ny, tx: -ny, ty: nx };
+      const k = Math.min(1, r / 90);
+      this.cmes.push({ ...base, span: rand(10, 20) * k, height: rand(18, 38) * k, tilt: rand(-0.5, 0.5), t0: this.fx.clock, dur: 2800 });
+      this.fx.diamond.x = base.x;
+      this.fx.diamond.y = base.y;
+      this.fx.flareUp(0.35);
+      return;
+    }
     const edges: [string, number][] = [
       ["top", p.w * 0.8],
       ["right", p.h],
@@ -138,7 +154,10 @@ export class GalaxyScene implements SceneController {
       const dy = Math.max(p.y - y, 0, y - (p.y + p.h));
       const inside = dx === 0 && dy === 0 && !p.circle;
       if (inside && !this.fx.open) continue;
-      const edge = Math.hypot(dx, dy);
+      // (round a moon, how far from its limb; behind the galaxy's own moon, none)
+      const fromLimb = p.circle ? Math.hypot(x - (p.x + p.w / 2), y - (p.y + p.h / 2)) - p.w / 2 : 0;
+      if (p.circle && fromLimb < 0 && this.eclipseK > 0.5) continue;
+      const edge = p.circle ? Math.max(0, fromLimb) : Math.hypot(dx, dy);
       const lit = Math.exp(-edge / 140) * (1 + this.fx.flare * 2);
       const tw = 0.55 + 0.45 * Math.sin(m.phase * 2.1);
       const alpha = (0.1 + lit * 0.55) * tw * (0.4 + 0.6 * m.z);
@@ -329,10 +348,84 @@ export class GalaxyScene implements SceneController {
     return (0.25 + 0.75 * this.fx.energy) * (lvl === "subtle" ? 0.35 : 1);
   }
 
-  step() {}
+  // ── its own eclipse ───────────────────────────────────────────────────────
+
+  /** The Eclipse setting: a moon hanging in the sky beside your writing, the corona pouring out round it. */
+  private eclipseOn = false;
+  /** How far it has grown in, 0..1 (it swells out of a point of light, and shrinks back into one). */
+  private eclipseK = 0;
+  private moon = { x: 0, y: 0, r: 0 };
+  private moonPlaced = false;
+
+  /** Right in the middle of the screen (behind your words), rather than beside them. */
+  private eclipseMiddle = false;
+
+  setEclipse(on: boolean, middle = false) {
+    // (moving it from one spot to the other, it glides there)
+    this.eclipseMiddle = middle;
+    if (on === this.eclipseOn) return;
+    this.eclipseOn = on;
+    // Off-screen (or before the first frame), it's simply there — or not — next time.
+    if (!this.fx.started || this.fx.scene !== "eclipse" || !this.fx.active) {
+      this.eclipseK = on ? 1 : 0;
+      this.moonPlaced = false;
+    } else if (on) {
+      this.moonPlaced = false;
+      this.fx.flareUp(0.6);
+    }
+  }
+
+  /** The middle of the screen: centred behind your writing, a little above halfway down. */
+  private middle() {
+    const fx = this.fx;
+    const page = fx.pageRect;
+    const m = Math.min(fx.W, fx.H);
+    const fit = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+    if (fx.small) return { x: fx.W / 2, y: fx.H * 0.42, r: fit(fx.W * 0.14, 34, 90) };
+    const x = page.w > 0 ? page.x + page.w / 2 : fx.W / 2;
+    return { x, y: fx.H * 0.45, r: fit(m * 0.1, 40, 130) };
+  }
+
+  /** The moon of its own eclipse (CSS px), while there is one. */
+  moonNow(): { x: number; y: number; r: number } | null {
+    if (this.eclipseK <= 0 || !this.moonPlaced) return null;
+    const e = easeOut(this.eclipseK);
+    // it swells out of a point of light (never quite nothing, so the corona has a centre)
+    return { x: this.moon.x, y: this.moon.y, r: Math.max(1.5, this.moon.r * e) };
+  }
+
+  /** How solid its moon is, 0..1 (for the sky). */
+  get eclipseNow() {
+    return this.moonPlaced ? Math.min(1, this.eclipseK * 1.6) : 0;
+  }
+
+  step(_now: number, dt: number) {
+    const to = this.eclipseOn ? 1 : 0;
+    if (this.eclipseK !== to) {
+      // growing in is a slow swell; going is quicker
+      this.eclipseK += (to - this.eclipseK) * Math.min(1, dt * (to ? 1.5 : 2.6));
+      if (Math.abs(this.eclipseK - to) < 0.003) this.eclipseK = to;
+    }
+    if (this.eclipseK <= 0 || !this.fx.panelEl) {
+      this.moonPlaced = false;
+      return;
+    }
+    const home = this.eclipseMiddle ? this.middle() : this.fx.eclipseHome();
+    if (!this.moonPlaced) {
+      this.moon = { ...home };
+      this.moonPlaced = true;
+    } else {
+      // it glides to a new spot when the layout changes
+      const k = Math.min(1, dt * 2.2);
+      this.moon.x += (home.x - this.moon.x) * k;
+      this.moon.y += (home.y - this.moon.y) * k;
+      this.moon.r += (home.r - this.moon.r) * k;
+    }
+  }
 
   busy() {
-    return false;
+    // (while its eclipse grows in or fades out)
+    return this.eclipseK > 0 && this.eclipseK < 1;
   }
 
   mustRender() {

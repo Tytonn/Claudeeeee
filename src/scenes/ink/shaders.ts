@@ -412,38 +412,6 @@ void main() {
       night = mix(night, vec3(.075, .074, .085), (1. - open) * .6 * smoothstep(uIntro.y - .32, uIntro.y, edge));
     }
     col = mix(col, night, uIntro.x * open);
-    // the landing: a faint ring of light runs out across the dark, just ahead of the clearing
-    // (uIntro.w falls away as exp(-3.2 s) from the landing: the ring runs out on that clock)
-    float ringR = (1. - uIntro.w) * .5 * H + H * .02;
-    float ru = (dist * H - ringR) / (H * .018);
-    float ring = exp(-ru * ru) * uIntro.w;
-    col += vec3(.7, .7, .76) * ring * .13 * uIntro.x * open;
-    // and the moment of landing: a soft glint where it meets the water
-    col += vec3(.62, .63, .7) * exp(-dist * dist / .0009) * uIntro.w * uIntro.w * .35 * uIntro.x;
-    // the drop: a bead of ink, catching the light, stretched by its fall
-    if (uIntro.z > 0. && uIntro.z < 1.) {
-      float z = uIntro.z;
-      float y = mix(H * 1.08, uDrop.y, z * z);
-      vec2 q = frag - vec2(uDrop.x, y);
-      float stretch = 1. + 3.2 * z * z;
-      float rad = H * .0135;
-      q.y /= stretch;
-      q.y += (q.y > 0. ? q.y * .55 : 0.);     // a teardrop: the tail above
-      float s = length(q) / rad;
-      float body = 1. - smoothstep(.85, 1.05, s);
-      vec2 lp = q / rad - vec2(-.32, .38);
-      float spec = exp(-dot(lp, lp) * 9.) * .9;
-      float rim = smoothstep(.62, 1.0, s) * body * .35;
-      vec3 bead = vec3(.012, .012, .02) + vec3(.55, .56, .66) * rim + vec3(1.) * spec;
-      col = mix(col, bead, body);
-      // a faint glimmer around it
-      col += vec3(.5, .52, .6) * exp(-s * 1.6) * .05;
-      // the thread of light it leaves behind, falling fast
-      vec2 sq = frag - vec2(uDrop.x, y);
-      float along = clamp(sq.y / (rad * (4. + 26. * z * z)), 0., 1.);
-      float streak = exp(-sq.x * sq.x / (rad * rad * .09)) * (1. - along) * step(0., sq.y) * smoothstep(0., .25, z);
-      col += vec3(.55, .57, .68) * streak * .16 * (1. - body);
-    }
   }
 
   col *= uFade;

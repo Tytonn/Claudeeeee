@@ -4,6 +4,7 @@ import { GalaxyRenderer } from "../scenes/galaxy/renderer";
 import { SolarRenderer } from "../scenes/solar/renderer";
 import { RainRenderer } from "../scenes/rain/renderer";
 import { InkRenderer } from "../scenes/ink/renderer";
+import { SkyRenderer } from "../scenes/sky/renderer";
 import type { RGB } from "./color";
 import type { SceneId } from "../lib/types";
 
@@ -96,6 +97,33 @@ export type InkFrame = {
   detail: "standard" | "high";
 };
 
+/** The Sky scene's part of the frame (scenes/sky). */
+export type SkySceneFrame = {
+  /** Its colours right now, in paletteVector's order (scenes/sky/palettes.ts): nine colours, then the sun's x, y and the stars. */
+  palette: number[];
+  /** How far the wind has carried each layer (screen heights): the towers, the cumulus, the wisps, the far bank. */
+  drift: [number, number, number, number];
+  /** How cloudy, 0..1. */
+  cover: number;
+  /** The cursor, about -.5..+.5 each way: the nearer clouds shift with it (depth). */
+  par: [number, number];
+  /** The cursor's gust: where (CSS px), and how far it pushes the clouds near it (screen heights, y up). */
+  gust: [number, number, number, number];
+  /** The clouds parting round a point: where (CSS px), how wide (screen heights), how much. */
+  part: [number, number, number, number];
+  /** How strongly the sun's rays fan out, and a burst of sunlight, 0..1. */
+  rays: number;
+  burst: number;
+  fade: number;
+  /** Arriving through cloud: how much mist, how far it has opened (screen heights), how far we've risen. */
+  intro: [number, number, number];
+  /** A contrail: where it starts (screen heights, y up), its heading (radians), its speed; and how long since it began (s; 0: none). */
+  trail: [number, number, number, number];
+  trailAge: number;
+  /** Something's moving the clouds quickly: light them every frame. */
+  lively: boolean;
+};
+
 export type SkyFrame = {
   scene: SceneId;
   time: number;
@@ -119,9 +147,12 @@ export type SkyFrame = {
   cursor: number;
   /** 1 when nothing is drawn over the sky ("Bare"): the light ignores the panel's outline. */
   open: number;
+  /** The galaxy's own eclipse, 0..1: the corona pours from a solid moon hanging in the sky (not the page). */
+  eclipse: number;
   rain: RainFrame;
   solar: SolarFrame;
   ink: InkFrame;
+  sky: SkySceneFrame;
 };
 
 /**
@@ -174,7 +205,7 @@ export class Sky implements SkyContext {
     this.gl2 = gl2;
     this.galaxy = new GalaxyRenderer(this);
     this.ink = new InkRenderer(this);
-    this.renderers = { eclipse: this.galaxy, solar: new SolarRenderer(this), rain: new RainRenderer(this), ink: this.ink };
+    this.renderers = { eclipse: this.galaxy, solar: new SolarRenderer(this), rain: new RainRenderer(this), ink: this.ink, sky: new SkyRenderer(this) };
     this.setup();
     canvas.addEventListener("webglcontextlost", (e) => {
       e.preventDefault();

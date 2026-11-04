@@ -17,6 +17,13 @@ html[data-tone="light"] {
   --raised: #fcfaf6;
   --float: rgb(251 249 245 / 0.86);
   --float-solid: #fbf9f5;
+  /* the paper's own whites, for its sheets, washes and the halos round letters (top: the
+     brightest, for cards and menus), and the warm dark of its scrims — a light scene can
+     cool them all (the Sky does: sky.css) */
+  --paper: 248 245 239;
+  --paper-hi: 250 248 243;
+  --paper-top: 252 251 248;
+  --scrim: 52 44 36;
 
   /* ink */
   --fg-1: #1c1b21;
@@ -52,12 +59,12 @@ html[data-tone="light"] {
   --shadow-float:
     0 0 0 1px rgb(30 28 36 / 0.075),
     inset 0 1px 0 rgb(255 255 255 / 0.75),
-    0 26px 60px -18px rgb(58 44 28 / 0.26),
-    0 8px 22px -10px rgb(58 44 28 / 0.16);
+    0 26px 60px -18px rgb(var(--shade) / 0.26),
+    0 8px 22px -10px rgb(var(--shade) / 0.16);
   --shadow-pop:
     0 0 0 1px rgb(30 28 36 / 0.08),
     inset 0 1px 0 rgb(255 255 255 / 0.75),
-    0 12px 30px -10px rgb(58 44 28 / 0.22);
+    0 12px 30px -10px rgb(var(--shade) / 0.22);
 }
 
 /* The quiet greys stay ink-grey on paper, whatever the Background setting (the dark skies
@@ -109,13 +116,13 @@ html[data-tone="light"][data-typing] .canvas-glow {
 /* Dark (here: Paper) — frosted sheets over the water. */
 html[data-tone="light"][data-fx="cosmic"] .canvas,
 html[data-tone="light"][data-fx="subtle"] .canvas {
-  background: rgb(249 247 242 / 0.86);
+  background: rgb(var(--paper) / 0.86);
   -webkit-backdrop-filter: blur(24px) saturate(1.05);
   backdrop-filter: blur(24px) saturate(1.05);
 }
 html[data-tone="light"][data-fx="cosmic"] :is(.sidebar-inner, .rail-inner),
 html[data-tone="light"][data-fx="subtle"] :is(.sidebar-inner, .rail-inner) {
-  background: linear-gradient(180deg, rgb(250 248 244 / 0.7), rgb(248 246 241 / 0.62));
+  background: linear-gradient(180deg, rgb(var(--paper-hi) / 0.7), rgb(var(--paper) / 0.62));
   -webkit-backdrop-filter: blur(10px) saturate(1.05);
   backdrop-filter: blur(10px) saturate(1.05);
 }
@@ -123,22 +130,22 @@ html[data-tone="light"][data-fx="cosmic"] .app:not(.is-mobile) :is(.sidebar-inne
 html[data-tone="light"][data-fx="subtle"] .app:not(.is-mobile) :is(.sidebar-inner, .rail-inner) {
   box-shadow:
     inset 0 0 0 1px rgb(30 28 36 / 0.06),
-    0 18px 40px -26px rgb(58 44 28 / 0.25);
+    0 18px 40px -26px rgb(var(--shade) / 0.25);
 }
 html[data-tone="light"]:not([data-fx="off"]) .canvas[data-light] {
   box-shadow:
     0 0 0 1px var(--line),
-    calc(var(--sx, 0) * 24px) calc(var(--sy, 0) * 24px + 18px) 60px -34px rgb(58 44 28 / 0.3);
+    calc(var(--sx, 0) * 24px) calc(var(--sy, 0) * 24px + 18px) 60px -34px rgb(var(--shade) / 0.3);
 }
 
 /* Glass — the ink shows softly through. */
 html[data-tone="light"][data-backdrop="glass"]:is([data-fx="cosmic"], [data-fx="subtle"]) .canvas {
-  background: rgb(249 247 242 / 0.6);
+  background: rgb(var(--paper) / 0.6);
   -webkit-backdrop-filter: blur(10px) saturate(1.05);
   backdrop-filter: blur(10px) saturate(1.05);
 }
 html[data-tone="light"][data-backdrop="glass"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(.sidebar-inner, .rail-inner) {
-  background: linear-gradient(180deg, rgb(250 248 244 / 0.5), rgb(248 246 241 / 0.42));
+  background: linear-gradient(180deg, rgb(var(--paper-hi) / 0.5), rgb(var(--paper) / 0.42));
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
 }
@@ -150,15 +157,15 @@ html[data-tone="light"][data-backdrop="clear"]:is([data-fx="cosmic"], [data-fx="
   background:
     linear-gradient(
       90deg,
-      rgb(248 245 239 / 0.000) 0%, rgb(248 245 239 / 0.044) 4%, rgb(248 245 239 / 0.087) 8%, rgb(248 245 239 / 0.129) 12%,
-      rgb(248 245 239 / 0.170) 16%, rgb(248 245 239 / 0.207) 20%, rgb(248 245 239 / 0.241) 24%, rgb(248 245 239 / 0.271) 28%,
-      rgb(248 245 239 / 0.297) 32%, rgb(248 245 239 / 0.319) 36%, rgb(248 245 239 / 0.334) 40%, rgb(248 245 239 / 0.346) 44%,
-      rgb(248 245 239 / 0.351) 48%, rgb(248 245 239 / 0.351) 52%, rgb(248 245 239 / 0.346) 56%, rgb(248 245 239 / 0.334) 60%,
-      rgb(248 245 239 / 0.319) 64%, rgb(248 245 239 / 0.297) 68%, rgb(248 245 239 / 0.271) 72%, rgb(248 245 239 / 0.241) 76%,
-      rgb(248 245 239 / 0.207) 80%, rgb(248 245 239 / 0.170) 84%, rgb(248 245 239 / 0.129) 88%, rgb(248 245 239 / 0.087) 92%,
-      rgb(248 245 239 / 0.044) 96%, rgb(248 245 239 / 0.000) 100%
+      rgb(var(--paper) / 0.000) 0%, rgb(var(--paper) / 0.044) 4%, rgb(var(--paper) / 0.087) 8%, rgb(var(--paper) / 0.129) 12%,
+      rgb(var(--paper) / 0.170) 16%, rgb(var(--paper) / 0.207) 20%, rgb(var(--paper) / 0.241) 24%, rgb(var(--paper) / 0.271) 28%,
+      rgb(var(--paper) / 0.297) 32%, rgb(var(--paper) / 0.319) 36%, rgb(var(--paper) / 0.334) 40%, rgb(var(--paper) / 0.346) 44%,
+      rgb(var(--paper) / 0.351) 48%, rgb(var(--paper) / 0.351) 52%, rgb(var(--paper) / 0.346) 56%, rgb(var(--paper) / 0.334) 60%,
+      rgb(var(--paper) / 0.319) 64%, rgb(var(--paper) / 0.297) 68%, rgb(var(--paper) / 0.271) 72%, rgb(var(--paper) / 0.241) 76%,
+      rgb(var(--paper) / 0.207) 80%, rgb(var(--paper) / 0.170) 84%, rgb(var(--paper) / 0.129) 88%, rgb(var(--paper) / 0.087) 92%,
+      rgb(var(--paper) / 0.044) 96%, rgb(var(--paper) / 0.000) 100%
     ),
-    rgb(248 245 239 / 0.1);
+    rgb(var(--paper) / 0.1);
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
@@ -168,17 +175,17 @@ html[data-tone="light"][data-backdrop="clear"]:is([data-fx="cosmic"], [data-fx="
 html[data-tone="light"][data-ink-water][data-backdrop="clear"]:is([data-fx="cosmic"], [data-fx="subtle"]) .app:not(.is-mobile) > .canvas {
   background: linear-gradient(
     90deg,
-    rgb(248 245 239 / 0) calc(50% - 420px),
-    rgb(248 245 239 / 0.2) calc(50% - 340px),
-    rgb(248 245 239 / 0.24) 50%,
-    rgb(248 245 239 / 0.2) calc(50% + 340px),
-    rgb(248 245 239 / 0) calc(50% + 420px)
+    rgb(var(--paper) / 0) calc(50% - 420px),
+    rgb(var(--paper) / 0.2) calc(50% - 340px),
+    rgb(var(--paper) / 0.24) 50%,
+    rgb(var(--paper) / 0.2) calc(50% + 340px),
+    rgb(var(--paper) / 0) calc(50% + 420px)
   );
 }
 /* The side columns are sheets of vellum: the ink still drifts behind them, softened, but
    ink-dark words never sit right over ink-dark clouds. */
 html[data-tone="light"][data-backdrop="clear"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(.sidebar-inner, .rail-inner) {
-  background: rgb(250 248 244 / 0.38);
+  background: rgb(var(--paper-hi) / 0.38);
   -webkit-backdrop-filter: blur(5px) saturate(1.04);
   backdrop-filter: blur(5px) saturate(1.04);
 }
@@ -186,22 +193,22 @@ html[data-tone="light"][data-backdrop="clear"]:is([data-fx="cosmic"], [data-fx="
    fall of paper keeps them easy to read (the list's bottom bar likewise). */
 html[data-tone="light"][data-backdrop="clear"]:is([data-fx="cosmic"], [data-fx="subtle"]) .app.is-mobile > .canvas {
   background:
-    linear-gradient(0deg, rgb(248 245 239 / 0.62), rgb(248 245 239 / 0.36) 9%, rgb(248 245 239 / 0) 24%),
-    linear-gradient(90deg, rgb(248 245 239 / 0.1), rgb(248 245 239 / 0.3) 30%, rgb(248 245 239 / 0.3) 70%, rgb(248 245 239 / 0.1)),
-    rgb(248 245 239 / 0.08);
+    linear-gradient(0deg, rgb(var(--paper) / 0.62), rgb(var(--paper) / 0.36) 9%, rgb(var(--paper) / 0) 24%),
+    linear-gradient(90deg, rgb(var(--paper) / 0.1), rgb(var(--paper) / 0.3) 30%, rgb(var(--paper) / 0.3) 70%, rgb(var(--paper) / 0.1)),
+    rgb(var(--paper) / 0.08);
 }
 html[data-tone="light"][data-backdrop="clear"]:is([data-fx="cosmic"], [data-fx="subtle"]) .app.is-mobile .sidebar-inner {
-  background: linear-gradient(0deg, rgb(248 245 239 / 0.72), rgb(248 245 239 / 0.4) 10%, rgb(248 245 239 / 0) 26%);
+  background: linear-gradient(0deg, rgb(var(--paper) / 0.72), rgb(var(--paper) / 0.4) 10%, rgb(var(--paper) / 0) 26%);
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
 html[data-tone="light"][data-backdrop="clear"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(.canvas, .sidebar-inner, .rail-inner, .viewer-main) {
   text-shadow:
-    0 0 1px rgb(250 248 243 / 0.7),
-    0 0 12px rgb(250 248 243 / 0.85);
+    0 0 1px rgb(var(--paper-hi) / 0.7),
+    0 0 12px rgb(var(--paper-hi) / 0.85);
 }
 html[data-tone="light"][data-backdrop="clear"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(.cd-card, .todo-add, .sb-search) {
-  background-color: rgb(250 248 244 / 0.55);
+  background-color: rgb(var(--paper-hi) / 0.55);
 }
 
 /* Crystal and Bare — no paper at all between you and the water; every letter keeps a crisp
@@ -209,15 +216,15 @@ html[data-tone="light"][data-backdrop="clear"]:is([data-fx="cosmic"], [data-fx="
 html[data-tone="light"][data-backdrop="crystal"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(.canvas, .sidebar-inner, .rail-inner, .viewer-main, .viewer-bar),
 html[data-tone="light"][data-backdrop="bare"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(.canvas, .sidebar-inner, .rail-inner, .viewer-main, .viewer-bar) {
   text-shadow:
-    0 0 1px rgb(250 248 243 / 0.98),
-    0 0 2px rgb(250 248 243 / 0.95),
-    0 0 5px rgb(250 248 243 / 0.85),
-    0 0 12px rgb(250 248 243 / 0.75),
-    0 0 26px rgb(250 248 243 / 0.55);
+    0 0 1px rgb(var(--paper-hi) / 0.98),
+    0 0 2px rgb(var(--paper-hi) / 0.95),
+    0 0 5px rgb(var(--paper-hi) / 0.85),
+    0 0 12px rgb(var(--paper-hi) / 0.75),
+    0 0 26px rgb(var(--paper-hi) / 0.55);
 }
 html[data-tone="light"][data-backdrop="crystal"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(svg, .check, .live-dot),
 html[data-tone="light"][data-backdrop="bare"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(svg, .check, .live-dot) {
-  filter: drop-shadow(0 0 2px rgb(250 248 243 / 0.9));
+  filter: drop-shadow(0 0 2px rgb(var(--paper-hi) / 0.9));
 }
 /* (the note itself too: open water, nothing between your words and the ink) */
 html[data-tone="light"][data-backdrop="crystal"]:is([data-fx="cosmic"], [data-fx="subtle"]) .canvas,
@@ -230,7 +237,7 @@ html[data-tone="light"][data-backdrop="bare"]:is([data-fx="cosmic"], [data-fx="s
    behind small dark words. */
 html[data-tone="light"][data-backdrop="crystal"]:is([data-fx="cosmic"], [data-fx="subtle"]) .app :is(.sidebar-inner, .rail-inner),
 html[data-tone="light"][data-backdrop="crystal"]:is([data-fx="cosmic"], [data-fx="subtle"]) .app:not(.is-mobile) :is(.sidebar-inner, .rail-inner) {
-  background: rgb(250 248 244 / 0.24);
+  background: rgb(var(--paper-hi) / 0.24);
   -webkit-backdrop-filter: blur(3px);
   backdrop-filter: blur(3px);
 }
@@ -253,7 +260,7 @@ html[data-tone="light"][data-backdrop="bare"]:is([data-fx="cosmic"], [data-fx="s
   box-shadow: none;
 }
 html[data-tone="light"]:is([data-backdrop="clear"], [data-backdrop="crystal"], [data-backdrop="bare"]):is([data-fx="cosmic"], [data-fx="subtle"]) :is(.wordmark, .all-done) {
-  filter: drop-shadow(0 0 1px rgb(250 248 243 / 0.9)) drop-shadow(0 0 8px rgb(250 248 243 / 0.7));
+  filter: drop-shadow(0 0 1px rgb(var(--paper-hi) / 0.9)) drop-shadow(0 0 8px rgb(var(--paper-hi) / 0.7));
 }
 html[data-tone="light"][data-backdrop="bare"]:is([data-fx="cosmic"], [data-fx="subtle"]) .cd-card:hover {
   background: rgb(30 28 36 / 0.035);
@@ -262,36 +269,36 @@ html[data-tone="light"][data-backdrop="bare"]:is([data-fx="cosmic"], [data-fx="s
 /* ── Floating things: paper cards, lifted on soft shadow ─────────────────── */
 
 html[data-tone="light"] .overlay {
-  background: rgb(52 44 36 / 0.2);
+  background: rgb(var(--scrim) / 0.2);
   -webkit-backdrop-filter: blur(4px) saturate(0.9);
   backdrop-filter: blur(4px) saturate(0.9);
 }
 html[data-tone="light"][data-fx="cosmic"] .overlay {
-  background: rgb(52 44 36 / 0.16);
+  background: rgb(var(--scrim) / 0.16);
 }
 html[data-tone="light"] .modal {
-  background: linear-gradient(180deg, rgb(252 251 248 / 0.97), rgb(247 244 238 / 0.97));
+  background: linear-gradient(180deg, rgb(var(--paper-top) / 0.97), rgb(var(--paper) / 0.97));
 }
 html[data-tone="light"][data-fx="cosmic"] .modal,
 html[data-tone="light"][data-fx="subtle"] .modal {
-  background: linear-gradient(180deg, rgb(252 251 248 / 0.9), rgb(247 244 238 / 0.92));
+  background: linear-gradient(180deg, rgb(var(--paper-top) / 0.9), rgb(var(--paper) / 0.92));
 }
 html[data-tone="light"] .modal.palette,
 html[data-tone="light"][data-fx="cosmic"] .modal.palette,
 html[data-tone="light"][data-fx="subtle"] .modal.palette {
-  background: linear-gradient(180deg, rgb(252 251 248 / 0.84), rgb(247 244 238 / 0.88));
+  background: linear-gradient(180deg, rgb(var(--paper-top) / 0.84), rgb(var(--paper) / 0.88));
 }
 html[data-tone="light"] .modal::before {
   background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.95), transparent);
 }
 html[data-tone="light"] .tooltip {
-  background: rgb(252 250 247 / 0.96);
+  background: rgb(var(--paper-top) / 0.96);
 }
 html[data-tone="light"] .toast {
-  background: rgb(252 250 247 / 0.94);
+  background: rgb(var(--paper-top) / 0.94);
 }
 html[data-tone="light"] .access-card {
-  background: linear-gradient(180deg, rgb(252 251 248 / 0.95), rgb(247 244 238 / 0.96));
+  background: linear-gradient(180deg, rgb(var(--paper-top) / 0.95), rgb(var(--paper) / 0.96));
 }
 html[data-tone="light"] .share-link {
   background: rgb(30 28 36 / 0.045);
@@ -302,7 +309,7 @@ html[data-tone="light"] .switch-knob {
   background: #fff;
   box-shadow:
     0 0 0 0.5px rgb(30 28 36 / 0.12),
-    0 1px 3px rgb(58 44 28 / 0.3);
+    0 1px 3px rgb(var(--shade) / 0.3);
 }
 html[data-tone="light"] .switch.on {
   box-shadow:
@@ -323,7 +330,7 @@ html[data-tone="light"] :is(.todo, .todo-section, .tag-dot) {
   --tag: var(--tag-p);
 }
 html[data-tone="light"] .todo.has-tag .check-mark {
-  stroke: rgb(251 249 244 / 0.96);
+  stroke: rgb(var(--paper-hi) / 0.96);
 }
 
 /* ── Code, in ink ────────────────────────────────────────────────────────── */
@@ -363,13 +370,13 @@ html[data-tone="light"] .hljs-deletion {
 /* ── The friend's page ───────────────────────────────────────────────────── */
 
 html[data-tone="light"] .viewer-bar {
-  background: linear-gradient(180deg, rgb(247 244 238 / 0.92), rgb(247 244 238 / 0.6));
+  background: linear-gradient(180deg, rgb(var(--paper) / 0.92), rgb(var(--paper) / 0.6));
 }
 html[data-tone="light"][data-fx="cosmic"] .viewer-bar {
-  background: linear-gradient(180deg, rgb(247 244 238 / 0.7), rgb(247 244 238 / 0.3));
+  background: linear-gradient(180deg, rgb(var(--paper) / 0.7), rgb(var(--paper) / 0.3));
 }
 html[data-tone="light"][data-fx="cosmic"] :is(.viewer-cd, .viewer-todos) {
-  background-color: rgb(250 248 244 / 0.55);
+  background-color: rgb(var(--paper-hi) / 0.55);
 }
 html[data-tone="light"][data-fx="cosmic"] .viewer-main,
 html[data-tone="light"][data-fx="subtle"] .viewer-main,
@@ -377,9 +384,9 @@ html[data-tone="light"][data-backdrop="glass"]:is([data-fx="cosmic"], [data-fx="
 html[data-tone="light"][data-backdrop="clear"]:is([data-fx="cosmic"], [data-fx="subtle"]) .viewer-main {
   background: radial-gradient(
     closest-side,
-    rgb(248 245 239 / 0.42) 0%, rgb(248 245 239 / 0.418) 10%, rgb(248 245 239 / 0.404) 20%, rgb(248 245 239 / 0.382) 30%,
-    rgb(248 245 239 / 0.349) 40%, rgb(248 245 239 / 0.305) 50%, rgb(248 245 239 / 0.252) 60%, rgb(248 245 239 / 0.19) 70%,
-    rgb(248 245 239 / 0.123) 80%, rgb(248 245 239 / 0.054) 90%, rgb(248 245 239 / 0) 100%
+    rgb(var(--paper) / 0.42) 0%, rgb(var(--paper) / 0.418) 10%, rgb(var(--paper) / 0.404) 20%, rgb(var(--paper) / 0.382) 30%,
+    rgb(var(--paper) / 0.349) 40%, rgb(var(--paper) / 0.305) 50%, rgb(var(--paper) / 0.252) 60%, rgb(var(--paper) / 0.19) 70%,
+    rgb(var(--paper) / 0.123) 80%, rgb(var(--paper) / 0.054) 90%, rgb(var(--paper) / 0) 100%
   );
 }
 
@@ -392,13 +399,13 @@ html[data-tone="light"]:not([data-fx="off"]) [data-light]::after {
 }
 html[data-tone="light"]:not([data-fx="off"]) .cd-card[data-light] {
   box-shadow:
-    calc(var(--sx, 0) * 12px) calc(var(--sy, 0) * 12px + 8px) 26px -14px rgb(58 44 28 / 0.28),
+    calc(var(--sx, 0) * 12px) calc(var(--sy, 0) * 12px + 8px) 26px -14px rgb(var(--shade) / 0.28),
     inset 0 0 0 1px var(--line),
     inset 0 1px 0 rgb(255 255 255 / 0.6);
 }
 html[data-tone="light"]:not([data-fx="off"]) .cd-card[data-light]:hover {
   box-shadow:
-    calc(var(--sx, 0) * 16px) calc(var(--sy, 0) * 16px + 12px) 30px -14px rgb(58 44 28 / 0.32),
+    calc(var(--sx, 0) * 16px) calc(var(--sy, 0) * 16px + 12px) 30px -14px rgb(var(--shade) / 0.32),
     inset 0 0 0 1px var(--line-2),
     inset 0 1px 0 rgb(255 255 255 / 0.7);
 }

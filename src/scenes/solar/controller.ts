@@ -40,6 +40,23 @@ function keyed(keys: [number, number][], t: number) {
   return keys[keys.length - 1][1];
 }
 
+/** How much nearer (or further) than usual an eclipse looks at a Distance setting `size`:
+ *  0.62 (far off) .. 1 (the default, halfway) .. 3.25 (right up close). */
+function scaleOf(size: number) {
+  const s = Math.min(1, Math.max(0, size));
+  return s <= 0.5 ? Math.pow(2, (s - 0.5) * 1.4) : Math.pow(3.25, (s - 0.5) * 2);
+}
+
+/** How far past the default it's been brought, 0..1 (the room it may take grows with it). */
+function closerOf(size: number) {
+  return Math.min(1, Math.max(0, (size - 0.5) * 2));
+}
+
+/** The most a sun's size may be (px), let out as it's brought closer than it once could be. */
+function mostOf(size: number, px: number) {
+  return px * Math.max(1, scaleOf(size) / 1.62);
+}
+
 /**
  * The solar eclipse, seen from the ground: where the sun hangs and how it glides there, the
  * moon wandering over it (or nudged off it: Baily's beads, the diamond ring), prominences
@@ -116,18 +133,13 @@ export class SolarScene implements SceneController {
   /** How much nearer (or further) than usual the eclipse looks, from the Distance setting: 0.62 (far
    *  off) .. 1 (the default, halfway) .. 3.25 (right up close). */
   get sunScale() {
-    const s = Math.min(1, Math.max(0, this.solarOpts.size));
-    return s <= 0.5 ? Math.pow(2, (s - 0.5) * 1.4) : Math.pow(3.25, (s - 0.5) * 2);
+    return scaleOf(this.solarOpts.size);
   }
 
-  /** How far past the default it's been brought, 0..1 (the room it may take grows with it). */
-  private get closer() {
-    return Math.min(1, Math.max(0, (this.solarOpts.size - 0.5) * 2));
-  }
-
-  /** The most a sun's size may be (px), let out as it's brought closer than it once could be. */
-  private most(px: number) {
-    return px * Math.max(1, this.sunScale / 1.62);
+  /** Where an eclipse hangs at a given Distance, in the layout as it is now (CSS px) — the
+   *  galaxy's own eclipse borrows the solar eclipse's spot, at the usual distance. */
+  homeFor(size: number) {
+    return this.sunHome(size);
   }
 
   /** Where the sun is (CSS px), for things that start from it. */
@@ -151,42 +163,46 @@ export class SolarScene implements SceneController {
    * or sends it further off — and so does focus mode: with the side columns put away the sky comes
    * closer, the sun staying where it hangs, only bigger.
    */
-  private sunHome() {
+  private sunHome(size = this.solarOpts.size) {
     const W = this.fx.W;
     const H = this.fx.H;
     const m = Math.min(W, H);
-    const near = this.sunScale;
+    const near = scaleOf(size);
+    const most = (px: number) => mostOf(size, px);
     const fit = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
     if (this.fx.panelCircle) {
       const r = fit(m * 0.08 * near, 30, 130);
       return { x: W / 2, y: Math.max(r * 2.3, H * 0.15), r };
     }
     if (this.fx.small) {
-      const r = fit(W * 0.12 * near, 28, this.most(110));
+      const r = fit(W * 0.12 * near, 28, most(110));
       return { x: W * 0.62, y: H * 0.56, r };
     }
     const r0 = m * 0.088 * near;
     if (this.fx.panelEl) {
       this.measureLayout();
-      const key = `${W}x${H} ${this.solarOpts.size} ${this.backdrop}`;
+      const key = `${W}x${H} ${size} ${this.backdrop}`;
+      const page = this.fx.pageRect;
       if (!this.focus) {
-        const home = this.beside(this.textRight, this.railLeft, this.railBottom, this.fx.panel.x + this.fx.panel.w, r0);
+        const home = this.beside(this.textRight, this.railLeft, this.railBottom, page.x + page.w, r0, size);
         this.usual = { ...home, key };
         return home;
       }
       // Focus mode: where it would hang with the side columns out (as last seen, or as they'd be)…
       const shift = (this.sideW - this.railW) / 2;
-      const usual = this.usual?.key === key ? this.usual : this.beside(this.textRight + shift, W - this.railW, this.railBottom || H * 0.3, W - this.railW, r0);
+      const usual = this.usual?.key === key ? this.usual : this.beside(this.textRight + shift, W - this.railW, this.railBottom || H * 0.3, W - this.railW, r0, size);
       // …only closer: bigger, though never so big that its bright ring reaches your words
       const clear = (usual.x - this.textRight) / 1.55;
       const r = Math.max(usual.r, Math.min(usual.r * 1.38, clear, usual.y / 1.15));
       return { x: usual.x, y: usual.y, r };
     }
-    return { x: W * 0.76, y: H * 0.4, r: fit(r0, 32, this.most(150)) };
+    return { x: W * 0.76, y: H * 0.4, r: fit(r0, 32, most(150)) };
   }
 
   /** Where the sun hangs beside your writing, given where it ends and where the right-hand column starts. */
-  private beside(textRight: number, railLeft: number, railBottom: number, panelRight: number, r0: number) {
+  private beside(textRight: number, railLeft: number, railBottom: number, panelRight: number, r0: number, size = this.solarOpts.size) {
+    const closer = closerOf(size);
+    const most = (px: number) => mostOf(size, px);
     const W = this.fx.W;
     const H = this.fx.H;
     const fit = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -194,15 +210,15 @@ export class SolarScene implements SceneController {
     if (this.backdrop !== "dark" && gap > Math.min(r0, 70) * 3.2) {
       // It keeps its bright inner ring clear of your words — unless you've asked for it closer,
       // when it may come right up to them (and, brought all the way, past them).
-      const room = gap / (3.1 - 2 * this.closer);
-      return { x: textRight + gap / 2, y: H * 0.4, r: fit(Math.min(r0, room), 32, this.most(170)) };
+      const room = gap / (3.1 - 2 * closer);
+      return { x: textRight + gap / 2, y: H * 0.4, r: fit(Math.min(r0, room), 32, most(170)) };
     }
     const right = W - panelRight;
     if (right > 220) {
-      const r = fit(Math.min(r0, right * (0.3 + 0.5 * this.closer)), 34, this.most(120));
+      const r = fit(Math.min(r0, right * (0.3 + 0.5 * closer)), 34, most(120));
       return { x: panelRight + right / 2, y: fit(railBottom + r * 2.4, H * 0.42, H * 0.72), r };
     }
-    return { x: W * 0.76, y: H * 0.4, r: fit(r0, 32, this.most(150)) };
+    return { x: W * 0.76, y: H * 0.4, r: fit(r0, 32, most(150)) };
   }
 
   /** Where your writing ends and the right-hand column begins (and its widgets end), every so often. */
@@ -213,7 +229,8 @@ export class SolarScene implements SceneController {
     let right = 0;
     for (const el of document.querySelectorAll<HTMLElement>(".canvas .note-title, .canvas .prose")) right = Math.max(right, el.getBoundingClientRect().right);
     // no note open: about where one would be
-    this.textRight = right || this.fx.panel.x + this.fx.panel.w / 2 + 330;
+    const page = this.fx.pageRect;
+    this.textRight = right || page.x + page.w / 2 + 330;
     // focus mode, and how wide the side columns are when they're out
     const app = document.querySelector<HTMLElement>(".app");
     this.focus = Boolean(app?.classList.contains("is-focus"));

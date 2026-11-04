@@ -15,6 +15,7 @@ export function shouldPlayIntro(): boolean {
     const kind = SCENES[fx.scene].intro;
     if (kind === "solar") document.documentElement.classList.add("intro-solar");
     if (kind === "ink") document.documentElement.classList.add("intro-ink");
+    if (kind === "sky") document.documentElement.classList.add("intro-sky");
     return true;
   } catch {
     return false;
@@ -24,7 +25,7 @@ export function shouldPlayIntro(): boolean {
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
 type Kind = IntroKind;
-const LENGTH: Record<Kind, number> = { eclipse: 2650, rain: 2900, solar: 3400, ink: 2500 };
+const LENGTH: Record<Kind, number> = { eclipse: 2650, rain: 2900, solar: 3400, ink: 2500, sky: 3000 };
 /** Where the moon comes from in the solar intro (down and to the right, so the sun breaks out up and to the left). */
 const FROM = { x: 0.82, y: 0.57 };
 
@@ -44,6 +45,10 @@ const FROM = { x: 0.82, y: 0.57 };
  * On Ink it's quiet: just the paper, and the name soaking into it letter by letter, the way ink
  * takes to paper — while a cloud of ink opens out in the water beneath it. Then the page comes up
  * over it, and the water carries the cloud away.
+ *
+ * In the Sky you rise up through cloud: white mist streaming down past, the name condensing out
+ * of it — then the cloud opens out from the middle onto a blue sky, the sun bursts through, and
+ * the page comes up.
  */
 export function Intro({ onDone }: { onDone: () => void }) {
   const [kind] = useState<Kind>(() => SCENES[fx.scene].intro);
@@ -63,6 +68,13 @@ export function Intro({ onDone }: { onDone: () => void }) {
     document.documentElement.classList.add("intro-ink");
     const t = window.setTimeout(() => fx.inkWelcome(innerWidth / 2, innerHeight * 0.5 + Math.min(150, innerHeight * 0.17), 3200), 260);
     return () => window.clearTimeout(t);
+  }, [kind]);
+
+  // In the Sky: inside a cloud, rising, from the very first frame (it opens as the name fades).
+  useLayoutEffect(() => {
+    if (kind !== "sky") return;
+    document.documentElement.classList.add("intro-sky");
+    fx.skyArrive({ hold: 1550, open: 2100 });
   }, [kind]);
 
   // Before the first paint: the sun in place, the moon well off it, the sky still dark.
@@ -89,6 +101,15 @@ export function Intro({ onDone }: { onDone: () => void }) {
       if (kind === "rain") {
         window.setTimeout(() => fx.diamondRing(), 140 / rate);
         window.setTimeout(() => onDoneRef.current(), 900 / rate);
+        return;
+      }
+      if (kind === "sky") {
+        // the cloud opens (at once, if it's been skipped) and the page comes up
+        fx.skySkip();
+        root.classList.remove("intro-sky");
+        root.classList.add("intro-sky-out");
+        window.setTimeout(() => root.classList.remove("intro-sky-out"), 1500);
+        window.setTimeout(() => onDoneRef.current(), 800 / rate);
         return;
       }
       if (kind === "ink") {
@@ -148,6 +169,10 @@ export function Intro({ onDone }: { onDone: () => void }) {
         root.classList.remove("intro-solar");
       }
       if (kind === "ink" && !done.current) root.classList.remove("intro-ink");
+      if (kind === "sky" && !done.current) {
+        fx.skySkip();
+        root.classList.remove("intro-sky");
+      }
     };
   }, [kind]);
 
@@ -174,6 +199,23 @@ export function Intro({ onDone }: { onDone: () => void }) {
           <div className="intro-word display">
             {"umbra".split("").map((ch, i) => (
               <span key={i} style={{ animationDelay: `${0.32 + i * 0.13}s` }}>
+                {ch}
+              </span>
+            ))}
+          </div>
+          <div className="intro-tag mono">a quiet place to write</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (kind === "sky") {
+    return (
+      <div className={`intro sky is-${stage}`} aria-hidden>
+        <div className="intro-stage">
+          <div className="intro-word display">
+            {"umbra".split("").map((ch, i) => (
+              <span key={i} style={{ animationDelay: `${0.3 + i * 0.1}s` }}>
                 {ch}
               </span>
             ))}

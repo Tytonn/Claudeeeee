@@ -18,7 +18,7 @@ function InkArt() {
 
 /** Ink's own settings (letters settle with effects off too: it's how typing feels, not the scene). */
 function InkSettings() {
-  const on = useApp((s) => s.settings.inkSettle !== false);
+  const on = useApp((s) => s.settings.inkLetters === true);
   const colours = useApp((s) => (s.settings.inkColours === "accent" ? "accent" : "sumi"));
   const detail = useApp((s) => (s.settings.inkDetail === "standard" ? "standard" : "high"));
   const scene = useApp((s) => s.settings.scene);
@@ -57,7 +57,7 @@ function InkSettings() {
         </SegmentedEpoch.Provider>
       )}
       <Row label="Ink settling letters" desc="Each letter you type lands in wet, blue-black ink and dries as you write on.">
-        <Switch checked={on} onChange={(v) => setSettings({ inkSettle: v })} label="Ink settling letters" />
+        <Switch checked={on} onChange={(v) => setSettings({ inkLetters: v })} label="Ink settling letters" />
       </Row>
     </>
   );
@@ -70,10 +70,10 @@ export const inkUI: SceneUI = {
   commands: (settings, set) => [
     {
       id: "ink-settle",
-      label: settings.inkSettle !== false ? "Turn settling letters off" : "Turn settling letters on",
+      label: settings.inkLetters === true ? "Turn settling letters off" : "Turn settling letters on",
       icon: <Type size={15} strokeWidth={1.6} />,
       keywords: "ink letters typing wet dry soak settle bleed fountain pen effect",
-      run: () => set({ inkSettle: settings.inkSettle === false }),
+      run: () => set({ inkLetters: settings.inkLetters !== true }),
     },
     // (only where the ink is in real water)
     ...(fx.sky?.inkFluid

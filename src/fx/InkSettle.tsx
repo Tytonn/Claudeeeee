@@ -31,7 +31,7 @@ type Letter = { pos: number; ch: string; ink?: HTMLElement; at?: string };
 
 export function InkSettle({ editor, container }: { editor: Editor | null; container: HTMLElement | null }) {
   const layer = useRef<HTMLDivElement>(null);
-  const on = useApp((s) => s.settings.scene === "ink" && s.settings.inkSettle !== false);
+  const on = useApp((s) => s.settings.scene === "ink" && s.settings.inkLetters === true);
 
   useEffect(() => {
     const el = layer.current;

@@ -32,16 +32,16 @@ export const GOLDEN_ACCENT: AccentId = "corona";
  */
 
 /** Which set of little sounds goes with a scene (see lib/sound.ts). */
-export type SoundTheme = "eclipse" | "rain" | "ink";
+export type SoundTheme = "eclipse" | "rain" | "ink" | "sky";
 
 /** The launch intro a scene plays (see fx/Intro.tsx). */
-export type IntroKind = "eclipse" | "rain" | "solar" | "ink";
+export type IntroKind = "eclipse" | "rain" | "solar" | "ink" | "sky";
 
 /** How a scene arrives when it's chosen (see fx/transitions.ts). */
-export type EnterKind = "circle" | "rain" | "sun" | "drop";
+export type EnterKind = "circle" | "rain" | "sun" | "drop" | "clouds";
 
 /** How the open note leaves when it's deleted (see fx/dom.ts). */
-export type WipeKind = "moon" | "rain" | "ink";
+export type WipeKind = "moon" | "rain" | "ink" | "mist";
 
 export type SceneMeta = {
   id: SceneId;
@@ -75,6 +75,8 @@ export type SceneMeta = {
 export const PAPER = "#f1ede5";
 /** The dark scenes' page. */
 export const NIGHT = "#08090a";
+/** The Sky's page: a pale summer blue. (Keep in step with styles/sky.css and public/boot.js.) */
+export const SKY_PLAIN = "#d6e8f8";
 
 export const SCENES: Record<SceneId, SceneMeta> = {
   // (its id is "eclipse" for history's sake: it's the galaxy, with the note as the moon)
@@ -148,10 +150,27 @@ export const SCENES: Record<SceneId, SceneMeta> = {
     cursorDesc: "Your cursor stirs the water as it passes, and darkens the edges of things a little.",
     backdropDesc: "How much of the water shows through. Your words always stay readable.",
   },
+  sky: {
+    id: "sky",
+    name: "Sky",
+    tagline: "A summer sky, heaped with cloud",
+    command: "Scene: Sky",
+    keywords: "scene theme sky clouds cloud blue day sun sunny summer anime cumulus sunset golden pastel twilight wind light bright background",
+    light: true,
+    plain: SKY_PLAIN,
+    sounds: "sky",
+    soundsWithoutEffects: true,
+    intro: "sky",
+    enter: "clouds",
+    wipe: "mist",
+    effectsDesc: "The clouds drifting on the wind, the sun and its rays, gusts and bursts of sunlight. Calm it down any time.",
+    cursorDesc: "Your cursor is a breath of wind: the clouds near it drift along as it passes.",
+    backdropDesc: "How much of the sky shows through. Your words always stay readable.",
+  },
 };
 
 /** The order they're offered in (Settings, the command palette). */
-export const SCENE_ORDER: readonly SceneId[] = ["eclipse", "solar", "rain", "ink"];
+export const SCENE_ORDER: readonly SceneId[] = ["eclipse", "solar", "rain", "ink", "sky"];
 export const SCENE_LIST: readonly SceneMeta[] = SCENE_ORDER.map((id) => SCENES[id]);
 
 /** A saved scene, or the Galaxy if it isn't one we know. */

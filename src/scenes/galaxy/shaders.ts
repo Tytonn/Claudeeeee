@@ -30,6 +30,7 @@ uniform float uScale;    // min(uRes)
 uniform float uQuality;  // 1 = full, 0 = light
 uniform float uCursor;   // how much the cursor lights the sky, 0..1
 uniform float uOpen;     // 1 = the "Bare" background: no panel to see, so no edge to the light
+uniform float uMoon;     // the galaxy's own eclipse, 0..1: the circle is a solid moon hanging in the sky (0: the page, or a friend's moon)
 
 float hash12(vec2 p) {
   vec3 p3 = fract(vec3(p.xyx) * .1031);
@@ -163,8 +164,10 @@ void main() {
   // With nothing drawn over the sky ("Bare"), there's no moon to hide behind: the soft light
   // carries straight on behind the words instead of stopping at an edge, and the bright
   // rim and the rays that hug the panel's outline give way to rays that only begin further out.
-  around = mix(around, 1., uOpen);
-  float edgeless = mix(1., smoothstep(uScale * .02, uScale * .16, d), uOpen);
+  // (the galaxy's own eclipse is a real moon, though, whatever the Background)
+  float openK = uOpen * (1. - uMoon);
+  around = mix(around, 1., openK);
+  float edgeless = mix(1., smoothstep(uScale * .02, uScale * .16, d), openK);
   // The corona is brighter on the side the light comes from: the cursor, or (with the cursor's
   // light turned off) from up and to the right.
   vec2 toMouse = normalize(uMouse - uPanel.xy + vec2(1e-3));
@@ -176,11 +179,34 @@ void main() {
   float power = (.45 + .35 * uEnergy) * (1. + uFlare * (.5 + 2.8 * near) * flareTop) * (1. - uDim * .85);
   vec3 hot = mix(uA, vec3(1.), .55);
   float far = exp(-dn / (.13 + .05 * uEnergy + .12 * uFlare * near));
+
+  // The galaxy's own eclipse: its moon is solid — the sky behind it hidden — with the faintest
+  // earthshine on its night side, darker seas across it; round its limb a thin pink thread of
+  // chromosphere, flames of prominences standing up off it here and there, and the pearly inner
+  // corona hugging it close.
+  if (uMoon > 0. && uShape > .5) {
+    if (d < 2.) {
+      vec2 mp = pc / max(uPanel.z, 1.);
+      float seas = fbm(mp * 2.4 + vec2(3.7, 1.9));
+      float lit = .6 + .4 * dot(mp, -lightDir);
+      vec3 face = vec3(.009, .010, .015) + mix(uB, vec3(.55, .6, .72), .6) * (.011 + .018 * smoothstep(.62, .3, seas)) * lit * (1. - .4 * dot(mp, mp));
+      col = mix(col, face, smoothstep(1.2, -1.2, d) * uMoon);
+    }
+    if (d > -3. && d < uScale * .07) {
+      float limb = exp(-abs(d) / (uScale * .0022));
+      float prom = pow(fbm(vec2(ang * 7.5 + 2.3, uTime * .035)), 5.) * 6.;
+      float tall = uScale * (.002 + .014 * prom);
+      float flame = step(0., d) * exp(-d / max(tall, 1.)) * smoothstep(.2, .6, prom) * (.55 + .45 * fbm(vec2(ang * 46., d / uScale * 70. - uTime * .25)));
+      vec3 chromo = mix(vec3(1., .4, .5), uA, .2);
+      col += chromo * (limb * .26 + flame * .6) * uMoon * power;
+      col += mix(hot, vec3(1.), .6) * exp(-max(d, 0.) / (uScale * .011)) * step(0., d) * .2 * uMoon * power * side;
+    }
+  }
   col += mix(uA, uB, .25) * halo * power * .3 * side * around;
   col += mix(uB, uA, .6) * exp(-dn / .3) * .035 * power * (1. + gust * .6) * around;
   col += mix(hot, uA, .35) * st * far * .24 * (1. + gust * .8) * side * power * inside * edgeless;
   col += hot * outer * (.11 + rays * .3) * (1. + gust) * side * power * inside * edgeless;
-  col += mix(hot, vec3(1.), .5) * rim * .38 * side * power * inside * (1. - uOpen);
+  col += mix(hot, vec3(1.), .5) * rim * .38 * side * power * inside * (1. - openK);
 
   // Diamond ring: a single blinding point of sunlight on the rim.
   if (uRing.z > 0.) {

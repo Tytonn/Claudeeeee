@@ -71,6 +71,9 @@ export default defineConfig({
   build: {
     target: "es2022",
     chunkSizeWarningLimit: 1500,
+    // The scene cards' pictures stay files of their own, fetched when Settings shows them, rather
+    // than baked into the app's script (however small).
+    assetsInlineLimit: (file) => (file.endsWith(".webp") ? false : undefined),
     rolldownOptions: {
       // Same app, two doors: share links get their own page so chat apps show a
       // "shared with you" preview, while the homepage keeps the generic one.

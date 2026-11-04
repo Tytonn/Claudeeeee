@@ -4,6 +4,7 @@ import { galaxyUI } from "./galaxy/ui";
 import { solarUI } from "./solar/ui";
 import { rainUI } from "./rain/ui";
 import { inkUI } from "./ink/ui";
+import { skyUI } from "./sky/ui";
 
 export type { SceneCommand, SceneUI } from "./types";
 
@@ -13,4 +14,5 @@ export const SCENE_UI: Record<SceneId, SceneUI> = {
   solar: solarUI,
   rain: rainUI,
   ink: inkUI,
+  sky: skyUI,
 };

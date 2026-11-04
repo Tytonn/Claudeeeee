@@ -6,7 +6,7 @@
  * The light scenes and their paper: keep in step with src/scenes/meta.ts (`light`, `plain`).
  */
 (function () {
-  var LIGHT = { ink: "#f1ede5" };
+  var LIGHT = { ink: "#f1ede5", sky: "#d6e8f8" };
   try {
     var s = JSON.parse(localStorage.getItem("umbra:settings") || "null");
     var scene = s && typeof s.scene === "string" ? s.scene : "";

@@ -3,7 +3,7 @@ import type { SoundTheme } from "../scenes/meta";
 /**
  * Tiny synthesized UI sounds (Web Audio, no assets). Soft, glassy, short — in the rain scene,
  * made of water: drips, bubbles, washes; in Ink, of a nib and still water: soft taps, deep
- * slow drops, the hush of paper.
+ * slow drops, the hush of paper; in the Sky, of air: breaths of wind and small bells.
  */
 export type SoundName = "tick" | "untick" | "pop" | "drop" | "chime" | "done" | "dawn" | "eclipse" | "transmit" | "inkdrop";
 
@@ -286,8 +286,60 @@ function playEclipse(name: SoundName) {
   }
 }
 
+/** A small bell, rung softly: its note and a faint, inharmonic overtone. */
+function bell(f: number, { at = 0, dur = 0.9, gain = 0.02 } = {}) {
+  tone(f, { at, dur, gain, attack: 0.003 });
+  tone(f * 2.76, { at, dur: dur * 0.4, gain: gain * 0.18, attack: 0.002 });
+}
+
+/** The Sky's: air and light — breaths of wind, soft bells like a wind chime on a summer porch. */
+function playSky(name: SoundName) {
+  switch (name) {
+    case "tick":
+      swell({ dur: 0.22, from: 2400, to: 5200, gain: 0.008, q: 0.7 });
+      bell(jitter(1568), { gain: 0.026, dur: 0.6 });
+      bell(jitter(2349.3), { at: 0.06, gain: 0.016, dur: 0.7 });
+      break;
+    case "untick":
+      bell(jitter(1046.5), { gain: 0.018, dur: 0.45 });
+      break;
+    case "pop":
+      swell({ dur: 0.18, from: 600, to: 2400, gain: 0.014, q: 0.8 });
+      tone(520, { dur: 0.12, gain: 0.03, glide: 980 });
+      break;
+    case "drop":
+      swell({ dur: 0.3, from: 2600, to: 500, gain: 0.014, q: 0.7 });
+      tone(560, { dur: 0.16, gain: 0.022, glide: 280 });
+      break;
+    case "chime":
+      [1174.7, 1568, 2093].forEach((f, i) => bell(f, { at: i * 0.09, gain: 0.018, dur: 1.1 }));
+      break;
+    case "done":
+      [1046.5, 1174.7, 1568, 1760, 2093].forEach((f, i) => bell(f, { at: i * 0.075, gain: 0.018, dur: 0.9 }));
+      break;
+    case "dawn":
+      // a gust, and the sun bursting out
+      swell({ dur: 1.3, from: 260, to: 3600, gain: 0.03, q: 0.6 });
+      [784, 1174.7, 1568, 2093, 2637].forEach((f, i) => bell(f, { at: 0.1 + i * 0.06, gain: 0.012, dur: 1.4 }));
+      break;
+    case "eclipse":
+      // blown away on the wind
+      swell({ dur: 1.2, from: 1800, to: 260, gain: 0.034, type: "lowpass", q: 0.4 });
+      swell({ at: 0.05, dur: 0.9, from: 900, to: 3200, gain: 0.01, q: 1.2 });
+      tone(392, { dur: 0.9, gain: 0.014, glide: 196, attack: 0.06 });
+      break;
+    case "transmit":
+      swell({ dur: 0.9, from: 500, to: 5600, gain: 0.022, q: 0.7 });
+      [1568, 2093, 2637].forEach((f, i) => bell(f, { at: 0.12 + i * 0.07, gain: 0.014, dur: 0.8 }));
+      break;
+    case "inkdrop":
+      bell(jitter(880), { gain: 0.02, dur: 0.6 });
+      break;
+  }
+}
+
 /** Each theme's sounds (a scene picks one: SceneMeta.sounds). */
-const THEMES: Record<SoundTheme, (name: SoundName) => void> = { eclipse: playEclipse, rain: playRain, ink: playInk };
+const THEMES: Record<SoundTheme, (name: SoundName) => void> = { eclipse: playEclipse, rain: playRain, ink: playInk, sky: playSky };
 
 export function play(name: SoundName) {
   if (!enabled) return;

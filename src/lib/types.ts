@@ -72,8 +72,10 @@ export type SizeId = "s" | "m" | "l";
 export type EffectsId = "cosmic" | "subtle" | "off";
 /** How much of the sky shows through the panels. */
 export type BackdropId = "dark" | "glass" | "clear" | "crystal" | "bare";
-/** What's behind the glass: deep space round the eclipse (shown as "Galaxy"), a night city in the rain, or a total solar eclipse over the clouds. */
-export type SceneId = "eclipse" | "rain" | "solar" | "ink";
+/** What's behind the glass: deep space round the eclipse (shown as "Galaxy"), a night city in the rain, a total solar eclipse over the clouds, ink in water, or a summer sky full of clouds. */
+export type SceneId = "eclipse" | "rain" | "solar" | "ink" | "sky";
+/** The Sky's colours (scenes/sky/palettes.ts). */
+export type SkyPaletteId = "azure" | "pastel" | "golden" | "sunset" | "twilight";
 export type RainAmountId = "drizzle" | "rain" | "downpour";
 
 export type Settings = {
@@ -99,6 +101,11 @@ export type Settings = {
   rainAmount: RainAmountId;
   /** Rain: how out of focus the city is, 0..1 (fully, by default). */
   cityBlur: number;
+  /** Galaxy: an eclipse of its own — a moon hanging in the sky beside your writing, the corona
+   *  streaming out round it into the nebula (off by default: the note is the moon). */
+  galaxyEclipse: boolean;
+  /** Galaxy (with its eclipse): where the eclipse hangs — beside your writing, or right in the middle of the screen, behind it. */
+  galaxyEclipseSpot: "beside" | "middle";
   /** Solar eclipse: the clouds drifting below it (and the thin high ones that cross it). */
   solarClouds: boolean;
   /** Solar eclipse: how close it looks, 0 (far off) .. 1 (close); 0.5 by default. */
@@ -111,12 +118,20 @@ export type Settings = {
   showVersion: boolean;
   /** The cursor as a light: the glow on the glass and panel edges that follows it. */
   cursorLight: boolean;
-  /** Ink: each letter you type lands in wet, blue-black ink and dries to the page's own tone. */
-  inkSettle: boolean;
+  /** Ink: each letter you type lands in wet, blue-black ink and dries to the page's own tone — off
+   *  unless you turn it on. (It was `inkSettle`, on by default; that's set aside, so everyone starts
+   *  with it off.) */
+  inkLetters: boolean;
   /** Ink: the ink in the water — charcoal and indigo, or with drops of your accent among them. */
   inkColours: "sumi" | "accent";
   /** Ink: how finely the ink in the water is drawn (sharper asks more of the graphics card). (A "max" saved by v1.15 reads as high.) */
   inkDetail: "standard" | "high";
+  /** Sky: its colours — one of the palettes, or "auto": whichever suits the time of day. */
+  skyColours: SkyPaletteId | "auto";
+  /** Sky: how cloudy, 0 (a few wisps) .. 1 (heaped with cloud). */
+  skyClouds: number;
+  /** Sky: how fast the wind carries the clouds, 0 (barely moving) .. 1 (racing); 0.5 by default. */
+  skyWind: number;
   /** Show milliseconds on the clock (off by default)… */
   clockMs: boolean;
   /** …to this many digits. */

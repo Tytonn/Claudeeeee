@@ -5,11 +5,11 @@ import { docToMarkdown, displayTitle, isBlank, slugify } from "./text";
 import { play } from "./sound";
 import { FLUSH_EVENT } from "../components/editor/NoteEditor";
 import { fx } from "../fx/engine";
-import { dissolve, eclipseWipe, inkWash, rainWash } from "../fx/dom";
+import { dissolve, eclipseWipe, inkWash, mistAway, rainWash } from "../fx/dom";
 import { SCENES, type WipeKind } from "../scenes/meta";
 
 /** How the open note leaves when it's deleted, scene by scene (see SceneMeta.wipe). */
-const WIPES: Record<WipeKind, (note: HTMLElement | null, panel: HTMLElement | null) => void> = { moon: eclipseWipe, rain: rainWash, ink: inkWash };
+const WIPES: Record<WipeKind, (note: HTMLElement | null, panel: HTMLElement | null) => void> = { moon: eclipseWipe, rain: rainWash, ink: inkWash, mist: mistAway };
 import { setEntrance } from "../fx/intent";
 
 export const NEW_COUNTDOWN_EVENT = "umbra:new-countdown";

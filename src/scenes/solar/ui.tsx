@@ -9,97 +9,28 @@ import { changeSolarLook } from "../../fx/transitions";
 import { Row, Slider } from "../../components/overlays/settingsParts";
 import { Switch } from "../../components/ui/Switch";
 import { Segmented, SegmentedEpoch } from "../../components/ui/Segmented";
+import goldenCard from "./cards/golden.webp";
+import pearlCard from "./cards/pearl.webp";
+import goldCard from "./cards/gold.webp";
+import emberCard from "./cards/ember.webp";
+import roseCard from "./cards/rose.webp";
+import violetCard from "./cards/violet.webp";
+import iceCard from "./cards/ice.webp";
+import mintCard from "./cards/mint.webp";
 import type { SceneUI } from "../types";
 
-/** The solar eclipse card's picture: totality low over the clouds, the diamond ring just breaking out. */
-const SUN = { x: 150, y: 30, r: 9.6 };
-const SOLAR_RAYS: [number, number, number, number][] = (() => {
-  // a fixed, pseudo-random spray of fine coronal rays (and the long streamers, a little longer)
-  let seed = 7;
-  const rnd = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
-  return Array.from({ length: 64 }, (_, i) => {
-    const a = (i / 64) * Math.PI * 2 + rnd() * 0.09;
-    const streamer = Math.abs(Math.cos(a - 0.35)) > 0.86;
-    const len = (streamer ? 9 : 3.5) + rnd() * (streamer ? 13 : 7);
-    return [a, len, 0.18 + rnd() * 0.32, 0.35 + rnd() * 0.45];
-  });
-})();
-// Cloud towers on the left, lying low under the sun.
-// prettier-ignore
-const SOLAR_PUFFS_BACK: [number, number, number][] = [[2, 58, 12], [16, 50, 11], [30, 46, 10], [42, 52, 11], [56, 49, 12], [70, 56, 11], [86, 60, 10], [102, 63, 9], [120, 66, 9], [138, 68, 8], [156, 69, 8], [174, 66, 9], [192, 63, 10], [210, 59, 11], [226, 56, 12], [242, 58, 11]];
-// prettier-ignore
-const SOLAR_PUFFS_FRONT: [number, number, number][] = [[6, 75, 13], [30, 72, 12], [54, 74, 13], [80, 75, 12], [106, 77, 12], [132, 78, 11], [158, 78, 11], [184, 76, 12], [210, 74, 13], [236, 73, 13]];
+/**
+ * The solar eclipse card's picture: the eclipse itself, low over the clouds — photographed from
+ * the scene, in each corona colour and in the Golden look. Golden takes on the accent's colours
+ * (the gold accent: exactly its own), as the scene does.
+ */
+const CORONA_CARDS: Record<SolarTintId, string> = { pearl: pearlCard, gold: goldCard, ember: emberCard, rose: roseCard, violet: violetCard, ice: iceCard, mint: mintCard };
 
 function SolarArt({ golden = false, tint = "pearl", accent = "corona" }: { golden?: boolean; tint?: SolarTintId; accent?: AccentId }) {
-  const { x, y, r } = SUN;
-  // Golden takes on the accent's colours (the gold accent: exactly its own)
   const shift = golden ? goldenShift(ACCENTS[accent]?.color ?? ACCENTS.corona.color, ACCENTS.corona.color) : null;
   const filter = shift && (shift.angle !== 0 || shift.sat !== 1) ? `hue-rotate(${((shift.angle * 180) / Math.PI).toFixed(1)}deg) saturate(${shift.sat.toFixed(2)})` : undefined;
-  // the corona in its chosen colour (Pearl is its own white light)
-  const tc = !golden && tint !== "pearl" ? SOLAR_TINTS[tint]?.color : undefined;
-  const dx = x + Math.cos(-2.45) * r;
-  const dy = y + Math.sin(-2.45) * r;
-  return (
-    <svg className="scene-svg" viewBox="0 0 240 72" preserveAspectRatio="xMidYMid slice" style={filter ? { filter } : undefined} aria-hidden>
-      <defs>
-        <linearGradient id="so-sky" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor={golden ? "#1d1213" : "#0b0d1c"} />
-          <stop offset="0.45" stopColor={golden ? "#3b2520" : "#24161f"} />
-          <stop offset="0.78" stopColor={golden ? "#5a3424" : "#5e2c1f"} />
-          <stop offset="1" stopColor={golden ? "#7d4a30" : "#9a4d28"} />
-        </linearGradient>
-        <radialGradient id="so-corona">
-          <stop offset="0.3" stopColor={golden ? "#ffcf8a" : "#fff7ec"} stopOpacity="0.95" />
-          <stop offset="0.4" stopColor={golden ? "#ff9a45" : (tc ?? "#fbe8d6")} stopOpacity={golden ? 0.55 : tc ? 0.6 : 0.45} />
-          <stop offset="0.65" stopColor={golden ? "#d9692c" : (tc ?? "#efd8ca")} stopOpacity={golden ? 0.16 : tc ? 0.2 : 0.12} />
-          <stop offset="1" stopColor={golden ? "#d9692c" : (tc ?? "#efd8ca")} stopOpacity="0" />
-        </radialGradient>
-        <radialGradient id="so-glint">
-          <stop offset="0" stopColor="#fff" />
-          <stop offset="0.25" stopColor="#fff3e0" stopOpacity="0.7" />
-          <stop offset="1" stopColor="#ffd9b0" stopOpacity="0" />
-        </radialGradient>
-        <linearGradient id="so-streak" x1="0" x2="1">
-          <stop offset="0" stopColor="#fff" stopOpacity="0" />
-          <stop offset="0.5" stopColor="#fff" stopOpacity="0.85" />
-          <stop offset="1" stopColor="#fff" stopOpacity="0" />
-        </linearGradient>
-        <radialGradient id="so-puff" cx="0.66" cy="0.08" r="0.85">
-          <stop offset="0" stopColor="#8a4a35" />
-          <stop offset="0.3" stopColor="#47282a" />
-          <stop offset="0.75" stopColor="#25171b" />
-          <stop offset="1" stopColor="#1d1317" />
-        </radialGradient>
-        <filter id="so-soft" filterUnits="userSpaceOnUse" x="0" y="-20" width="240" height="112">
-          <feGaussianBlur stdDeviation="0.55" />
-        </filter>
-        <filter id="so-fluff" filterUnits="userSpaceOnUse" x="-10" y="20" width="260" height="70">
-          <feGaussianBlur stdDeviation="1.7" />
-        </filter>
-      </defs>
-      <rect width="240" height="72" fill="url(#so-sky)" />
-      <circle cx={x} cy={y} r={r * 3.4} fill="url(#so-corona)" />
-      <g stroke={golden ? "#ffc27a" : (tc ?? "#fff4e8")} strokeOpacity={golden ? 0.35 : 1} strokeLinecap="round" filter="url(#so-soft)">
-        {SOLAR_RAYS.map(([a, len, o, w], i) => (
-          <line key={i} x1={x + Math.cos(a) * r} y1={y + Math.sin(a) * r} x2={x + Math.cos(a) * (r + len)} y2={y + Math.sin(a) * (r + len)} strokeOpacity={o} strokeWidth={w} />
-        ))}
-      </g>
-      <circle cx={x} cy={y} r={r} fill={golden ? "#1c100c" : "#0a080b"} />
-      <circle cx={x} cy={y} r={r + 0.3} fill="none" stroke={golden ? "#ffb35c" : "#fff"} strokeOpacity={golden ? 0.95 : 0.55} strokeWidth={golden ? 0.9 : 0.6} />
-      <circle cx={dx} cy={dy} r={golden ? 10 : 7} fill="url(#so-glint)" />
-      <rect x={dx - 46} y={dy - 0.3} width={92} height={0.6} fill="url(#so-streak)" />
-      <circle cx={dx} cy={dy} r={1.5} fill="#fff" />
-      <circle cx={x - 26} cy={y + 13} r={0.8} fill="#fff" fillOpacity="0.85" />
-      <g filter="url(#so-fluff)">
-        {SOLAR_PUFFS_BACK.map(([px, py, pr], i) => (
-          <circle key={i} cx={px} cy={py} r={pr + 2.5} fill="url(#so-puff)" />
-        ))}
-        {SOLAR_PUFFS_FRONT.map(([px, py, pr], i) => (
-          <circle key={i} cx={px} cy={py} r={pr} fill="#150e12" />
-        ))}
-      </g>
-    </svg>
-  );
+  const src = golden ? goldenCard : (CORONA_CARDS[tint] ?? CORONA_CARDS.pearl);
+  return <img className="scene-img" src={src} style={filter ? { filter } : undefined} alt="" aria-hidden draggable={false} decoding="async" />;
 }
 
 /** The card, as the eclipse looks right now: its look, its corona's colour, the accent. */

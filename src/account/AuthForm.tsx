@@ -57,6 +57,25 @@ function Check({ on }: { on: boolean }) {
 
 type Phase = "idle" | "forging" | "success";
 
+/** A field that slides open (and shut): clipped only while it's sliding, so once it's open the glow
+ *  round its box isn't cut off at its corners. */
+function SlidingField({ ok, children }: { ok: boolean; children: React.ReactNode }) {
+  const [sliding, setSliding] = useState(true);
+  return (
+    <motion.label
+      className={`auth-field ${ok ? "is-ok" : ""} ${sliding ? "is-sliding" : ""}`}
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: "auto" }}
+      exit={{ opacity: 0, height: 0 }}
+      transition={{ duration: 0.28, ease: [0.2, 0.8, 0.2, 1] }}
+      onAnimationStart={() => setSliding(true)}
+      onAnimationComplete={() => setSliding(false)}
+    >
+      {children}
+    </motion.label>
+  );
+}
+
 export function AuthForm({ onDone, intro, initialMode = "in" }: { onDone?: () => void; intro?: string; initialMode?: "in" | "up" }) {
   const [mode, setMode] = useState<"in" | "up">(initialMode);
   const [username, setUsername] = useState("");
@@ -274,20 +293,13 @@ export function AuthForm({ onDone, intro, initialMode = "in" }: { onDone?: () =>
 
         <AnimatePresence initial={false}>
           {mode === "up" && (
-            <motion.label
-              key="confirm"
-              className={`auth-field ${confirmOk ? "is-ok" : ""}`}
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.28, ease: [0.2, 0.8, 0.2, 1] }}
-            >
+            <SlidingField key="confirm" ok={confirmOk}>
               <span className="auth-label">Password again</span>
               <span className="auth-input">
                 <input type={show ? "text" : "password"} autoComplete="new-password" value={confirm} disabled={phase !== "idle"} onChange={(e) => setConfirm(e.target.value)} />
                 <Check on={confirmOk} />
               </span>
-            </motion.label>
+            </SlidingField>
           )}
         </AnimatePresence>
 

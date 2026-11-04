@@ -16,9 +16,10 @@ import "./styles/overlays.css";
 import "./styles/viewer.css";
 import "./styles/fx.css";
 import "./styles/collab.css";
-// last: the light scenes (paper), over everything above — and Ink's own touches
+// last: the light scenes (paper), over everything above — and Ink's and the Sky's own touches
 import "./styles/light.css";
 import "./styles/ink.css";
+import "./styles/sky.css";
 
 import { useApp } from "./store/app";
 import { loadAll, startPersistence, storageOk } from "./store/persist";
@@ -32,6 +33,7 @@ import { refreshPointerLight, startPointerLight } from "./fx/dom";
 import { startPrint } from "./lib/print";
 import { changeScene } from "./fx/transitions";
 import { SCENES } from "./scenes/meta";
+import { skyPaletteOf } from "./scenes/sky/palettes";
 import { setSoundEnabled, setSoundTheme } from "./lib/sound";
 import { startViewportFit } from "./lib/platform";
 import { startVaultWatch } from "./lib/vault";
@@ -56,6 +58,7 @@ async function boot() {
     const blur = typeof s.cityBlur === "number" ? Math.min(1, Math.max(0, s.cityBlur)) : 1;
     fx.setRain({ lightning: s.lightning !== false, city: s.cityLights !== false, amount, blur });
     fx.setScene(sceneOf(s.scene), first);
+    fx.setGalaxyEclipse(s.galaxyEclipse === true, s.galaxyEclipseSpot === "middle");
     fx.setSolar({
       clouds: s.solarClouds !== false,
       size: typeof s.solarSize === "number" ? Math.min(1, Math.max(0, s.solarSize)) : 0.5,
@@ -64,6 +67,8 @@ async function boot() {
     });
     fx.setBackdrop(s.backdrop);
     fx.setInk({ colours: s.inkColours === "accent" ? "accent" : "sumi", detail: s.inkDetail === "standard" ? "standard" : "high" });
+    const unit = (v: unknown, or: number) => (typeof v === "number" && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : or);
+    fx.setSky({ colours: s.skyColours === "auto" ? "auto" : skyPaletteOf(s.skyColours), clouds: unit(s.skyClouds, 0.55), wind: unit(s.skyWind, 0.5) });
     // (Ink's paper stays even with effects off, and so do its sounds; the rain's go with its sky)
     const meta = SCENES[fx.scene];
     setSoundTheme(meta.soundsWithoutEffects || s.effects !== "off" ? meta.sounds : "eclipse");

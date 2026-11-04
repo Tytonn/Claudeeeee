@@ -201,7 +201,8 @@ function curtain(k: number) {
 /**
  * Changing the scene. Rain comes down over everything like a sheet of water running down
  * the window; the galaxy opens out from where you clicked, like the accent does; the solar
- * eclipse opens out from the sun itself — and greets you with the diamond ring.
+ * eclipse opens out from the sun itself — and greets you with the diamond ring; the Sky is a
+ * climb up through cloud, out into the blue.
  */
 export { GOLDEN_ACCENT };
 
@@ -233,6 +234,7 @@ export function changeScene(id: SceneId, x = innerWidth / 2, y = innerHeight / 2
     if (fx.active) {
       fx.fadeSky();
       if (SCENES[fx.scene].enter === "sun") window.setTimeout(() => fx.diamondRing(), 650);
+      if (SCENES[fx.scene].enter === "clouds") fx.skyArrive();
     }
     return;
   }
@@ -240,6 +242,8 @@ export function changeScene(id: SceneId, x = innerWidth / 2, y = innerHeight / 2
   root.classList.add("vt-accent");
   const t = start(() => {
     flushSync(set);
+    // (into the Sky through cloud: the mist is already up in the new scene's first frame)
+    if (SCENES[fx.scene].enter === "clouds") fx.skyArrive();
     fx.renderNow();
   });
   t.ready
@@ -267,6 +271,17 @@ export function changeScene(id: SceneId, x = innerWidth / 2, y = innerHeight / 2
           },
         );
         window.setTimeout(() => fx.diamondRing(), 700);
+      } else if (enter === "clouds") {
+        // flying into cloud: the old scene whitens away into the mist, which then opens out
+        // onto the sky (the sky's own: see SkyScene.arrive)
+        root.animate(
+          { opacity: [0, 1], filter: ["blur(14px) brightness(1.4)", "blur(0px) brightness(1)"] },
+          {
+            duration: 750,
+            easing: "cubic-bezier(0.3, 0.6, 0.2, 1)",
+            pseudoElement: "::view-transition-new(root)",
+          },
+        );
       } else {
         root.animate(
           {

@@ -9,12 +9,13 @@ import { GalaxyScene } from "../scenes/galaxy/controller";
 import { SolarScene } from "../scenes/solar/controller";
 import { RainScene, type RainOptions } from "../scenes/rain/controller";
 import { InkScene } from "../scenes/ink/controller";
+import { SkyScene, type SkyOptions } from "../scenes/sky/controller";
 
-export type { RainOptions };
+export type { RainOptions, SkyOptions };
 
 /**
  * umbra's light engine. One animation loop drives three layers:
- *  - the sky (WebGL, fx/sky.ts): the scene itself — the galaxy, the solar eclipse, the rain, the ink
+ *  - the sky (WebGL, fx/sky.ts): the scene itself — the galaxy, the solar eclipse, the rain, the ink, the Sky
  *  - behind the UI (2D): the galaxy's dust and shooting stars (the other scenes keep it clear)
  *  - over the UI (2D): sunbursts, flares, embers, light trails — drops in the rain, ink on paper
  * What's particular to each scene — its moment-to-moment life, the frame it hands the sky, its
@@ -71,7 +72,8 @@ export class FxEngine {
   private solarScene = new SolarScene(this);
   private rainScene = new RainScene(this);
   private inkCtl = new InkScene(this);
-  private scenes: Record<SceneId, SceneController> = { eclipse: this.galaxy, solar: this.solarScene, rain: this.rainScene, ink: this.inkCtl };
+  private skyCtl = new SkyScene(this);
+  private scenes: Record<SceneId, SceneController> = { eclipse: this.galaxy, solar: this.solarScene, rain: this.rainScene, ink: this.inkCtl, sky: this.skyCtl };
 
   /** The scene that's on now. */
   private get ctl(): SceneController {
@@ -105,6 +107,8 @@ export class FxEngine {
   panelEl: HTMLElement | null = null;
   panelCircle: (() => { x: number; y: number; r: number }) | null = null;
   panel = { x: 0, y: 0, w: 0, h: 0, r: 16, circle: false };
+  /** The page's own panel (CSS px), even while the corona pours from a moon instead (the galaxy's eclipse). */
+  pageRect = { x: 0, y: 0, w: 0, h: 0 };
   private panelRadius = 16;
 
   a: RGB = [0.7, 0.62, 1];
@@ -574,10 +578,12 @@ export class FxEngine {
       shocks: this.shocks.slice(-3).map((s) => ({ x: s.x - ox, y: s.y - oy, age: (now - s.t0) / s.dur, strength: s.strength })),
       cursor: this.cursorK,
       open: this.openK,
+      eclipse: this.scene === "eclipse" && !this.panelCircle && this.panelEl ? this.galaxy.eclipseNow : 0,
       // each scene's part (the renderer reads its own)
       rain: this.rainScene.frame(),
       solar: this.solarScene.frame(),
       ink: this.inkCtl.frame(),
+      sky: this.skyCtl.frame(),
     });
     this.ctl.rendered?.();
     this.matchBars(now);
@@ -597,6 +603,16 @@ export class FxEngine {
   // the galaxy
   meteor(o: { fireball?: boolean } = {}) {
     this.galaxy.meteor(o);
+  }
+
+  /** The galaxy's own eclipse: a moon hanging in the sky beside your writing, its corona streaming out into the nebula. */
+  setGalaxyEclipse(on: boolean, middle = false) {
+    this.galaxy.setEclipse(on, middle);
+  }
+
+  /** Where an eclipse hangs in the layout as it is now (the solar eclipse's spot, at the usual distance). */
+  eclipseHome() {
+    return this.solarScene.homeFor(0.5);
   }
 
   // the solar eclipse
@@ -693,6 +709,37 @@ export class FxEngine {
     this.inkCtl.setInk(o);
   }
 
+  // the Sky
+  /** The Sky's own settings: its colours, how cloudy, the wind. */
+  setSky(o: Partial<SkyOptions>) {
+    this.skyCtl.setSky(o);
+  }
+
+  /** Rising up through the clouds into the Sky (the mist holds `hold` ms, then opens over `open` ms). */
+  skyArrive(o: { hold?: number; open?: number } = {}) {
+    this.skyCtl.arrive(o);
+  }
+
+  /** The mist opens at once. */
+  skySkip() {
+    this.skyCtl.skipArrival();
+  }
+
+  /** The Sky's sun (CSS px). */
+  get skySun() {
+    return this.skyCtl.sunSpot;
+  }
+
+  /** A gust of wind through the Sky. */
+  windGust() {
+    if (this.scene === "sky" && this.active) this.skyCtl.windGust();
+  }
+
+  /** A contrail across the Sky (it comes by itself now and then). */
+  contrail() {
+    if (this.scene === "sky" && this.full) this.skyCtl.contrail();
+  }
+
   /** A paragraph finished (Enter) with the caret at x, y (CSS px): the scene may mark it. */
   paragraph(x: number, y: number) {
     if (this.active) this.inkCtl.paragraph(x, y);
@@ -740,7 +787,14 @@ export class FxEngine {
     const el = this.panelEl;
     if (el && el.isConnected) {
       const r = el.getBoundingClientRect();
-      if (r.width > 0) this.panel = { x: r.left, y: r.top, w: r.width, h: r.height, r: this.panelRadius, circle: false };
+      if (r.width > 0) {
+        this.pageRect = { x: r.left, y: r.top, w: r.width, h: r.height };
+        // The galaxy's own eclipse: the corona pours from its moon, hanging in the sky, instead.
+        const moon = this.scene === "eclipse" ? this.galaxy.moonNow() : null;
+        this.panel = moon
+          ? { x: moon.x - moon.r, y: moon.y - moon.r, w: moon.r * 2, h: moon.r * 2, r: moon.r, circle: true }
+          : { x: r.left, y: r.top, w: r.width, h: r.height, r: this.panelRadius, circle: false };
+      }
     } else {
       // No panel: a dim, distant sun far below the horizon.
       this.panel = { x: this.W * 0.5 - 1, y: this.H * 1.6, w: 2, h: 2, r: 1, circle: false };
@@ -1423,6 +1477,8 @@ export class FxEngine {
   }
 
   get panelRect() {
+    // (the page's own panel — even while the galaxy's eclipse has the corona pouring from its moon)
+    if (this.panel.circle && this.panelEl && !this.panelCircle) return { ...this.pageRect, r: this.panelRadius, circle: false };
     return { ...this.panel };
   }
 }
