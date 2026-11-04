@@ -94,15 +94,40 @@ export function startViewportFit() {
         if (!typing && (scrollX || scrollY)) scrollTo(0, 0);
       }, 80),
     );
+  if (!iOS) return;
+  if (iosApp) {
+    becomeApp();
+    return;
+  }
   // The tell-tale of a Home Screen app under a see-through status bar (on an iPad, or an iPhone
   // that doesn't say it's one): a window as wide as the screen, whose page comes up short by
-  // exactly the status bar's height.
-  if (!iosApp && iOS) {
+  // exactly the status bar's height. Those measurements can settle only a moment after launch
+  // (and an iPad can be turned round, or its window resized), so it looks again then too.
+  const detect = () => {
+    if (iosApp) return;
     const top = insets().top;
     const full = fullScreen();
-    if (top >= 20 && Math.abs(innerWidth - full.w) <= 3 && Math.abs(full.h - (innerHeight + top)) <= 3) iosApp = true;
-  }
-  if (!iosApp) return;
+    if (top >= 20 && Math.abs(innerWidth - full.w) <= 3 && Math.abs(full.h - (innerHeight + top)) <= 3) {
+      iosApp = true;
+      becomeApp();
+      // (everything that measured the page short measures it again)
+      window.dispatchEvent(new Event("resize"));
+    }
+  };
+  detect();
+  // (looking again only in a Home Screen app: in Safari itself, its bars sliding away resize the
+  // page too, and it must never be mistaken for an app there)
+  if (iosApp || !standalone) return;
+  addEventListener("resize", detect);
+  addEventListener("orientationchange", () => window.setTimeout(detect, 300));
+  for (const ms of [120, 400, 1000, 2500]) window.setTimeout(detect, ms);
+}
+
+/** The Home Screen app owns the whole screen: lay the page out over all of it (once). */
+let becameApp = false;
+function becomeApp() {
+  if (becameApp) return;
+  becameApp = true;
   // iOS lays the page out short by the status bar's height — and paints nothing below the
   // page, which left a dark band (with the bottom bar under it) along the bottom of the screen.
   // So the page itself is made as tall as the screen, not just what's in it.
