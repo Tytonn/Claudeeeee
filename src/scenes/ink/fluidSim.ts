@@ -29,9 +29,6 @@ export const FLUID = {
   /** Current texels per sky pixel, and the most along the longer side. */
   velScale: 0.125,
   velMax: 300,
-  /** Ink texels per sky pixel, and the most along the longer side. */
-  dyeScale: 0.5,
-  dyeMax: 1600,
   /** Pressure steps per simulation step (fewer on a phone). */
   iterations: 22,
   iterationsSmall: 14,
@@ -48,6 +45,13 @@ export const FLUID = {
   /** How quickly ink diffuses (per s). */
   soften: 0.35,
 };
+
+/** How finely the ink is drawn (the Ink detail setting): ink texels per sky pixel, and the most along the longer side. */
+const DETAIL = {
+  standard: [0.5, 1600],
+  high: [0.75, 2400],
+  max: [1, 3200],
+} as const;
 
 type Passes = {
   force: Program;
@@ -80,6 +84,8 @@ export class InkFluid {
   private now: Target | null = null;
   /** Whether this frame's ink has mipmaps (else the picture blurs with a few taps). */
   mips = true;
+  /** How finely the ink is drawn (its textures are remade, the ink carried across, when it changes). */
+  detail: keyof typeof DETAIL = "high";
 
   constructor(private sky: SkyContext) {}
 
@@ -156,7 +162,8 @@ export class InkFluid {
   ensure(): boolean {
     if (!this.supported() || !this.p) return false;
     const v = this.size(FLUID.velScale, FLUID.velMax);
-    const d = this.size(FLUID.dyeScale, FLUID.dyeMax);
+    const [ds, dm] = DETAIL[this.detail] ?? DETAIL.high;
+    const d = this.size(ds, dm);
     if (this.vel && this.vel[0].w === v.w && this.vel[0].h === v.h && this.dye && this.dye[0].w === d.w && this.dye[0].h === d.h) return true;
     const mk = (s: { w: number; h: number }, mip = false) => this.target(s.w, s.h, mip);
     const vel = [mk(v), mk(v)] as const;

@@ -52,6 +52,7 @@ const SYNCED_SETTINGS = [
   "cursorLight",
   "inkSettle",
   "inkColours",
+  "inkDetail",
   "clockMs",
   "clockMsDigits",
   "todoGroups",

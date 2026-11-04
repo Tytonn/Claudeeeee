@@ -219,6 +219,13 @@ html[data-tone="light"][data-backdrop="crystal"]:is([data-fx="cosmic"], [data-fx
 html[data-tone="light"][data-backdrop="bare"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(svg, .check, .live-dot) {
   filter: drop-shadow(0 0 2px rgb(250 248 243 / 0.9));
 }
+/* (the note itself too: open water, nothing between your words and the ink) */
+html[data-tone="light"][data-backdrop="crystal"]:is([data-fx="cosmic"], [data-fx="subtle"]) .canvas,
+html[data-tone="light"][data-backdrop="bare"]:is([data-fx="cosmic"], [data-fx="subtle"]) .canvas {
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
 /* …and the side columns keep the faintest vellum: open water, but dark ink can't sit right
    behind small dark words. */
 html[data-tone="light"][data-backdrop="crystal"]:is([data-fx="cosmic"], [data-fx="subtle"]) .app :is(.sidebar-inner, .rail-inner),

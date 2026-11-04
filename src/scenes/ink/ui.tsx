@@ -87,6 +87,7 @@ function InkArt() {
 function InkSettings() {
   const on = useApp((s) => s.settings.inkSettle !== false);
   const colours = useApp((s) => (s.settings.inkColours === "accent" ? "accent" : "sumi"));
+  const detail = useApp((s) => (s.settings.inkDetail === "standard" || s.settings.inkDetail === "max" ? s.settings.inkDetail : "high"));
   const scene = useApp((s) => s.settings.scene);
   const effects = useApp((s) => s.settings.effects);
   const setSettings = useApp((s) => s.setSettings);
@@ -95,8 +96,8 @@ function InkSettings() {
   return (
     <>
       {water && (
-        <Row label="Ink colours" desc="The drops falling into the water: charcoal and indigo, or with drops of your accent colour among them too.">
-          <SegmentedEpoch.Provider value={scene}>
+        <SegmentedEpoch.Provider value={scene}>
+          <Row label="Ink colours" desc="The drops falling into the water: charcoal and indigo, or with drops of your accent colour among them too.">
             <Segmented<"sumi" | "accent">
               label="Ink colours"
               size="sm"
@@ -107,8 +108,21 @@ function InkSettings() {
               ]}
               onChange={(v) => setSettings({ inkColours: v })}
             />
-          </SegmentedEpoch.Provider>
-        </Row>
+          </Row>
+          <Row label="Ink detail" desc="How finely the ink is drawn. Sharper asks more of your graphics card.">
+            <Segmented<"standard" | "high" | "max">
+              label="Ink detail"
+              size="sm"
+              value={detail}
+              options={[
+                { value: "standard", label: "Standard" },
+                { value: "high", label: "High" },
+                { value: "max", label: "Max" },
+              ]}
+              onChange={(v) => setSettings({ inkDetail: v })}
+            />
+          </Row>
+        </SegmentedEpoch.Provider>
       )}
       <Row label="Ink settling letters" desc="Each letter you type lands in wet, blue-black ink and dries as you write on.">
         <Switch checked={on} onChange={(v) => setSettings({ inkSettle: v })} label="Ink settling letters" />

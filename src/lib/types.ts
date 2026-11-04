@@ -115,6 +115,8 @@ export type Settings = {
   inkSettle: boolean;
   /** Ink: the ink in the water — charcoal and indigo, or with drops of your accent among them. */
   inkColours: "sumi" | "accent";
+  /** Ink: how finely the ink in the water is drawn (sharper asks more of the graphics card). */
+  inkDetail: "standard" | "high" | "max";
   /** Show milliseconds on the clock (off by default)… */
   clockMs: boolean;
   /** …to this many digits. */

@@ -378,6 +378,11 @@ export class FxEngine {
 
   /** Watches real frame times; trades sky resolution for smoothness when needed. */
   private adapt(realDt: number) {
+    if (performance.now() < this.adaptHold) {
+      this.frameMs = Math.min(this.frameMs, 16);
+      this.slowFor = 0;
+      return;
+    }
     this.frameMs += (realDt * 1000 - this.frameMs) * 0.05;
     const floor = this.ctl.floor;
     if (this.frameMs > 24 && this.skyScale > floor + 0.01) {
@@ -601,6 +606,16 @@ export class FxEngine {
 
   setBackdrop(id: string) {
     this.solarScene.setBackdrop(id);
+    this.inkCtl.setBackdrop(id);
+  }
+
+  /** Until when (performance.now(), ms) slow frames don't count against the sky's resolution. */
+  private adaptHold = 0;
+
+  /** A burst of work that's meant to be heavy (the water warming up): don't take its slow frames
+   *  as a sign the device can't keep up — or the sky would stay at a lower resolution after it. */
+  holdAdapt(ms: number) {
+    this.adaptHold = Math.max(this.adaptHold, performance.now() + ms);
   }
 
   get sunScale() {

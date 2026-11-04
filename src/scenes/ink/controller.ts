@@ -13,15 +13,25 @@ import { newBloom, newDrop, type InkBloom, type InkColours } from "./blooms";
  * ripples, the drop arriving, and the moments when ink may show behind the note (a new page,
  * a deleted one, the launch's welcome).
  */
+/** How finely the ink in real water is drawn. */
+export type InkDetail = "standard" | "high" | "max";
+
+/** How fast real water runs, against the clock (it's slow, heavy ink: a little slower than life). */
+const PACE = 0.72;
+
 export class InkScene implements SceneController {
   readonly id = "ink" as const;
-  readonly floor = 0.35;
   readonly detailOnSmall = false;
   readonly drops = false;
   /** (on paper a flash of light becomes a wash of ink, which needs far less of it) */
   readonly flashK = 0.32;
 
   constructor(private fx: FxEngine) {}
+
+  /** How low the sky's resolution may go to keep up (less far, the finer you've asked the ink to be). */
+  get floor() {
+    return this.detail === "max" ? 0.75 : this.detail === "high" ? 0.5 : 0.35;
+  }
 
   /** The current's own clock (s), and the time not yet simulated (the simulation steps 20 times a second). */
   private inkT = 40;
@@ -56,6 +66,10 @@ export class InkScene implements SceneController {
   private fluid = false;
   /** Charcoal and indigo, or the accent's ink among them too (real water only). */
   private colours: InkColours = "sumi";
+  /** How finely it's drawn (real water only). */
+  private detail: InkDetail = "high";
+  /** The Background setting: how much paper is between the words and the water. */
+  private backdrop = "clear";
   /** When a finished paragraph last let a drop fall (effects clock, ms), and on which side of the words. */
   private lastDrip = -1e9;
   private dripLeft = false;
@@ -199,16 +213,19 @@ export class InkScene implements SceneController {
       steps.push({ t: this.inkT, dt: sdt, A, B });
       this.inkT += sdt;
     };
-    // to begin with: a quick run (in bigger steps), so there's already ink in the water
+    // to begin with: a quick run (in bigger steps), so there's already ink in the water (in real
+    // water, spread over a few more frames — and those heavy frames aren't held against the sky)
     let n = 0;
-    while (this.inkWarm > 0 && n < (this.fluid ? 20 : 30)) {
+    if (this.inkWarm > 0 && this.fluid) this.fx.holdAdapt(600);
+    while (this.inkWarm > 0 && n < (this.fluid ? 8 : 30)) {
       add(this.fluid ? 0.1 : 0.15);
       this.inkWarm--;
       n++;
     }
-    // then twenty steps a second
+    // then twenty steps a second (real water a little slower than life, and calmer still while you
+    // write)
     const STEP = 0.05;
-    this.inkAcc += dt;
+    this.inkAcc += this.fluid ? dt * PACE * (0.6 + 0.4 * Math.min(1, this.fx.energy)) : dt;
     let k = 0;
     while (this.inkAcc >= STEP && k < 3) {
       add(STEP);
@@ -377,23 +394,48 @@ export class InkScene implements SceneController {
       reset: this.inkReset,
       aspect: this.fx.W / H,
       panel: this.inkPanel(),
-      clear: this.inkClear,
+      // (with nothing over the words — Glass, Crystal, Bare — ink behind them lingers as anywhere)
+      clear: this.fluid && this.openWords ? this.inkClear * 0.2 : this.inkClear,
       stir: [this.fx.mouse.x / H, 1 - this.fx.mouse.y / H, this.stirV.x * 0.4 * this.fx.cursorK * (this.fx.small ? 0 : 1), this.stirV.y * 0.4 * this.fx.cursorK * (this.fx.small ? 0 : 1)] as [number, number, number, number],
       flow: this.fx.effective === "subtle" ? 0.7 : 1,
-      // (on a phone the words fill the screen: the ink shows a little more strongly behind them)
-      behind: this.fluid && this.fx.small ? Math.max(this.inkBehind, 0.3) : this.inkBehind,
+      behind: this.behindWords(),
       ripples: this.inkRipples.slice(-3).map((r) => [r.x, r.y, (now - r.t0) / 1000, r.strength] as [number, number, number, number]),
       intro: this.intro,
       drop: this.arrival ? this.arrival.at : { x: this.fx.W / 2, y: this.fx.H / 2 },
       fade: 1,
       column: this.fluid ? this.column() : ([0, 0, 0, 0] as [number, number, number, number]),
       light: this.fx.effective === "subtle" ? 0.6 : 1,
+      detail: this.detail,
     };
   }
 
-  /** Ink's own settings: its colours (in real water). */
-  setInk(o: { colours?: InkColours }) {
+  /** Whether the words sit right over the water (Glass, Crystal, Bare: the page's own styles do
+   *  what softening there is, or none at all). */
+  private get openWords() {
+    return this.backdrop === "glass" || this.backdrop === "crystal" || this.backdrop === "bare";
+  }
+
+  /**
+   * How much of the ink shows behind the words (1: all of it). In real water, Clear sees it softly,
+   * through a frosted column; Glass, Crystal and Bare see it as it is (Glass through its own frosted
+   * pane; Crystal and Bare with nothing over it but each word's halo). On a phone, where the words
+   * fill the screen, a little more shows through Clear. A drop arriving shows it all, everywhere.
+   */
+  private behindWords() {
+    if (!this.fluid) return this.inkBehind;
+    if (this.openWords) return 1;
+    return this.fx.small ? Math.max(this.inkBehind, 0.3) : this.inkBehind;
+  }
+
+  /** Ink's own settings: its colours, and how finely it's drawn (in real water). */
+  setInk(o: { colours?: InkColours; detail?: InkDetail }) {
     if (o.colours) this.colours = o.colours;
+    if (o.detail) this.detail = o.detail;
+  }
+
+  /** The Background setting. */
+  setBackdrop(id: string) {
+    this.backdrop = id;
   }
 
   /**

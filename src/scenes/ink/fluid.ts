@@ -562,7 +562,8 @@ void main() {
   float self = smoothstep(.1, 2.2, above - D * .6);
 
   // the paper at the back of the water, and light from the surface playing over it
-  vec3 paper = texture2D(uPaper, uv).rgb + shade;
+  // (a shade deeper than the lighter ink's paper: the light from the surface shows on it)
+  vec3 paper = texture2D(uPaper, uv).rgb * .95 + shade;
   vec2 cp = vec2(uv.x * aspect, uv.y) * 1.15 + vec2(.13 * sin(uTime * .021), .1 * uTime * .006);
   float cz = caustics(cp, uTime * .19 + 23.);
   float cz2 = caustics(cp * 1.9 + 3.7, uTime * .23 + 7.);
@@ -572,7 +573,7 @@ void main() {
   vec3 ks = inkAt(iuv + vec2(.25, -1.) * H * .02 / uRes, 3.5 + frost * .4);
   float sh = 1. - exp(-dot(ks, vec3(1.)) * .3);
   float light = (cz * .75 + cz2 * .35) * depth * uLight * (1. - sh) * (1. - .75 * wm);
-  paper *= 1. + light * .11;
+  paper *= 1. + light * .13;
   paper *= 1. - .17 * sh * (1. - .75 * wm);
 
   // the ink: charcoal and indigo soak the light out of it; the accent's takes its colour

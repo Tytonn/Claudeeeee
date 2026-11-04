@@ -63,7 +63,7 @@ async function boot() {
       tint: s.solarTint && s.solarTint !== "pearl" && SOLAR_TINTS[s.solarTint] ? hexRgb(SOLAR_TINTS[s.solarTint].color) : null,
     });
     fx.setBackdrop(s.backdrop);
-    fx.setInk({ colours: s.inkColours === "accent" ? "accent" : "sumi" });
+    fx.setInk({ colours: s.inkColours === "accent" ? "accent" : "sumi", detail: s.inkDetail === "standard" || s.inkDetail === "max" ? s.inkDetail : "high" });
     // (Ink's paper stays even with effects off, and so do its sounds; the rain's go with its sky)
     const meta = SCENES[fx.scene];
     setSoundTheme(meta.soundsWithoutEffects || s.effects !== "off" ? meta.sounds : "eclipse");

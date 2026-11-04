@@ -298,6 +298,11 @@ export class InkRenderer implements SceneRenderer {
     const I = f.ink;
     const fluid = this.fluid!;
     const V = this.fluidView!;
+    // (a new Ink detail: its textures remade at the new size, the ink carried across)
+    if (fluid.detail !== I.detail) {
+      fluid.detail = I.detail;
+      if (!fluid.ensure()) return;
+    }
     if (I.reset) fluid.clear();
     for (const st of I.steps) fluid.step(st, I, this.sky.quality < 0.5);
     const ink = fluid.frame(I.mix);
