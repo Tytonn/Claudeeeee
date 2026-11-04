@@ -222,13 +222,15 @@ export class InkScene implements SceneController {
       this.inkWarm--;
       n++;
     }
-    // then twenty steps a second (real water a little slower than life, and calmer still while you
-    // write)
+    // then twenty steps a second, always — real water runs a little slower than life (and calmer
+    // still while you write) by taking smaller steps, never fewer: fewer would show as a lower
+    // frame rate, each step's ink cross-fading into the next
     const STEP = 0.05;
-    this.inkAcc += this.fluid ? dt * PACE * (0.6 + 0.4 * Math.min(1, this.fx.energy)) : dt;
+    const pace = this.fluid ? PACE * (0.6 + 0.4 * Math.min(1, this.fx.energy)) : 1;
+    this.inkAcc += dt;
     let k = 0;
     while (this.inkAcc >= STEP && k < 3) {
-      add(STEP);
+      add(STEP * pace);
       this.inkAcc -= STEP;
       k++;
     }
