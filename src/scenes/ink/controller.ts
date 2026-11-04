@@ -23,8 +23,10 @@ export class InkScene implements SceneController {
   readonly id = "ink" as const;
   readonly detailOnSmall = false;
   readonly drops = false;
-  /** (on paper a flash of light becomes a wash of ink, which needs far less of it) */
-  readonly flashK = 0.32;
+  /** (on paper a flash of light becomes a wash of ink, which needs far less of it; by night it's light again) */
+  get flashK() {
+    return this.night ? 0.85 : 0.32;
+  }
 
   constructor(private fx: FxEngine) {}
 
@@ -68,6 +70,8 @@ export class InkScene implements SceneController {
   private colours: InkColours = "sumi";
   /** How finely it's drawn (real water only). */
   private detail: InkDetail = "high";
+  /** Dark water instead of paper (the Dark setting): 1, else 0. */
+  private night = 0;
   /** The Transparency setting: how much paper is between the words and the water. */
   private backdrop = "clear";
   /** When a finished paragraph last let a drop fall (effects clock, ms), and on which side of the words. */
@@ -414,6 +418,7 @@ export class InkScene implements SceneController {
       column: this.fluid ? this.column() : ([0, 0, 0, 0] as [number, number, number, number]),
       light: this.fx.effective === "subtle" ? 0.6 : 1,
       detail: this.detail,
+      night: this.night,
     };
   }
 
@@ -435,10 +440,11 @@ export class InkScene implements SceneController {
     return this.fx.small ? Math.max(this.inkBehind, 0.3) : this.inkBehind;
   }
 
-  /** Ink's own settings: its colours, and how finely it's drawn (in real water). */
-  setInk(o: { colours?: InkColours; detail?: InkDetail }) {
+  /** Ink's own settings: its colours, how finely it's drawn (in real water), and whether it's by night. */
+  setInk(o: { colours?: InkColours; detail?: InkDetail; dark?: boolean }) {
     if (o.colours) this.colours = o.colours;
     if (o.detail) this.detail = o.detail;
+    if (o.dark !== undefined) this.night = o.dark ? 1 : 0;
   }
 
   /** The Transparency setting. */

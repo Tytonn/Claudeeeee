@@ -4,7 +4,8 @@
  * on iPhone and iPad, keeps Safari from zooming in when you start typing.
  * (A file of its own: the site's security policy allows no inline scripts.)
  *
- * The light scenes and their paper: keep in step with src/scenes/meta.ts (`light`, `plain`).
+ * The light scenes and their paper: keep in step with src/scenes/meta.ts (`light`, `plain`,
+ * and INK_NIGHT for Ink set to Dark).
  */
 (function () {
   // On iPhone and iPad, Safari zooms the page in when you start typing in anything set smaller than
@@ -20,12 +21,20 @@
   }
 
   var LIGHT = { ink: "#f1ede5", sky: "#d6e8f8" };
+  // (Ink set to Dark: its water by night, and the dark interface)
+  var INK_NIGHT = "#090b10";
   try {
     var s = JSON.parse(localStorage.getItem("umbra:settings") || "null");
     var scene = s && typeof s.scene === "string" ? s.scene : "";
     if (!scene) return;
     var root = document.documentElement;
     root.dataset.scene = scene;
+    if (scene === "ink" && s.inkDark === true) {
+      root.style.setProperty("--plain", INK_NIGHT);
+      var night = document.querySelector('meta[name="theme-color"]');
+      if (night) night.setAttribute("content", INK_NIGHT);
+      return;
+    }
     var paper = Object.prototype.hasOwnProperty.call(LIGHT, scene) ? LIGHT[scene] : null;
     if (!paper) return;
     root.dataset.tone = "light";

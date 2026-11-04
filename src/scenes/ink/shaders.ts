@@ -292,6 +292,7 @@ export const INK_VIEW_UNIFORMS = [
   "uQuality",
   "uA",
   "uPaper",
+  "uNight",
 ];
 
 export const INK_VIEW_FRAG = /* glsl */ `${INK_COMMON}
@@ -313,6 +314,7 @@ uniform float uFade;      // the scene fading in
 uniform float uQuality;
 uniform vec3 uA;          // the accent (a whisper of it, in the thinnest ink)
 uniform sampler2D uPaper; // the paper, painted once
+uniform float uNight;     // 0: paper by day; 1: dark water by night (Ink's Dark setting)
 
 const float MAXD = 4.;
 
@@ -379,26 +381,51 @@ void main() {
   paper += shade;
   vec2 vc = uv - .5;
 
-  // the ink soaks the light out of it: charcoal where it's dense, with a hint of deep indigo
-  // where it's thin, as ink is in water
-  vec3 sigC = vec3(1.0, .985, .93);
-  vec3 sigI = vec3(1.12, 1.03, .78);
-  vec3 sig = k.r * sigC + k.g * sigI;
-  sig += (halo.r * sigC + halo.g * sigI) * .22;
-  float thin = 1. - smoothstep(0., .6, k.r + k.g);
-  sig += (k.r + k.g) * thin * vec3(.07, .03, -.04);
-  sig *= 1. - .16 * lit * body;
-  vec3 T = exp(-sig * 1.05);
-  vec3 floorC = vec3(.11, .11, .128);
-  vec3 col = paper * T + floorC * (1. - T) * (1. - T.g);
+  vec3 day = vec3(0.);
+  if (uNight < .999) {
+    // the ink soaks the light out of it: charcoal where it's dense, with a hint of deep indigo
+    // where it's thin, as ink is in water
+    vec3 sigC = vec3(1.0, .985, .93);
+    vec3 sigI = vec3(1.12, 1.03, .78);
+    vec3 sig = k.r * sigC + k.g * sigI;
+    sig += (halo.r * sigC + halo.g * sigI) * .22;
+    float thin = 1. - smoothstep(0., .6, k.r + k.g);
+    sig += (k.r + k.g) * thin * vec3(.07, .03, -.04);
+    sig *= 1. - .16 * lit * body;
+    vec3 T = exp(-sig * 1.05);
+    vec3 floorC = vec3(.11, .11, .128);
+    day = paper * T + floorC * (1. - T) * (1. - T.g);
+  }
+  vec3 night = vec3(0.);
+  if (uNight > .001) {
+    // by night: dark water, and the ink holding the light in it — a smoky blue where it's thin,
+    // milky pearl where it's gathered, the indigo a deep glowing blue (see the real water's view)
+    float v = dot(texture2D(uPaper, uv).rgb, vec3(.3334)) / .939;
+    vec3 ground = vec3(.026, .031, .047) * pow(max(v, 0.), 4.5) + shade * .3;
+    ground += vec3(.008, .012, .024) * smoothstep(.15, 1., uv.y);
+    float D = k.r + k.g;
+    vec3 pearl = vec3(.86, .88, .93);
+    vec3 blue = vec3(.4, .5, .95);
+    vec3 tint = (k.r * pearl + k.g * blue) / max(D, 1e-4);
+    tint = mix(tint * vec3(.6, .75, 1.2), tint, smoothstep(.05, 1.1, D));
+    float cover = 1. - exp(-D * 1.05);
+    float held = .82 * (1. - exp(-D * .6)) + .13 * (1. - exp(-D * 6.));
+    vec3 glowing = tint * held * (1. + .22 * lit * body);
+    float Dh = halo.r + halo.g;
+    vec3 th = (halo.r * pearl + halo.g * blue) / max(Dh, 1e-4);
+    night = ground * (1. - cover * .9) + glowing + th * (1. - exp(-Dh * .5)) * .2;
+  }
+  vec3 col = mix(day, night, uNight);
 
   // the arrival: the dark, a single drop falling through it, and the paper opening from where it lands
   if (uIntro.x > 0.) {
     vec2 rel = (frag - uDrop) / H;
     float dist = length(rel);
-    vec3 night = vec3(.028, .028, .034) + vec3(.01, .012, .02) * (1. - length(vc));
+    vec3 dark = vec3(.028, .028, .034) + vec3(.01, .012, .02) * (1. - length(vc));
     // a faint pool of light where the drop will land, so it can be seen falling into it
-    night += vec3(.016, .017, .022) * exp(-dist * dist / .05);
+    dark += vec3(.016, .017, .022) * exp(-dist * dist / .05);
+    // (by night the dark is deeper still, so the water can be seen opening out of it)
+    dark *= mix(1., .45, uNight);
     float open = 1.;
     if (uIntro.y > 0.) {
       // The dark clears the way ink thins in water: not a circle opening but a slow, lobed
@@ -409,9 +436,9 @@ void main() {
       float edge = dist + lobes * .5 + wisps * .13;
       open = smoothstep(uIntro.y - .32, uIntro.y + .06, edge);
       // a thinner, inkier dark near the front: it greys a little before it lifts
-      night = mix(night, vec3(.075, .074, .085), (1. - open) * .6 * smoothstep(uIntro.y - .32, uIntro.y, edge));
+      dark = mix(dark, mix(vec3(.075, .074, .085), vec3(.03, .036, .058), uNight), (1. - open) * .6 * smoothstep(uIntro.y - .32, uIntro.y, edge));
     }
-    col = mix(col, night, uIntro.x * open);
+    col = mix(col, dark, uIntro.x * open);
   }
 
   col *= uFade;

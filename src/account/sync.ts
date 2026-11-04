@@ -56,6 +56,7 @@ const SYNCED_SETTINGS = [
   "inkLetters",
   "inkColours",
   "inkDetail",
+  "inkDark",
   "skyColours",
   "skyClouds",
   "skyWind",

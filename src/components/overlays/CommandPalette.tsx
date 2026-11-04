@@ -228,7 +228,7 @@ function useItems(query: string): Item[] {
         id: `accent-${id}`,
         group: "Appearance",
         label: `Accent: ${ACCENTS[id].name}`,
-        icon: <span className="swatch-dot" style={{ background: accentColor(id, settings.scene) }} />,
+        icon: <span className="swatch-dot" style={{ background: accentColor(id, settings.scene, settings.inkDark) }} />,
         keywords: "color colour theme tint",
         hidden: true,
         meta: settings.accent === id ? "current" : undefined,

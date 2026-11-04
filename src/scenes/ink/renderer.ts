@@ -289,6 +289,7 @@ export class InkRenderer implements SceneRenderer {
     gl.uniform1f(V.loc.uFade, I.fade);
     gl.uniform1f(V.loc.uQuality, this.sky.quality);
     gl.uniform3f(V.loc.uA, f.a[0], f.a[1], f.a[2]);
+    gl.uniform1f(V.loc.uNight, I.night);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
 
@@ -344,6 +345,7 @@ export class InkRenderer implements SceneRenderer {
     gl.uniform1f(V.loc.uLight, I.light);
     gl.uniform1f(V.loc.uPaperK, FLUID.paper);
     gl.uniform1f(V.loc.uCausticK, FLUID.caustics);
+    gl.uniform1f(V.loc.uNight, I.night);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
 }

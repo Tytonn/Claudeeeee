@@ -33,7 +33,7 @@ export function changeAccent(id: AccentId, x: number, y: number) {
   const s = useApp.getState();
   if (s.settings.accent === id) return;
   const set = () => s.setSettings({ accent: id });
-  const c = to255(oklchToRgb(accentColor(id, s.settings.scene)));
+  const c = to255(oklchToRgb(accentColor(id, s.settings.scene, s.settings.inkDark)));
   const sparkle = () => {
     fx.ring(x, y, 8, 120, { dur: 700, color: c });
     fx.burst(x, y, {
@@ -217,6 +217,20 @@ export function changeSolarLook(look: "corona" | "golden") {
     if (s.settings.solarLook === "golden" && s.settings.solarGoldenTried) return;
     s.setSettings({ solarLook: look, ...goldenFirstTime(s.settings) });
   } else if (s.settings.solarLook !== look) s.setSettings({ solarLook: look });
+}
+
+/**
+ * Ink by day or by night (its Dark setting): it changes as Ink arrives — the dark comes down, a
+ * drop falls, and the water opens out of the dark the other way round (paper, or night). With
+ * effects off, or anywhere that can't play, it simply changes.
+ */
+export function changeInkDark(on: boolean) {
+  const s = useApp.getState();
+  if (arrival) arrival.cancel();
+  if ((s.settings.inkDark === true) === on) return;
+  const set = () => s.setSettings({ inkDark: on });
+  if (s.settings.scene === "ink" && arriveByDrop("ink", set)) return;
+  set();
 }
 
 export function changeScene(id: SceneId, x = innerWidth / 2, y = innerHeight / 2) {

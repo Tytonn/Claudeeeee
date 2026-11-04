@@ -2,7 +2,7 @@ import { mixRgb, oklchToRgb, to255, type RGB } from "./color";
 import { Sky, type SceneId } from "./sky";
 import { viewportHeight } from "../lib/platform";
 import { setBarColors } from "../lib/theme";
-import { SCENES } from "../scenes/meta";
+import { SCENES, isLightScene, plainOf } from "../scenes/meta";
 import type { SceneController } from "./scene";
 import { clamp01, easeInOut, easeOut, rand, WATER, WHITE, type C255, type Timed } from "./util";
 import { GalaxyScene } from "../scenes/galaxy/controller";
@@ -317,9 +317,18 @@ export class FxEngine {
     return this.scene === "ink";
   }
 
-  /** A light scene (paper): effects are ink rather than light. */
+  /** Ink by night (its Dark setting): dark water, and the interface dark with it. */
+  private inkDark = false;
+
+  /** A light scene (paper): effects are ink rather than light. (Ink set to Dark isn't one.) */
   get light() {
-    return SCENES[this.scene].light;
+    return isLightScene(this.scene, this.inkDark);
+  }
+
+  /** Letters land white-hot as you type, and cool (not on paper — and not in Ink by night
+   *  either: its water's ink is quiet, by day or night). */
+  get hotLetters() {
+    return !this.light && !this.inkScene;
   }
 
   /** Whether this device can run the ink in the water (WebGL with float or 8-bit targets). */
@@ -340,8 +349,10 @@ export class FxEngine {
     const root = document.documentElement;
     root.dataset.scene = this.scene;
     root.dataset.tone = this.light ? "light" : "dark";
-    // (the page's own colour under everything: paper for a light scene, else the dark default)
-    if (this.light) root.style.setProperty("--plain", SCENES[this.scene].plain);
+    // (the page's own colour under everything: paper for a light scene — or Ink's own night —
+    // else the dark default)
+    const plain = plainOf(this.scene, this.inkDark);
+    if (plain !== SCENES.eclipse.plain) root.style.setProperty("--plain", plain);
     else root.style.removeProperty("--plain");
     document.querySelector('meta[name="color-scheme"]')?.setAttribute("content", this.light ? "light" : "dark");
   }
@@ -713,9 +724,18 @@ export class FxEngine {
     this.inkCtl.inkBloom(x, y, o);
   }
 
-  /** Ink's own settings (its colours). */
+  /** Ink's own settings (its colours, its detail, by day or by night). */
   setInk(o: Parameters<InkScene["setInk"]>[0]) {
     this.inkCtl.setInk(o);
+    if (o.dark !== undefined && o.dark !== this.inkDark) {
+      this.inkDark = o.dark;
+      // (by night the whole interface goes dark with the water: see markScene)
+      this.markScene();
+      if (this.inkScene) {
+        this.barsSoon();
+        if (this.started && this.effective === "off") setBarColors(null, null);
+      }
+    }
   }
 
   // the Sky

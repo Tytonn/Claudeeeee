@@ -35,6 +35,7 @@ export const DEFAULT_SETTINGS: Settings = {
   inkLetters: false,
   inkColours: "sumi",
   inkDetail: "high",
+  inkDark: false,
   skyColours: "azure",
   skyClouds: 0.55,
   skyWind: 0.5,

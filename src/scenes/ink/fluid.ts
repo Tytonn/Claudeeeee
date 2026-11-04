@@ -473,6 +473,7 @@ export const FL_VIEW_UNIFORMS = [
   "uLight",
   "uPaperK",
   "uCausticK",
+  "uNight",
 ];
 
 /*
@@ -501,6 +502,7 @@ uniform vec3 uA;          // the accent: the third ink's colour
 uniform float uLight;     // how much light from the surface plays on the paper
 uniform float uPaperK;    // how deep the paper is (1: as painted)
 uniform float uCausticK;  // how brightly that light shows on it
+uniform float uNight;     // 0: paper by day; 1: dark water by night (Ink's Dark setting)
 
 vec3 inkAt(vec2 uv) {
   return max(texture2D(uInk, uv).rgb, 0.);
@@ -591,45 +593,92 @@ void main() {
   float above = softAt(iuv + vec2(-.38, 1.) * H * .011 / uRes);
   float self = smoothstep(.1, 2.2, above - D * .6);
 
-  // the paper at the back of the water, and light from the surface playing over it
-  // (a shade deeper than the lighter ink's paper, so the light from the surface shows on it)
-  vec3 paper = texture2D(uPaper, uv).rgb * uPaperK + shade;
+  // light from the surface, gathered into a net on the paper behind (brightest near the surface)
   vec2 cp = vec2(uv.x * aspect, uv.y) * 1.9 + vec2(.13 * sin(uTime * .021), .1 * uTime * .006);
   float cz = caustics(cp, uTime * .27 + 23.);
   float cz2 = caustics(cp * 1.7 + 3.7, uTime * .32 + 7.);
-  // (it falls off with depth: brightest near the surface)
   float depth = mix(.55, 1., smoothstep(.05, .95, uv.y));
   // the ink's shadow on the paper: the light comes from above, so it falls a little below
   float sh = 1. - exp(-softAt(iuv + vec2(.25, -1.) * H * .02 / uRes) * .3);
-  float light = (cz * .8 + cz2 * .45) * depth * uLight * (1. - sh) * (1. - .4 * wm);
-  // (where the light gathers, the paper is lit to white)
-  paper = mix(paper, vec3(1., .994, .982), clamp(light * uCausticK, 0., 1.));
-  paper *= 1. - .17 * sh * (1. - .75 * wm);
-
-  // the ink: charcoal and indigo soak the light out of it; the accent's takes its colour
-  k *= mix(1., .3, wm);
-  vec3 sigC = vec3(1.02, 1.0, .95);
-  vec3 sigI = vec3(2.05, 1.62, .82);
-  vec3 a = clamp(uA, .02, 1.);
-  vec3 sigA = (1. - a) * 1.55 + .1;
-  vec3 sig = k.r * sigC + k.g * sigI + k.b * sigA;
   float body = smoothstep(.04, .8, D);
-  // lit from above: a touch lighter toward the light, deeper underneath
   float deep = smoothstep(.4, 1.6, D);
-  sig *= 1. - .06 * lit * deep;
-  sig *= 1. + .16 * self * body * (1. - wm);
-  vec3 T = exp(-sig * .95);
-  // where it's dense, a deep, faintly blue black
-  vec3 floorC = vec3(.045, .046, .062);
-  vec3 col = paper * T + floorC * (1. - T) * (1. - T.g);
+  vec3 a = clamp(uA, .02, 1.);
+
+  vec3 day = vec3(0.);
+  if (uNight < .999) {
+    // the paper at the back of the water, and light from the surface playing over it
+    // (a shade deeper than the lighter ink's paper, so the light from the surface shows on it)
+    vec3 paper = texture2D(uPaper, uv).rgb * uPaperK + shade;
+    float light = (cz * .8 + cz2 * .45) * depth * uLight * (1. - sh) * (1. - .4 * wm);
+    // (where the light gathers, the paper is lit to white)
+    paper = mix(paper, vec3(1., .994, .982), clamp(light * uCausticK, 0., 1.));
+    paper *= 1. - .17 * sh * (1. - .75 * wm);
+
+    // the ink: charcoal and indigo soak the light out of it; the accent's takes its colour
+    vec3 kd = k * mix(1., .3, wm);
+    vec3 sigC = vec3(1.02, 1.0, .95);
+    vec3 sigI = vec3(2.05, 1.62, .82);
+    vec3 sigA = (1. - a) * 1.55 + .1;
+    vec3 sig = kd.r * sigC + kd.g * sigI + kd.b * sigA;
+    // lit from above: a touch lighter toward the light, deeper underneath
+    sig *= 1. - .06 * lit * deep;
+    sig *= 1. + .16 * self * body * (1. - wm);
+    vec3 T = exp(-sig * .95);
+    // where it's dense, a deep, faintly blue black
+    vec3 floorC = vec3(.045, .046, .062);
+    day = paper * T + floorC * (1. - T) * (1. - T.g);
+  }
+
+  vec3 night = vec3(0.);
+  if (uNight > .001) {
+    // By night the water is dark, and the ink holds the light in it: its thin veils a smoky blue,
+    // gathered into milky pearl where it's dense, its indigo glowing deep blue and the accent's in
+    // its own colour — in billows lit from above, over the floor of the water, where a faint net
+    // of moonlight shifts.
+    // (the floor: the paper's own grain and shading, sunk into a deep blue-black)
+    float v = dot(texture2D(uPaper, uv).rgb, vec3(.3334)) / .939;
+    vec3 ground = vec3(.026, .031, .047) * pow(max(v, 0.), 4.5) + shade * .3;
+    ground += vec3(.008, .012, .024) * smoothstep(.15, 1., uv.y);
+    float moon = (cz * .8 + cz2 * .45) * depth * uLight * (1. - sh) * (1. - .6 * wm);
+    ground += vec3(.125, .168, .245) * clamp(moon * uCausticK, 0., 1.6);
+    ground *= 1. - .38 * sh * (1. - .75 * wm);
+
+    vec3 kn = k * mix(1., .36, wm);
+    float Dn = kn.r + kn.g + kn.b;
+    vec3 pearl = vec3(.86, .88, .93);
+    vec3 blue = vec3(.4, .5, .95);
+    vec3 own = mix(a, vec3(.92), .12);
+    vec3 tint = (kn.r * pearl + kn.g * blue + kn.b * own) / max(Dn, 1e-4);
+    // (light scatters blue through a thin veil of it)
+    tint = mix(tint * vec3(.6, .75, 1.2), tint, smoothstep(.05, 1.1, Dn));
+    float cover = 1. - exp(-Dn * 1.05);
+    // how much light it holds: even a thin veil of it shows (as thin ink does on paper), and the
+    // densest never burns to white
+    float held = .82 * (1. - exp(-Dn * .6)) + .13 * (1. - exp(-Dn * 6.));
+    float bodyN = smoothstep(.04, .8, Dn);
+    float deepN = smoothstep(.4, 1.6, Dn);
+    // lit from above: brighter toward the light, deeper in the undersides of the billows
+    float form = 1. + .22 * lit * deepN - .38 * self * bodyN * (1. - wm);
+    // and where the surface's light falls on it, a faint sheen
+    float sheen = (cz * .7 + cz2 * .35) * depth * uLight * bodyN * (1. - wm) * .2;
+    vec3 glowing = tint * held * max(form, .2) * (1. + sheen);
+    // the water glows a little round the densest ink
+    vec3 bl = max(texture2D(uBlur, iuv).rgb, 0.) * mix(1., .4, wm);
+    float Db = bl.r + bl.g + bl.b;
+    vec3 tb = (bl.r * pearl + bl.g * blue + bl.b * own) / max(Db, 1e-4);
+    night = ground * (1. - cover * .9) + glowing + tb * (1. - exp(-Db * .4)) * .26;
+  }
+  vec3 col = mix(day, night, uNight);
 
   // the arrival: the dark, a single drop falling through it, and the paper opening from where it lands
   vec2 vc = uv - .5;
   if (uIntro.x > 0.) {
     vec2 rel = (frag - uDrop) / H;
     float dist = length(rel);
-    vec3 night = vec3(.028, .028, .034) + vec3(.01, .012, .02) * (1. - length(vc));
-    night += vec3(.016, .017, .022) * exp(-dist * dist / .05);
+    vec3 dark = vec3(.028, .028, .034) + vec3(.01, .012, .02) * (1. - length(vc));
+    dark += vec3(.016, .017, .022) * exp(-dist * dist / .05);
+    // (by night the dark is deeper still, so the water can be seen opening out of it)
+    dark *= mix(1., .45, uNight);
     float open = 1.;
     if (uIntro.y > 0.) {
       vec2 w = rel * 2.6 + vec2(fbm(rel * 1.7 + 4.2), fbm(rel * 1.7 + 9.6)) * 1.5;
@@ -637,9 +686,9 @@ void main() {
       float wisps = fbm(rel * 10. + w * .8 + 6.1) - .5;
       float edge = dist + lobes * .5 + wisps * .13;
       open = smoothstep(uIntro.y - .32, uIntro.y + .06, edge);
-      night = mix(night, vec3(.075, .074, .085), (1. - open) * .6 * smoothstep(uIntro.y - .32, uIntro.y, edge));
+      dark = mix(dark, mix(vec3(.075, .074, .085), vec3(.03, .036, .058), uNight), (1. - open) * .6 * smoothstep(uIntro.y - .32, uIntro.y, edge));
     }
-    col = mix(col, night, uIntro.x * open);
+    col = mix(col, dark, uIntro.x * open);
   }
 
   col *= uFade;

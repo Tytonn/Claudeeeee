@@ -112,3 +112,52 @@ html.intro-ink-out .app {
   overflow: hidden;
   will-change: filter, opacity, transform;
 }
+
+/* ── By night (Ink set to Dark) ──────────────────────────────────────────── */
+
+/* The interface is the dark one, its surfaces tinted the faint blue-black of the water. */
+html[data-tone="dark"][data-scene="ink"] {
+  --bg: #07090d;
+  --canvas: #0b0d12;
+  --raised: #10131a;
+  --float: rgb(16 19 26 / 0.82);
+  --float-solid: #11141b;
+}
+
+/* The launch: the name glows up out of the dark water, letter by letter, as the ink opens below. */
+html:not([data-tone="light"]) .intro.ink .intro-word {
+  color: #e7eaf3;
+}
+html:not([data-tone="light"]) .intro.ink .intro-word span {
+  animation-name: ink-glow-in;
+}
+@keyframes ink-glow-in {
+  0% {
+    opacity: 0;
+    filter: blur(7px);
+    transform: scale(1.05);
+    text-shadow: 0 0 16px rgb(168 188 255 / 0.65);
+  }
+  35% {
+    opacity: 1;
+    filter: blur(1.6px);
+    text-shadow: 0 0 8px rgb(168 188 255 / 0.42);
+  }
+  100% {
+    opacity: 1;
+    filter: none;
+    transform: none;
+    text-shadow: 0 0 0 rgb(168 188 255 / 0);
+  }
+}
+html:not([data-tone="light"]) .intro.ink .intro-tag {
+  color: #7f8698;
+}
+
+/* Clear: the side columns are sheets of smoked vellum — the ink still drifts behind them,
+   softened, but pale words never sit right over the brightest of it. */
+html[data-tone="dark"][data-scene="ink"][data-backdrop="clear"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(.sidebar-inner, .rail-inner) {
+  background: rgb(7 9 14 / 0.4);
+  -webkit-backdrop-filter: blur(6px) saturate(1.05);
+  backdrop-filter: blur(6px) saturate(1.05);
+}

@@ -53,7 +53,7 @@ async function boot() {
   const syncFx = (s: Settings, first = false) => {
     fx.setLevel(s.effects);
     const accent = ACCENTS[s.accent] ?? ACCENTS.iris;
-    fx.setAccent(accentColor(s.accent, sceneOf(s.scene)), accent.nebula);
+    fx.setAccent(accentColor(s.accent, sceneOf(s.scene), s.inkDark), accent.nebula);
     const amount = RAIN_AMOUNT[s.rainAmount] ?? 0.5;
     const blur = typeof s.cityBlur === "number" ? Math.min(1, Math.max(0, s.cityBlur)) : 1;
     fx.setRain({ lightning: s.lightning !== false, city: s.cityLights !== false, amount, blur });
@@ -66,7 +66,7 @@ async function boot() {
       tint: s.solarTint && s.solarTint !== "pearl" && SOLAR_TINTS[s.solarTint] ? hexRgb(SOLAR_TINTS[s.solarTint].color) : null,
     });
     fx.setBackdrop(s.backdrop);
-    fx.setInk({ colours: s.inkColours === "accent" ? "accent" : "sumi", detail: s.inkDetail === "standard" ? "standard" : "high" });
+    fx.setInk({ colours: s.inkColours === "accent" ? "accent" : "sumi", detail: s.inkDetail === "standard" ? "standard" : "high", dark: s.inkDark === true });
     const unit = (v: unknown, or: number) => (typeof v === "number" && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : or);
     fx.setSky({ colours: s.skyColours === "auto" ? "auto" : skyPaletteOf(s.skyColours), clouds: unit(s.skyClouds, 0.55), wind: unit(s.skyWind, 0.5) });
     // (Ink's paper stays even with effects off, and so do its sounds; the rain's go with its sky)

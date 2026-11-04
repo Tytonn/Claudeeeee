@@ -52,12 +52,14 @@ export type SceneMeta = {
   id: SceneId;
   /** Its name, on its card in Settings. */
   name: string;
-  /** A line under the name. */
+  /** A line under the name (and Ink's, when it's set to Dark). */
   tagline: string;
+  nightTagline?: string;
   /** Its command in the palette, and the words that find it. */
   command: string;
   keywords: string;
-  /** A light scene: paper, ink-dark type and deeper accents (styles/light.css). */
+  /** A light scene: paper, ink-dark type and deeper accents (styles/light.css). (Ink can be set
+   *  to Dark: see isLightScene.) */
   light: boolean;
   /** The page's own colour where nothing is drawn over it (the phone's bars with effects off, the launch veil). */
   plain: string;
@@ -85,6 +87,9 @@ export const PAPER = "#f1ede5";
 export const NIGHT = "#08090a";
 /** The Sky's page: a pale summer blue. (Keep in step with styles/sky.css and public/boot.js.) */
 export const SKY_PLAIN = "#d6e8f8";
+/** Ink by night (its Dark setting): the deep blue-black of its water. (Keep in step with
+ *  styles/ink.css and public/boot.js.) */
+export const INK_NIGHT = "#090b10";
 
 export const SCENES: Record<SceneId, SceneMeta> = {
   // (its id is "eclipse" for history's sake: it's the galaxy, with the note as the moon)
@@ -146,6 +151,7 @@ export const SCENES: Record<SceneId, SceneMeta> = {
     id: "ink",
     name: "Ink",
     tagline: "Ink plunging into clear water, on paper",
+    nightTagline: "Pale ink in dark water, by night",
     command: "Scene: Ink",
     keywords: "scene theme ink water paper light bright white day drop sumi calligraphy background",
     light: true,
@@ -194,7 +200,14 @@ export function sceneOf(s: unknown): SceneId {
   return typeof s === "string" && Object.prototype.hasOwnProperty.call(SCENES, s) ? (s as SceneId) : "eclipse";
 }
 
-/** A light scene: the interface goes to paper. */
-export function isLightScene(s: unknown): boolean {
-  return SCENES[sceneOf(s)].light;
+/** A light scene: the interface goes to paper — Ink's, unless it's set to Dark (`inkDark`). */
+export function isLightScene(s: unknown, inkDark?: unknown): boolean {
+  const id = sceneOf(s);
+  return SCENES[id].light && !(id === "ink" && inkDark === true);
+}
+
+/** The page's own colour where nothing is drawn over it, as the scene is set (Ink can be dark). */
+export function plainOf(s: unknown, inkDark?: unknown): string {
+  const id = sceneOf(s);
+  return id === "ink" && inkDark === true ? INK_NIGHT : SCENES[id].plain;
 }

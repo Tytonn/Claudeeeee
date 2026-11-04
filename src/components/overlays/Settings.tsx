@@ -5,7 +5,7 @@ import { useApp } from "../../store/app";
 import { BOARD, shareUrl, stopShare } from "../../store/shareSync";
 import { exportAll, importBackup } from "../../store/persist";
 import { toast } from "../../store/toasts";
-import { ACCENTS, FONTS, TITLE_FONTS, TRANSPARENCY, accentColor, sceneOf } from "../../lib/theme";
+import { ACCENTS, FONTS, TITLE_FONTS, TRANSPARENCY, accentColor, isLightScene, sceneOf } from "../../lib/theme";
 import type { AccentId, BackdropId, EffectsId, FontId, SizeId, TitleFontId } from "../../lib/types";
 import { displayTitle } from "../../lib/text";
 import { relativeLong } from "../../lib/dates";
@@ -24,6 +24,7 @@ import { Row, Section } from "./settingsParts";
 
 function ScenePicker() {
   const scene = useApp((s) => s.settings.scene);
+  const inkDark = useApp((s) => s.settings.inkDark === true);
   const current = sceneOf(scene);
   // (a hidden scene has a card only while it's the one you're in)
   const shown = SCENE_LIST.filter((sc) => !sc.hidden || sc.id === current);
@@ -39,7 +40,7 @@ function ScenePicker() {
             </span>
             <span className="scene-text">
               <span className="scene-name">{sc.name}</span>
-              <span className="scene-sub">{sc.tagline}</span>
+              <span className="scene-sub">{sc.id === "ink" && inkDark && sc.nightTagline ? sc.nightTagline : sc.tagline}</span>
             </span>
             {on && <motion.span key={current} layoutId={`scene-ring-${current}`} className="scene-ring" transition={spring} />}
           </button>
@@ -58,9 +59,10 @@ function SceneRows() {
 
 function Swatches() {
   const accent = useApp((s) => s.settings.accent);
-  const scene = useApp((s) => `${s.settings.scene}:${s.settings.solarLook}`);
+  const scene = useApp((s) => `${s.settings.scene}:${s.settings.solarLook}:${s.settings.inkDark === true}`);
   // on paper, each swatch shows its colour as the ink carries it
   const sceneId = useApp((s) => sceneOf(s.settings.scene));
+  const inkDark = useApp((s) => s.settings.inkDark === true);
   return (
     <div className="swatches" role="radiogroup" aria-label="Accent color">
       {(Object.keys(ACCENTS) as AccentId[]).map((id) => (
@@ -72,7 +74,7 @@ function Swatches() {
           aria-label={ACCENTS[id].name}
           title={ACCENTS[id].name}
           className="swatch"
-          style={{ "--sw": accentColor(id, sceneId) } as React.CSSProperties}
+          style={{ "--sw": accentColor(id, sceneId, inkDark) } as React.CSSProperties}
           onClick={(e) => changeAccent(id, e.clientX, e.clientY)}
         >
           {accent === id && <motion.span key={scene} layoutId={`swatch-ring-${scene}`} className="swatch-ring" transition={spring} />}
@@ -169,6 +171,8 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
   const settings = useApp((s) => s.settings);
   const setSettings = useApp((s) => s.setSettings);
   const meta = SCENES[sceneOf(settings.scene)];
+  // (Ink by night: the water's dark, and its light is light again)
+  const night = meta.id === "ink" && settings.inkDark === true;
   const fileInput = useRef<HTMLInputElement>(null);
   const signedIn = useAccount((s) => Boolean(s.user));
 
@@ -206,11 +210,11 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
               </div>
             )}
             <SceneRows />
-            <Row label="Accent" desc={meta.light ? "Tints the caret, checkmarks and links — in a deeper, inkier shade on paper." : "Tints the caret, checkmarks and the glow."}>
+            <Row label="Accent" desc={isLightScene(meta.id, settings.inkDark) ? "Tints the caret, checkmarks and links — in a deeper, inkier shade on paper." : "Tints the caret, checkmarks and the glow."}>
               <Swatches />
             </Row>
             {settings.effects !== "off" && (
-              <Row label="Transparency" desc={meta.backdropDesc}>
+              <Row label="Transparency" desc={night ? "How much of the dark water shows through. Your words always stay readable." : meta.backdropDesc}>
                 <Segmented<BackdropId>
                   label="Transparency"
                   size="sm"
@@ -272,7 +276,7 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
             {settings.effects !== "off" && hasCursor && (
               <Row
                 label="Cursor light"
-                desc={meta.cursorDesc}
+                desc={night ? "Your cursor stirs the water as it passes, and catches the edges of things in its light." : meta.cursorDesc}
               >
                 <Switch checked={settings.cursorLight !== false} onChange={(v) => setSettings({ cursorLight: v })} label="Cursor light" />
               </Row>

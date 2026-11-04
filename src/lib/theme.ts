@@ -1,5 +1,5 @@
 import type { AccentId, BackdropId, FontId, RainAmountId, SceneId, Settings, SizeId, SolarTintId, TitleAlignId, TitleFontId, TitleSizeId, TitleStyle, TodoColor } from "./types";
-import { PAPER, SCENES, isLightScene, sceneOf } from "../scenes/meta";
+import { PAPER, isLightScene, plainOf, sceneOf } from "../scenes/meta";
 
 // (where they've always been imported from)
 export { PAPER, isLightScene, sceneOf };
@@ -30,10 +30,10 @@ export const TRANSPARENCY: readonly { id: BackdropId; name: string }[] = [
   { id: "bare", name: "Full" },
 ];
 
-/** The accent as this scene shows it: light on the dark skies, ink-deep on paper. */
-export function accentColor(id: AccentId | string | undefined, scene: SceneId | string | undefined): string {
+/** The accent as this scene shows it: light on the dark skies, ink-deep on paper (`inkDark`: Ink is set to Dark). */
+export function accentColor(id: AccentId | string | undefined, scene: SceneId | string | undefined, inkDark?: unknown): string {
   const a = ACCENTS[id as AccentId] ?? ACCENTS.iris;
-  return isLightScene(scene) ? a.paper : a.color;
+  return isLightScene(scene, inkDark) ? a.paper : a.color;
 }
 
 /** The corona's colours in the solar eclipse. Pearl is the real thing; the rest are for fun. */
@@ -111,10 +111,10 @@ export function titleAttrs(style: TitleStyle | null | undefined): Record<string,
   return out;
 }
 
-export function applyTheme(s: Pick<Settings, "accent" | "font" | "size"> & Partial<Pick<Settings, "backdrop" | "titleFont" | "titleSize" | "titleAlign" | "scene">>) {
+export function applyTheme(s: Pick<Settings, "accent" | "font" | "size"> & Partial<Pick<Settings, "backdrop" | "titleFont" | "titleSize" | "titleAlign" | "scene" | "inkDark">>) {
   const root = document.documentElement;
   root.dataset.backdrop = s.backdrop === "dark" || s.backdrop === "glass" || s.backdrop === "crystal" || s.backdrop === "bare" ? s.backdrop : "clear";
-  root.style.setProperty("--accent", accentColor(s.accent, sceneOf(s.scene)));
+  root.style.setProperty("--accent", accentColor(s.accent, sceneOf(s.scene), s.inkDark));
   root.style.setProperty("--font-editor", FONTS[s.font]?.stack ?? FONTS.sans.stack);
   // Serif text reads best a touch larger; mono a touch smaller.
   const base = SIZES[s.size]?.px ?? 16.5;
@@ -135,7 +135,9 @@ export function applyTheme(s: Pick<Settings, "accent" | "font" | "size"> & Parti
 export function setBarColors(top: string | null, bottom: string | null) {
   const meta = document.querySelector('meta[name="theme-color"]');
   // with nothing to match, the page's own plain colour: the dark, or paper in a light scene
-  const plain = SCENES[sceneOf(document.documentElement.dataset.scene)].plain;
+  // (Ink set to Dark: its own night)
+  const root = document.documentElement;
+  const plain = plainOf(root.dataset.scene, root.dataset.tone === "dark");
   if (meta && meta.getAttribute("content") !== (top ?? plain)) meta.setAttribute("content", top ?? plain);
   document.documentElement.style.backgroundColor = bottom ?? "";
   // (an iPhone may fill any space below the page with the body's colour: the sky's, then)

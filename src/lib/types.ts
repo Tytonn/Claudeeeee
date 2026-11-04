@@ -129,6 +129,9 @@ export type Settings = {
   inkColours: "sumi" | "accent";
   /** Ink: how finely the ink in the water is drawn (sharper asks more of the graphics card). (A "max" saved by v1.15 reads as high.) */
   inkDetail: "standard" | "high";
+  /** Ink by night: dark water instead of paper — the ink glowing pale in it, and the whole
+   *  interface dark to match (off: paper). */
+  inkDark: boolean;
   /** Sky: its colours — one of the palettes, or "auto": whichever suits the time of day. */
   skyColours: SkyPaletteId | "auto";
   /** Sky: how cloudy, 0 (a few wisps) .. 1 (heaped with cloud). */

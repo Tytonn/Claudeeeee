@@ -25,6 +25,8 @@ const DRY_MS = 900;
 const MAX_GHOSTS = 32;
 /** Wet ink: a deep blue-black, as fountain-pen ink is before it dries (the ink in the water has a hint of it too). */
 const WET_INK = "#141c5a";
+/** …and by night (Ink's Dark setting), wet ink catching the light: a pale, glowing blue. */
+const WET_GLOW = "#aebfff";
 
 /** A letter typed and still drying: where it is in the note now, and its wet ink (once drawn). */
 type Letter = { pos: number; ch: string; ink?: HTMLElement; at?: string };
@@ -217,8 +219,9 @@ function ghost(layer: HTMLElement, ch: string, x: number, y: number, h: number, 
   s.fontVariationSettings = cs.fontVariationSettings;
   s.fontKerning = cs.fontKerning;
   s.textTransform = cs.textTransform;
-  // wet ink: the letter's own colour, deepened toward blue-black
-  const wet = `color-mix(in oklab, ${cs.color} 30%, ${WET_INK})`;
+  // wet ink: the letter's own colour, deepened toward blue-black (by night, lit toward a pale blue)
+  const night = document.documentElement.dataset.tone === "dark";
+  const wet = night ? `color-mix(in oklab, ${cs.color} 40%, ${WET_GLOW})` : `color-mix(in oklab, ${cs.color} 30%, ${WET_INK})`;
   const ink = (strength: number) => `color-mix(in oklab, ${wet} ${strength}%, transparent)`;
   // heavier at its edges, and bled a little into the paper (in proportion to the letter, within reason)
   const size = parseFloat(cs.fontSize) || 16;
