@@ -1,11 +1,24 @@
 /*
  * Runs before anything else draws: marks the page with the saved scene, so a light (paper)
- * scene starts out paper-coloured — its launch veil too — rather than flashing dark first.
+ * scene starts out paper-coloured — its launch veil too — rather than flashing dark first; and
+ * on iPhone and iPad, keeps Safari from zooming in when you start typing.
  * (A file of its own: the site's security policy allows no inline scripts.)
  *
  * The light scenes and their paper: keep in step with src/scenes/meta.ts (`light`, `plain`).
  */
 (function () {
+  // On iPhone and iPad, Safari zooms the page in when you start typing in anything set smaller than
+  // 16px — and stays zoomed in after. Telling it the page is already at its largest stops that;
+  // pinching to zoom still works there (iOS always allows it). Elsewhere the page is left alone.
+  try {
+    var nav = navigator;
+    var iOS = /iPhone|iPad|iPod/.test(nav.userAgent) || (nav.platform === "MacIntel" && nav.maxTouchPoints > 1);
+    var vp = iOS && document.querySelector('meta[name="viewport"]');
+    if (vp && !/maximum-scale/.test(vp.content)) vp.setAttribute("content", vp.content + ", maximum-scale=1");
+  } catch (e) {
+    /* nothing to do */
+  }
+
   var LIGHT = { ink: "#f1ede5", sky: "#d6e8f8" };
   try {
     var s = JSON.parse(localStorage.getItem("umbra:settings") || "null");
