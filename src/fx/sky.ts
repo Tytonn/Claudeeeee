@@ -149,6 +149,8 @@ export type SkyFrame = {
   open: number;
   /** The galaxy's own eclipse, 0..1: the corona pours from a solid moon hanging in the sky (not the page). */
   eclipse: number;
+  /** How bright the galaxy's corona is, 0..1 (1 but while it hands over between the page and the eclipse). */
+  corona: number;
   rain: RainFrame;
   solar: SolarFrame;
   ink: InkFrame;

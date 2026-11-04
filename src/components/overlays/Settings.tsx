@@ -25,9 +25,11 @@ import { Row, Section } from "./settingsParts";
 function ScenePicker() {
   const scene = useApp((s) => s.settings.scene);
   const current = sceneOf(scene);
+  // (a hidden scene has a card only while it's the one you're in)
+  const shown = SCENE_LIST.filter((sc) => !sc.hidden || sc.id === current);
   return (
-    <div className="scenes" role="radiogroup" aria-label="Scene">
-      {SCENE_LIST.map((sc) => {
+    <div className="scenes" role="radiogroup" aria-label="Scene" data-count={shown.length}>
+      {shown.map((sc) => {
         const on = current === sc.id;
         const Art = SCENE_UI[sc.id].Art;
         return (

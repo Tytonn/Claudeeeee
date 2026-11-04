@@ -44,7 +44,7 @@ import { spring } from "../../lib/motion";
 import { Modal } from "../ui/Modal";
 import { Kbd } from "../ui/Kbd";
 import { changeScene } from "../../fx/transitions";
-import { SCENE_LIST } from "../../scenes/meta";
+import { SCENE_LIST, asksForScene } from "../../scenes/meta";
 import { SCENE_UI } from "../../scenes/ui";
 import { screenInfo } from "../../lib/platform";
 import { toast } from "../../store/toasts";
@@ -236,13 +236,14 @@ function useItems(query: string): Item[] {
       })),
       ...(settings.effects !== "off"
         ? [
-            // every scene but the one you're in — then the one you're in's own commands
-            ...SCENE_LIST.filter((sc) => sc.id !== sceneOf(settings.scene)).map((sc) => ({
+            // every scene but the one you're in (a hidden one only for someone who searches for it
+            // by name) — then the one you're in's own commands
+            ...SCENE_LIST.filter((sc) => sc.id !== sceneOf(settings.scene) && (!sc.hidden || asksForScene(sc, q))).map((sc) => ({
               id: `scene-${sc.id}`,
               group: "Appearance",
               label: sc.command,
               icon: SCENE_UI[sc.id].icon,
-              keywords: sc.keywords,
+              keywords: sc.hidden ? sc.name.toLowerCase() : sc.keywords,
               run: () => window.setTimeout(() => changeScene(sc.id), 240),
             })),
             ...(SCENE_UI[sceneOf(settings.scene)].commands?.(settings, s.setSettings) ?? []).map((c) => ({ ...c, group: "Appearance" })),

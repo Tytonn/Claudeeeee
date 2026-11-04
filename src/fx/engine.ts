@@ -579,6 +579,7 @@ export class FxEngine {
       cursor: this.cursorK,
       open: this.openK,
       eclipse: this.scene === "eclipse" && !this.panelCircle && this.panelEl ? this.galaxy.eclipseNow : 0,
+      corona: this.scene === "eclipse" && !this.panelCircle ? this.galaxy.coronaNow : 1,
       // each scene's part (the renderer reads its own)
       rain: this.rainScene.frame(),
       solar: this.solarScene.frame(),

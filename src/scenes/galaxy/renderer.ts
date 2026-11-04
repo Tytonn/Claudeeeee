@@ -24,6 +24,7 @@ const ECLIPSE_UNIFORMS = [
   "uCursor",
   "uOpen",
   "uMoon",
+  "uCoronaK",
 ];
 
 /**
@@ -83,6 +84,7 @@ export class GalaxyRenderer implements SceneRenderer {
     gl.uniform1f(L.uCursor, f.cursor);
     gl.uniform1f(L.uOpen, f.open);
     gl.uniform1f(L.uMoon, f.eclipse);
+    gl.uniform1f(L.uCoronaK, f.corona);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
 }

@@ -69,6 +69,9 @@ export type SceneMeta = {
   backdropDesc: string;
   /** Anything else that changes with it when it's chosen (the Golden eclipse turns the accent gold). */
   chosen?: (settings: Settings) => Partial<Settings>;
+  /** Kept out of sight for now: no card in Settings (unless it's the scene you're in), and in the
+   *  command palette only for someone who searches for it by name. */
+  hidden?: boolean;
 };
 
 /** Paper: the light scenes' page. (Keep in step with styles/light.css and public/boot.js.) */
@@ -166,12 +169,19 @@ export const SCENES: Record<SceneId, SceneMeta> = {
     effectsDesc: "The clouds drifting on the wind, the sun and its rays, gusts and bursts of sunlight. Calm it down any time.",
     cursorDesc: "Your cursor is a breath of wind: the clouds near it drift along as it passes.",
     backdropDesc: "How much of the sky shows through. Your words always stay readable.",
+    // (not ready to be shown yet: search the command palette for "sky" to try it)
+    hidden: true,
   },
 };
 
 /** The order they're offered in (Settings, the command palette). */
 export const SCENE_ORDER: readonly SceneId[] = ["eclipse", "solar", "rain", "ink", "sky"];
 export const SCENE_LIST: readonly SceneMeta[] = SCENE_ORDER.map((id) => SCENES[id]);
+
+/** Whether a search (in the command palette) asks for a hidden scene by name. */
+export function asksForScene(sc: SceneMeta, query: string): boolean {
+  return query.trim().toLowerCase().includes(sc.name.toLowerCase());
+}
 
 /** A saved scene, or the Galaxy if it isn't one we know. */
 export function sceneOf(s: unknown): SceneId {

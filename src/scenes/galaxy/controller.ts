@@ -352,8 +352,12 @@ export class GalaxyScene implements SceneController {
 
   /** The Eclipse setting: a moon hanging in the sky beside your writing, the corona pouring out round it. */
   private eclipseOn = false;
-  /** How far it has grown in, 0..1 (it swells out of a point of light, and shrinks back into one). */
+  /** Whether its moon is where the corona pours from right now (it hands over from the page, and back, gently). */
+  private showing = false;
+  /** How far its moon has grown in, 0..1 (it swells out of a point of light). */
   private eclipseK = 0;
+  /** How bright the corona is, 0..1: handing over, it dims away from where it is, then blooms round the other. */
+  private coronaK = 1;
   private moon = { x: 0, y: 0, r: 0 };
   private moonPlaced = false;
 
@@ -367,11 +371,10 @@ export class GalaxyScene implements SceneController {
     this.eclipseOn = on;
     // Off-screen (or before the first frame), it's simply there — or not — next time.
     if (!this.fx.started || this.fx.scene !== "eclipse" || !this.fx.active) {
+      this.showing = on;
       this.eclipseK = on ? 1 : 0;
+      this.coronaK = 1;
       this.moonPlaced = false;
-    } else if (on) {
-      this.moonPlaced = false;
-      this.fx.flareUp(0.6);
     }
   }
 
@@ -386,27 +389,45 @@ export class GalaxyScene implements SceneController {
     return { x, y: fx.H * 0.45, r: fit(m * 0.1, 40, 130) };
   }
 
-  /** The moon of its own eclipse (CSS px), while there is one. */
+  /** The moon of its own eclipse (CSS px), while it's where the corona pours from. */
   moonNow(): { x: number; y: number; r: number } | null {
-    if (this.eclipseK <= 0 || !this.moonPlaced) return null;
+    if (!this.showing || !this.moonPlaced) return null;
     const e = easeOut(this.eclipseK);
     // it swells out of a point of light (never quite nothing, so the corona has a centre)
     return { x: this.moon.x, y: this.moon.y, r: Math.max(1.5, this.moon.r * e) };
   }
 
-  /** How solid its moon is, 0..1 (for the sky). */
+  /** How solid its moon is, 0..1 (for the sky): it fades with its corona as it goes. */
   get eclipseNow() {
-    return this.moonPlaced ? Math.min(1, this.eclipseK * 1.6) : 0;
+    return this.showing && this.moonPlaced ? Math.min(1, this.eclipseK * 1.6) * this.coronaNow : 0;
+  }
+
+  /** How bright the corona is right now, 0..1 (eased). */
+  get coronaNow() {
+    const k = this.coronaK;
+    return k * k * (3 - 2 * k);
   }
 
   step(_now: number, dt: number) {
-    const to = this.eclipseOn ? 1 : 0;
-    if (this.eclipseK !== to) {
-      // growing in is a slow swell; going is quicker
-      this.eclipseK += (to - this.eclipseK) * Math.min(1, dt * (to ? 1.5 : 2.6));
-      if (Math.abs(this.eclipseK - to) < 0.003) this.eclipseK = to;
+    if (this.showing !== this.eclipseOn) {
+      // handing over: the light dims away from where it is now (the moon fading with it, where it stays)…
+      this.coronaK = Math.max(0, this.coronaK - dt / (this.showing ? 0.6 : 0.35));
+      if (this.coronaK <= 0) {
+        // …and blooms round the other: the moon swells out of a point of light, or the page's
+        // corona flares back up round its edges
+        this.showing = this.eclipseOn;
+        this.eclipseK = 0;
+        this.moonPlaced = false;
+        this.fx.flareUp(this.showing ? 0.6 : 0.5);
+      }
+    } else if (this.coronaK < 1) {
+      this.coronaK = Math.min(1, this.coronaK + dt / 0.9);
     }
-    if (this.eclipseK <= 0 || !this.fx.panelEl) {
+    if (this.showing && this.eclipseK < 1) {
+      this.eclipseK += (1 - this.eclipseK) * Math.min(1, dt * 1.5);
+      if (1 - this.eclipseK < 0.003) this.eclipseK = 1;
+    }
+    if (!this.showing || !this.fx.panelEl) {
       this.moonPlaced = false;
       return;
     }
@@ -424,8 +445,8 @@ export class GalaxyScene implements SceneController {
   }
 
   busy() {
-    // (while its eclipse grows in or fades out)
-    return this.eclipseK > 0 && this.eclipseK < 1;
+    // (while the corona hands over, or the moon swells in)
+    return this.showing !== this.eclipseOn || this.coronaK < 1 || (this.showing && this.eclipseK < 1);
   }
 
   mustRender() {

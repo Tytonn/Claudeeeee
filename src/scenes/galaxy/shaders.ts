@@ -31,6 +31,7 @@ uniform float uQuality;  // 1 = full, 0 = light
 uniform float uCursor;   // how much the cursor lights the sky, 0..1
 uniform float uOpen;     // 1 = the "Bare" background: no panel to see, so no edge to the light
 uniform float uMoon;     // the galaxy's own eclipse, 0..1: the circle is a solid moon hanging in the sky (0: the page, or a friend's moon)
+uniform float uCoronaK;  // how bright the corona is, 0..1 (1 but while it hands over between the page and the eclipse)
 
 float hash12(vec2 p) {
   vec3 p3 = fract(vec3(p.xyx) * .1031);
@@ -176,7 +177,7 @@ void main() {
   // A flare lights the corona up — but not the thin strip along the very top of the screen,
   // which would otherwise read as a hard bright line where the screen ends.
   float flareTop = mix(.3, 1., smoothstep(0., uScale * .05, uRes.y - frag.y));
-  float power = (.45 + .35 * uEnergy) * (1. + uFlare * (.5 + 2.8 * near) * flareTop) * (1. - uDim * .85);
+  float power = (.45 + .35 * uEnergy) * (1. + uFlare * (.5 + 2.8 * near) * flareTop) * (1. - uDim * .85) * uCoronaK;
   vec3 hot = mix(uA, vec3(1.), .55);
   float far = exp(-dn / (.13 + .05 * uEnergy + .12 * uFlare * near));
 

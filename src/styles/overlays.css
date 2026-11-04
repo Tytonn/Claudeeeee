@@ -724,8 +724,8 @@
 
 /* ── Scene: what's behind the glass ───────────────────────────────────────── */
 
-/* Three to a row (two on a phone); a row that isn't full shares its width out, so the cards
-   always fill it. */
+/* Three to a row — or four, when there are four (two on a phone); a row that isn't full shares
+   its width out, so the cards always fill it. */
 .scenes {
   display: flex;
   flex-wrap: wrap;
@@ -735,8 +735,13 @@
   flex: 1 1 calc((100% - 20px) / 3);
   min-width: 0;
 }
+/* (four fit in one row) */
+.scenes[data-count="4"] > .scene-card {
+  flex-basis: calc((100% - 30px) / 4);
+}
 @media (max-width: 640px) {
-  .scenes > .scene-card {
+  .scenes > .scene-card,
+  .scenes[data-count="4"] > .scene-card {
     flex-basis: calc((100% - 10px) / 2);
   }
 }
