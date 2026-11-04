@@ -1,6 +1,7 @@
 import { app } from "../store/app";
-import { toast } from "../store/toasts";
+import { toast, useToasts } from "../store/toasts";
 import { FLUSH_EVENT } from "../components/editor/NoteEditor";
+import { apple, printless } from "./platform";
 
 /*
  * Export as PDF, through the browser's own print window ("Save as PDF"): the open note alone, set
@@ -9,6 +10,10 @@ import { FLUSH_EVENT } from "../components/editor/NoteEditor";
  *
  * Just before printing, a copy of the note is laid on the page (and everything else steps aside:
  * see the print styles in layout.css); straight after, it's gone.
+ *
+ * An iPhone or iPad Home Screen app has no print window (asking for one does nothing), so there
+ * the app makes that same page into a PDF itself (lib/pdf.ts) and hands it to the share sheet —
+ * Save to Files, Print, Mail, AirDrop.
  */
 
 /** The parts of the editor that are for writing, not reading. */
@@ -39,10 +44,10 @@ function openNote() {
   return { page, body, title };
 }
 
-function lay() {
-  clear();
+/** The copy of the open note that gets printed: its title, then its words, ink on white. */
+function copyNote(): { doc: HTMLElement; title: string } | null {
   const note = openNote();
-  if (!note) return;
+  if (!note) return null;
   const doc = document.createElement("article");
   doc.className = "print-doc";
   // the note's own title look
@@ -64,6 +69,9 @@ function lay() {
   body.querySelectorAll("[contenteditable]").forEach((el) => el.removeAttribute("contenteditable"));
   body.querySelectorAll("[data-placeholder]").forEach((el) => el.removeAttribute("data-placeholder"));
   body.querySelectorAll(".selectedCell").forEach((el) => el.classList.remove("selectedCell"));
+  // (nor whatever was selected: a picture or a rule isn't outlined on paper)
+  body.querySelectorAll(".ProseMirror-selectednode").forEach((el) => el.classList.remove("ProseMirror-selectednode"));
+  body.querySelectorAll(".note-image.is-selected").forEach((el) => el.classList.remove("is-selected"));
   // someone else's selection, in a shared note, is just the words
   body.querySelectorAll(".collab-selection").forEach((el) => el.replaceWith(...Array.from(el.childNodes)));
   // a copy keeps only what's written into the page, not what's been ticked since: tick them again
@@ -74,12 +82,19 @@ function lay() {
     box.toggleAttribute("checked", on);
   });
   doc.append(body);
-  document.body.append(doc);
-  copy = doc;
+  return { doc, title: note.title };
+}
+
+function lay() {
+  clear();
+  const made = copyNote();
+  if (!made) return;
+  document.body.append(made.doc);
+  copy = made.doc;
   document.documentElement.classList.add("is-printing");
   // (the browser names the PDF after the page)
   pageTitle = document.title;
-  document.title = note.title || "Untitled";
+  document.title = made.title || "Untitled";
 }
 
 function clear() {
@@ -96,6 +111,9 @@ function clear() {
 export function startPrint() {
   addEventListener("beforeprint", lay);
   addEventListener("afterprint", clear);
+  // (no print window here: the PDF maker is fetched once things are calm, so it's at hand when
+  // it's wanted — offline, or long after an update has replaced it on the server)
+  if (printless) window.setTimeout(() => void import("./pdf").catch(() => undefined), 6000);
 }
 
 const frame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
@@ -111,7 +129,8 @@ async function picturesIn(page: Element | null, ms: number) {
   }
 }
 
-/** Export as PDF: the print window, with just this note on the page (choose "Save as PDF"). */
+/** Export as PDF: the print window, with just this note on the page (choose "Save as PDF") —
+ *  or, where there's no print window, the PDF itself, made here and shared. */
 export async function exportPdf(id: string) {
   const s = app();
   if (!s.notes[id]) return;
@@ -123,13 +142,93 @@ export async function exportPdf(id: string) {
     await frame();
   }
   await picturesIn(document.querySelector(".canvas .note"), 5000);
-  if (typeof window.print !== "function") {
-    toast("This browser can't print from here.", { tone: "error" });
+  if (printless || typeof window.print !== "function") {
+    await sharePdf();
     return;
   }
-  toast("Choose “Save as PDF” in the print window", { duration: 5000 });
+  // (on an iPhone or iPad the print window keeps its PDF behind its share button)
+  toast(apple ? "To save it as a PDF, tap the share button in the print window" : "Choose “Save as PDF” in the print window", { duration: apple ? 6000 : 5000 });
   // (let the hint show before the print window takes over)
   await frame();
   await frame();
   window.print();
+}
+
+/** The PDF's file name: the note's title, without what a file name can't have. */
+function fileName(title: string): string {
+  const name = title
+    .replace(/[\\/:*?"<>|\u0000-\u001f\u007f]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 80)
+    .trim();
+  return `${name || "Untitled"}.pdf`;
+}
+
+let making = false;
+
+/** Makes the open note's PDF here (no print window to make it), then hands it over. */
+async function sharePdf() {
+  if (making) return;
+  const made = copyNote();
+  if (!made) return;
+  making = true;
+  const note = toast("Making the PDF…", { duration: 120_000 });
+  let file: File;
+  try {
+    const { makePdf } = await import("./pdf");
+    const pdf = await makePdf(made.doc, made.title);
+    file = new File([pdf], fileName(made.title), { type: "application/pdf" });
+  } catch (err) {
+    console.error("Couldn't make the PDF", err);
+    useToasts.getState().dismiss(note);
+    toast("Couldn't make the PDF.", { tone: "error" });
+    return;
+  } finally {
+    making = false;
+  }
+  useToasts.getState().dismiss(note);
+  await handOver(file);
+}
+
+/** Hands a PDF to the share sheet (Save to Files, Print, Mail, AirDrop…) — after one more tap if
+ *  making it took long enough that the phone wants a fresh one — or else downloads it. */
+async function handOver(file: File) {
+  const share = () => navigator.share({ files: [file] });
+  if (typeof navigator.share === "function" && navigator.canShare?.({ files: [file] })) {
+    try {
+      await share();
+      return;
+    } catch (err) {
+      const why = (err as { name?: string } | null)?.name;
+      // (closed the share sheet: that's an answer)
+      if (why === "AbortError") return;
+      if (why === "NotAllowedError") {
+        toast("Your PDF is ready", {
+          duration: 30_000,
+          action: {
+            label: "Share",
+            run: () =>
+              void share().catch((e: unknown) => {
+                if ((e as { name?: string } | null)?.name !== "AbortError") download(file);
+              }),
+          },
+        });
+        return;
+      }
+    }
+  }
+  download(file);
+}
+
+function download(file: File) {
+  const url = URL.createObjectURL(file);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = file.name;
+  a.rel = "noopener";
+  document.body.append(a);
+  a.click();
+  a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }

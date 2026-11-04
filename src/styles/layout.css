@@ -1073,7 +1073,9 @@ html[data-typing] .topbar:hover {
   margin: 20mm 19mm 22mm;
 }
 /* The copy of the note that gets printed (lib/print.ts lays it on the page just before printing,
-   and takes it away after). Never on screen. */
+   and takes it away after). Never on screen — except out of sight, where there's no print window,
+   while lib/pdf.ts makes the PDF from it itself (its look below is outside the print query, so
+   that PDF is the same page). */
 .print-doc {
   display: none;
 }
@@ -1109,114 +1111,132 @@ html[data-typing] .topbar:hover {
 
   .print-doc {
     display: block;
-    /* ink on white, whatever scene you write in */
-    --fg-1: #111114;
-    --fg-body: #1e1d23;
-    --fg-2: #3b3a41;
-    --fg-3: #5f5e66;
-    --fg-4: #86858c;
-    --fg-5: #b5b4ba;
-    --tint: 0 0 0;
-    --canvas: #fff;
-    --line: #dddde1;
-    --line-2: #d0d0d5;
-    --line-3: #c3c3c9;
-    --tbl-line: #d6d6db;
-    --tbl-frame: #c6c6cc;
-    --tbl-head: #f3f3f5;
-    color: var(--fg-body);
-    background: #fff;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
   }
-  .print-doc .print-title {
-    margin: 0 0 22pt;
-    font-size: calc(28pt * var(--title-scale, 1) * var(--title-size-k, 1));
-    color: var(--fg-1);
-    text-shadow: none;
-    break-after: avoid;
-  }
-  .print-doc .print-body {
-    font-size: 11.5pt;
-    line-height: 1.62;
-    color: var(--fg-body);
-    text-shadow: none;
-    orphans: 3;
-    widows: 3;
-  }
-  .print-doc .print-body :is(h1, h2, h3, strong, a) {
-    color: var(--fg-1);
-  }
-  .print-doc .print-body :is(h1, h2, h3) {
-    break-after: avoid;
-  }
-  .print-doc .print-body :is(pre, blockquote, figure, tr, li, img) {
-    break-inside: avoid;
-  }
-  .print-doc .print-body a {
-    text-decoration-color: currentColor;
-  }
-  .print-doc .print-body code {
-    color: var(--fg-1);
-    background: #f2f2f4;
-    box-shadow: inset 0 0 0 0.5pt var(--line-2);
-  }
-  /* code blocks: dark on light, every line kept on the page */
-  .print-doc .print-body pre {
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    color: #1d1c22;
-    background: #f5f5f7;
-    box-shadow: inset 0 0 0 0.5pt var(--line-2);
-  }
-  .print-doc .print-body pre :is(code, span) {
-    color: inherit !important;
-    background: none;
-    box-shadow: none;
-  }
-  .print-doc .print-body blockquote {
-    color: var(--fg-2);
-    border-left-color: var(--line-3);
-  }
-  .print-doc .print-body hr {
-    background: var(--line-3);
-  }
-  .print-doc .print-body hr::after {
-    display: none;
-  }
-  .print-doc .print-body mark {
-    color: inherit;
-    background: #fbefa6;
-  }
-  /* tables: each row whole on its page, the rules a quiet grey */
-  .print-doc .print-body .tableWrapper {
-    overflow: visible;
-  }
-  .print-doc .print-body table {
-    width: 100% !important;
-    min-width: 0 !important;
-  }
-  /* pictures: the picture itself, no frame, no shadow */
-  .print-doc .note-image-frame {
-    box-shadow: none !important;
-    background: none !important;
-  }
-  .print-doc .note-image-img {
-    opacity: 1 !important;
-    filter: none !important;
-  }
-  /* checklists: an outlined box, a filled one when it's done */
-  .print-doc .print-body input[type="checkbox"] {
-    box-shadow: inset 0 0 0 1.2pt #6b6a72;
-  }
-  .print-doc .print-body input[type="checkbox"]:checked {
-    background: #2b2a31;
-    box-shadow: none;
-    animation: none;
-  }
-  .print-doc .print-body input[type="checkbox"]::after {
-    border-color: #fff;
-  }
+}
+
+.print-doc {
+  /* ink on white, whatever scene you write in */
+  --fg-1: #111114;
+  --fg-body: #1e1d23;
+  --fg-2: #3b3a41;
+  --fg-3: #5f5e66;
+  --fg-4: #86858c;
+  --fg-5: #b5b4ba;
+  --tint: 0 0 0;
+  --canvas: #fff;
+  --line: #dddde1;
+  --line-2: #d0d0d5;
+  --line-3: #c3c3c9;
+  --tbl-line: #d6d6db;
+  --tbl-frame: #c6c6cc;
+  --tbl-head: #f3f3f5;
+  color: var(--fg-body);
+  background: #fff;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.print-doc .print-title {
+  margin: 0 0 22pt;
+  font-size: calc(28pt * var(--title-scale, 1) * var(--title-size-k, 1));
+  color: var(--fg-1);
+  text-shadow: none;
+  break-after: avoid;
+}
+.print-doc .print-body {
+  font-size: 11.5pt;
+  line-height: 1.62;
+  color: var(--fg-body);
+  text-shadow: none;
+  orphans: 3;
+  widows: 3;
+}
+.print-doc .print-body :is(h1, h2, h3, strong, a) {
+  color: var(--fg-1);
+}
+.print-doc .print-body :is(h1, h2, h3) {
+  break-after: avoid;
+}
+.print-doc .print-body :is(pre, blockquote, figure, tr, li, img) {
+  break-inside: avoid;
+}
+.print-doc .print-body a {
+  text-decoration-color: currentColor;
+}
+.print-doc .print-body code {
+  color: var(--fg-1);
+  background: #f2f2f4;
+  box-shadow: inset 0 0 0 0.5pt var(--line-2);
+}
+/* code blocks: dark on light, every line kept on the page */
+.print-doc .print-body pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: #1d1c22;
+  background: #f5f5f7;
+  box-shadow: inset 0 0 0 0.5pt var(--line-2);
+}
+.print-doc .print-body pre :is(code, span) {
+  color: inherit !important;
+  background: none;
+  box-shadow: none;
+}
+.print-doc .print-body blockquote {
+  color: var(--fg-2);
+  border-left-color: var(--line-3);
+}
+.print-doc .print-body hr {
+  background: var(--line-3);
+}
+.print-doc .print-body hr::after {
+  display: none;
+}
+.print-doc .print-body mark {
+  color: inherit;
+  background: #fbefa6;
+}
+/* tables: each row whole on its page, the rules a quiet grey */
+.print-doc .print-body .tableWrapper {
+  overflow: visible;
+}
+.print-doc .print-body table {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+/* pictures: the picture itself, no frame, no shadow */
+.print-doc .note-image-frame {
+  box-shadow: none !important;
+  background: none !important;
+}
+.print-doc .note-image-img {
+  opacity: 1 !important;
+  filter: none !important;
+}
+/* checklists: an outlined box, a filled one when it's done */
+.print-doc .print-body input[type="checkbox"] {
+  box-shadow: inset 0 0 0 1.2pt #6b6a72;
+}
+.print-doc .print-body input[type="checkbox"]:checked {
+  background: #2b2a31;
+  box-shadow: none;
+  animation: none;
+}
+.print-doc .print-body input[type="checkbox"]::after {
+  border-color: #fff;
+}
+
+/* The PDF made in the app (lib/pdf.ts): the same page, laid out out of sight at the page's width. */
+.pdf-host {
+  position: fixed;
+  top: 0;
+  left: -100000px;
+  pointer-events: none;
+}
+.pdf-host .print-doc {
+  display: block;
+}
+/* (a picture is kept a little shorter than the page, as on paper — not the screen) */
+.pdf-host .note-image:not(.is-sized) .note-image-box {
+  width: min(100%, var(--w, 100%), calc(var(--page-h, 72vh) * 0.72 * var(--ratio, 1.5)));
 }
 
 .crash {

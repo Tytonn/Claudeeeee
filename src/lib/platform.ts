@@ -13,6 +13,15 @@ const iOS = /iPhone|iPad|iPod/.test(ua) || (nav?.platform === "MacIntel" && (nav
 /** Opened from the Home Screen (no browser around it). */
 export const standalone = nav?.standalone === true || mq("(display-mode: standalone)");
 
+/** An iPhone or iPad (an iPad introduces itself to websites as a Mac). */
+export const apple = iOS;
+
+/**
+ * No print window: an iPhone or iPad Home Screen app can't open one (asking does nothing at all),
+ * so Export as PDF makes the PDF itself there and hands it to the share sheet.
+ */
+export const printless = iOS && standalone;
+
 /**
  * A Home Screen app on an iPhone or iPad: it owns the whole screen, under a see-through status
  * bar. An iPhone app always has the whole screen; an iPad one is recognised by its tell-tale
