@@ -181,7 +181,7 @@ export const SCENES: Record<SceneId, SceneMeta> = {
 };
 
 /** The order they're offered in (Settings, the command palette). */
-export const SCENE_ORDER: readonly SceneId[] = ["eclipse", "solar", "rain", "ink", "sky"];
+export const SCENE_ORDER: readonly SceneId[] = ["eclipse", "rain", "solar", "ink", "sky"];
 export const SCENE_LIST: readonly SceneMeta[] = SCENE_ORDER.map((id) => SCENES[id]);
 
 /** Whether a search (in the command palette) asks for a hidden scene by name. */
