@@ -331,7 +331,7 @@ export class InkFluid {
       gl.uniform4f(l.uPanel, I.panel[0], I.panel[1], I.panel[2], I.panel[3]);
       gl.uniform1f(l.uClear, I.clear);
       gl.uniform1f(l.uFlow, I.flow);
-      gl.uniform1f(l.uFade, FLUID.fade);
+      gl.uniform1f(l.uFade, FLUID.fade * (I.dissolve || 1));
       gl.uniform1f(l.uSoften, FLUID.soften);
     });
     dye = [dye[1], dye[0]];

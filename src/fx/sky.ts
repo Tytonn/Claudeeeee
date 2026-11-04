@@ -95,6 +95,8 @@ export type InkFrame = {
   light: number;
   /** In real water only: how finely the ink is drawn. */
   detail: "standard" | "high";
+  /** In real water only: how quickly the ink gives itself to the water (1: as usual; sooner on a phone, where a little goes a long way). */
+  dissolve: number;
 };
 
 /** The Sky scene's part of the frame (scenes/sky). */
