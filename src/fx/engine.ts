@@ -286,6 +286,14 @@ export class FxEngine {
     return this.ctl.skyScale();
   }
 
+  /** Sizes the sky again (a scene's own needs have changed: the galaxy's eclipse wants it sharper). */
+  refreshSky() {
+    if (!this.started) return;
+    // (never below what the scene now allows, if speed-keeping had already taken it lower)
+    this.skyScale = Math.max(this.skyScale, this.ctl.floor);
+    this.sizeSky();
+  }
+
   /** Sizes the sky for the current scene, level and measured speed. */
   private sizeSky() {
     if (!this.sky) return;

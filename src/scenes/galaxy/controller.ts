@@ -21,8 +21,14 @@ type Frag = { x: number; y: number; vx: number; vy: number; life: number; max: n
  */
 export class GalaxyScene implements SceneController {
   readonly id = "eclipse" as const;
-  readonly floor = 0.35;
-  readonly detailOnSmall = false;
+  /** How far the engine may lower the sky's resolution to keep up (the eclipse's crisp edge needs more). */
+  get floor() {
+    return this.eclipseShown ? 0.6 : 0.35;
+  }
+  /** Full detail on a small screen too, while the eclipse is up (its fine rays and edge). */
+  get detailOnSmall() {
+    return this.eclipseShown;
+  }
   readonly drops = false;
   readonly flashK = 1;
 
@@ -340,7 +346,15 @@ export class GalaxyScene implements SceneController {
 
   skyScale() {
     const fx = this.fx;
-    return fx.small ? 0.55 : Math.min(devicePixelRatio || 1, 1.25) * (fx.effective === "subtle" ? 0.6 : 1);
+    // (the nebula is soft, so a phone draws it small — but the eclipse's moon has a crisp edge and a
+    // thin ring of fire round it, so while it's up a phone draws as sharply as the solar eclipse does)
+    if (fx.small) return this.eclipseShown ? Math.min(devicePixelRatio || 1, 1.25) * (fx.effective === "subtle" ? 0.7 : 1) : 0.55;
+    return Math.min(devicePixelRatio || 1, 1.25) * (fx.effective === "subtle" ? 0.6 : 1);
+  }
+
+  /** Whether its own eclipse is up (or on its way). */
+  private get eclipseShown() {
+    return this.eclipseOn || this.showing;
   }
 
   timeRate(lvl: FxLevel) {
@@ -369,6 +383,7 @@ export class GalaxyScene implements SceneController {
     this.eclipseMiddle = middle;
     if (on === this.eclipseOn) return;
     this.eclipseOn = on;
+    this.fx.refreshSky();
     // Off-screen (or before the first frame), it's simply there — or not — next time.
     if (!this.fx.started || this.fx.scene !== "eclipse" || !this.fx.active) {
       this.showing = on;
@@ -418,6 +433,7 @@ export class GalaxyScene implements SceneController {
         this.showing = this.eclipseOn;
         this.eclipseK = 0;
         this.moonPlaced = false;
+        this.fx.refreshSky();
         this.fx.flareUp(this.showing ? 0.6 : 0.5);
       }
     } else if (this.coronaK < 1) {
