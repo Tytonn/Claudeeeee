@@ -6,8 +6,8 @@ import type { InkBloom } from "./blooms";
  * Times are in seconds from the start of the fall.
  */
 
-/** How long the drop takes to fall to the middle of the screen. */
-export const FALL = 0.62;
+/** How long the drop takes to fall to the middle of the screen (fast: a drop of ink, let go). */
+export const FALL = 0.3;
 /** When the page may start coming back up (it fades in over the paper as that opens). */
 export const REVEAL = FALL + 0.72;
 /** When the last of the dark lifts. */

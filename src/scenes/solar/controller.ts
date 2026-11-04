@@ -113,9 +113,21 @@ export class SolarScene implements SceneController {
     this.backdrop = id;
   }
 
-  /** How much nearer (or further) than usual the eclipse looks, from the Distance setting: 0.62 .. 1.62. */
+  /** How much nearer (or further) than usual the eclipse looks, from the Distance setting: 0.62 (far
+   *  off) .. 1 (the default, halfway) .. 3.25 (right up close). */
   get sunScale() {
-    return Math.pow(2, (Math.min(1, Math.max(0, this.solarOpts.size)) - 0.5) * 1.4);
+    const s = Math.min(1, Math.max(0, this.solarOpts.size));
+    return s <= 0.5 ? Math.pow(2, (s - 0.5) * 1.4) : Math.pow(3.25, (s - 0.5) * 2);
+  }
+
+  /** How far past the default it's been brought, 0..1 (the room it may take grows with it). */
+  private get closer() {
+    return Math.min(1, Math.max(0, (this.solarOpts.size - 0.5) * 2));
+  }
+
+  /** The most a sun's size may be (px), let out as it's brought closer than it once could be. */
+  private most(px: number) {
+    return px * Math.max(1, this.sunScale / 1.62);
   }
 
   /** Where the sun is (CSS px), for things that start from it. */
@@ -150,7 +162,7 @@ export class SolarScene implements SceneController {
       return { x: W / 2, y: Math.max(r * 2.3, H * 0.15), r };
     }
     if (this.fx.small) {
-      const r = fit(W * 0.12 * near, 28, 110);
+      const r = fit(W * 0.12 * near, 28, this.most(110));
       return { x: W * 0.62, y: H * 0.56, r };
     }
     const r0 = m * 0.088 * near;
@@ -167,10 +179,10 @@ export class SolarScene implements SceneController {
       const usual = this.usual?.key === key ? this.usual : this.beside(this.textRight + shift, W - this.railW, this.railBottom || H * 0.3, W - this.railW, r0);
       // …only closer: bigger, though never so big that its bright ring reaches your words
       const clear = (usual.x - this.textRight) / 1.55;
-      const r = Math.max(usual.r, Math.min(usual.r * 1.38, clear, usual.y / 1.15, 250));
+      const r = Math.max(usual.r, Math.min(usual.r * 1.38, clear, usual.y / 1.15));
       return { x: usual.x, y: usual.y, r };
     }
-    return { x: W * 0.76, y: H * 0.4, r: fit(r0, 32, 150) };
+    return { x: W * 0.76, y: H * 0.4, r: fit(r0, 32, this.most(150)) };
   }
 
   /** Where the sun hangs beside your writing, given where it ends and where the right-hand column starts. */
@@ -181,16 +193,16 @@ export class SolarScene implements SceneController {
     const gap = railLeft - textRight;
     if (this.backdrop !== "dark" && gap > Math.min(r0, 70) * 3.2) {
       // It keeps its bright inner ring clear of your words — unless you've asked for it closer,
-      // when only the moon itself has to fit.
-      const room = gap / (3.1 - 0.8 * Math.max(0, this.solarOpts.size - 0.5) * 2);
-      return { x: textRight + gap / 2, y: H * 0.4, r: fit(Math.min(r0, room), 32, 170) };
+      // when it may come right up to them (and, brought all the way, past them).
+      const room = gap / (3.1 - 2 * this.closer);
+      return { x: textRight + gap / 2, y: H * 0.4, r: fit(Math.min(r0, room), 32, this.most(170)) };
     }
     const right = W - panelRight;
     if (right > 220) {
-      const r = fit(Math.min(r0, right * 0.3), 34, 120);
+      const r = fit(Math.min(r0, right * (0.3 + 0.5 * this.closer)), 34, this.most(120));
       return { x: panelRight + right / 2, y: fit(railBottom + r * 2.4, H * 0.42, H * 0.72), r };
     }
-    return { x: W * 0.76, y: H * 0.4, r: fit(r0, 32, 150) };
+    return { x: W * 0.76, y: H * 0.4, r: fit(r0, 32, this.most(150)) };
   }
 
   /** Where your writing ends and the right-hand column begins (and its widgets end), every so often. */

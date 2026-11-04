@@ -114,7 +114,7 @@ function SolarCard() {
 function SunDistance() {
   const size = useApp((s) => s.settings.solarSize);
   const setSettings = useApp((s) => s.setSettings);
-  return <Slider label="Distance" value={typeof size === "number" ? size : 0.5} onChange={(solarSize) => setSettings({ solarSize })} />;
+  return <Slider label="Distance" value={typeof size === "number" ? size : 0.5} mark={0.5} onChange={(solarSize) => setSettings({ solarSize })} />;
 }
 
 

@@ -30,9 +30,12 @@ export function Section({ title, children }: { title: string; children: ReactNod
  * double-click is enough), pressing on a slider and moving picks that text up and drags it
  * instead — the thumb stays put and the cursor turns into a "can't drop here". So: let go of
  * any selection the moment it's pressed, and never let it start a drag.
+ *
+ * `mark` is where its default is: a small tick under the track shows it, the thumb settles onto
+ * it as it passes close by, and a double-click puts it back there.
  */
-export function Slider({ value, label, onChange }: { value: number; label: string; onChange: (v: number) => void }) {
-  return (
+export function Slider({ value, label, onChange, mark }: { value: number; label: string; onChange: (v: number) => void; mark?: number }) {
+  const input = (
     <input
       type="range"
       className="range wide"
@@ -47,7 +50,18 @@ export function Slider({ value, label, onChange }: { value: number; label: strin
         if (sel && sel.type === "Range") sel.removeAllRanges();
       }}
       onDragStart={(e) => e.preventDefault()}
-      onChange={(e) => onChange(Number(e.target.value))}
+      onDoubleClick={mark === undefined ? undefined : () => onChange(mark)}
+      onChange={(e) => {
+        const v = Number(e.target.value);
+        onChange(mark !== undefined && Math.abs(v - mark) < 0.025 ? mark : v);
+      }}
     />
+  );
+  if (mark === undefined) return input;
+  return (
+    <span className={`range-wrap ${Math.abs(value - mark) < 0.001 ? "at-mark" : ""}`}>
+      <span className="range-mark" style={{ "--m": String(mark) } as React.CSSProperties} aria-hidden />
+      {input}
+    </span>
   );
 }

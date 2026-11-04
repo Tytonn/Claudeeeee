@@ -234,11 +234,23 @@ html[data-tone="light"][data-backdrop="crystal"]:is([data-fx="cosmic"], [data-fx
   -webkit-backdrop-filter: blur(3px);
   backdrop-filter: blur(3px);
 }
+/* (Bare is nothing at all, here as anywhere: no vellum, no edges — each word's paper halo is
+   what keeps it clear of the ink) */
 html[data-tone="light"][data-backdrop="bare"]:is([data-fx="cosmic"], [data-fx="subtle"]) .app :is(.sidebar-inner, .rail-inner),
 html[data-tone="light"][data-backdrop="bare"]:is([data-fx="cosmic"], [data-fx="subtle"]) .app:not(.is-mobile) :is(.sidebar-inner, .rail-inner) {
-  background: rgb(250 248 244 / 0.18);
-  -webkit-backdrop-filter: blur(2.5px);
-  backdrop-filter: blur(2.5px);
+  background: transparent;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+/* …the note casts no shadow on the water (it isn't a sheet of anything) */
+html[data-tone="light"][data-backdrop="bare"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(.canvas, .canvas[data-light]) {
+  box-shadow: none;
+}
+/* …and countdowns lose their paper card (no body, no outline, no shadow) */
+html[data-tone="light"][data-backdrop="bare"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(.cd-card, .cd-card[data-light], .cd-card[data-light]:hover) {
+  background: transparent;
+  box-shadow: none;
 }
 html[data-tone="light"]:is([data-backdrop="clear"], [data-backdrop="crystal"], [data-backdrop="bare"]):is([data-fx="cosmic"], [data-fx="subtle"]) :is(.wordmark, .all-done) {
   filter: drop-shadow(0 0 1px rgb(250 248 243 / 0.9)) drop-shadow(0 0 8px rgb(250 248 243 / 0.7));
