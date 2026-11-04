@@ -121,6 +121,9 @@ html.is-ios-app {
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  /* no grey flash over whatever you tap on a phone (search, the to-do box, a note in the list…):
+     everything shows its own pressed and focused state instead */
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
