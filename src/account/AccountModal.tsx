@@ -23,8 +23,8 @@ function DevBadge() {
   return (
     <Tooltip label="umbra developer" placement="top">
       <span className="acct-badge">
-        <CodeXml size={10} strokeWidth={2.4} aria-hidden />
-        Dev
+        <CodeXml size={11} strokeWidth={2.3} aria-hidden />
+        dev
       </span>
     </Tooltip>
   );
