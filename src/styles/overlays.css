@@ -385,29 +385,31 @@
 }
 
 /* ── Share sheet ─────────────────────────────────────────────────────────── */
+/* (its classes say "sheet", never "share": ad blockers' lists of social share buttons hide
+   .share-head, .share-items, .share-row… on every site — which left only the last line showing) */
 
-.share-pop {
+.sheet-pop {
   width: 348px;
 }
-.share {
+.sheet {
   display: flex;
   flex-direction: column;
   gap: 12px;
   padding: 14px;
 }
-.share-head {
+.sheet-head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 10px;
   padding: 2px 4px 0;
 }
-.share-title {
+.sheet-title {
   font-size: 23px;
   line-height: 1.1;
   color: var(--fg-1);
 }
-.share-sub {
+.sheet-sub {
   display: inline-flex;
   flex-shrink: 0;
   align-items: center;
@@ -415,14 +417,14 @@
   font-size: 11px;
   color: var(--fg-3);
 }
-.share-items {
+.sheet-items {
   display: flex;
   flex-direction: column;
   border-radius: 13px;
   background: rgb(var(--tint) / 0.02);
   box-shadow: inset 0 0 0 1px var(--line);
 }
-.share-row {
+.sheet-row {
   display: flex;
   align-items: center;
   gap: 11px;
@@ -431,17 +433,17 @@
   border-radius: 13px;
   transition: background-color var(--t-fast);
 }
-.share-row:not(.is-fixed):hover {
+.sheet-row:not(.is-fixed):hover {
   background: rgb(var(--tint) / 0.02);
 }
-.share-row + .share-row {
+.sheet-row + .sheet-row {
   border-top: 1px solid var(--line);
   border-radius: 0 0 13px 13px;
 }
-.share-row.is-fixed {
+.sheet-row.is-fixed {
   cursor: default;
 }
-.share-row-icon {
+.sheet-row-icon {
   display: grid;
   flex-shrink: 0;
   place-items: center;
@@ -452,33 +454,33 @@
   background: rgb(var(--tint) / 0.04);
   box-shadow: inset 0 0 0 1px var(--line);
 }
-.share-row-text {
+.sheet-row-text {
   display: flex;
   flex: 1;
   flex-direction: column;
   min-width: 0;
 }
-.share-row-title {
+.sheet-row-title {
   overflow: hidden;
   font-size: 13px;
   color: var(--fg-1);
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-.share-row-sub {
+.sheet-row-sub {
   font-size: 11.5px;
   color: var(--fg-4);
 }
-.share-row-check {
+.sheet-row-check {
   color: var(--accent);
 }
-.share-live,
-.share-new {
+.sheet-live,
+.sheet-new {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
-.share-link {
+.sheet-link {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -488,7 +490,7 @@
   background: rgb(0 0 0 / 0.3);
   box-shadow: inset 0 0 0 1px var(--line-2);
 }
-.share-url {
+.sheet-url {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -497,10 +499,10 @@
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-.share-url-key {
+.sheet-url-key {
   color: var(--fg-4);
 }
-.share-copy {
+.sheet-copy {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -518,17 +520,17 @@
     filter var(--t-fast),
     transform 160ms var(--ease);
 }
-.share-copy:hover {
+.sheet-copy:hover {
   filter: brightness(1.07);
 }
-.share-copy:active {
+.sheet-copy:active {
   transform: scale(0.96);
 }
-.share-copy > span {
+.sheet-copy > span {
   display: grid;
   place-items: center;
 }
-.share-state {
+.sheet-state {
   display: flex;
   align-items: center;
   gap: 9px;
@@ -536,12 +538,12 @@
   font-size: 12px;
   color: var(--fg-3);
 }
-.share-actions {
+.sheet-actions {
   display: flex;
   justify-content: flex-end;
   gap: 6px;
 }
-.share-name {
+.sheet-name {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -551,23 +553,23 @@
   box-shadow: inset 0 0 0 1px var(--line);
   transition: box-shadow var(--t-med) var(--ease);
 }
-.share-name:focus-within {
+.sheet-name:focus-within {
   box-shadow:
     inset 0 0 0 1px var(--accent-3),
     0 0 0 4px var(--accent-1);
 }
-.share-name-label {
+.sheet-name-label {
   font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 0.09em;
   text-transform: uppercase;
   color: var(--fg-4);
 }
-.share-name.is-static {
+.sheet-name.is-static {
   box-shadow: none;
   background: rgb(var(--tint) / 0.025);
 }
-.share-name-value {
+.sheet-name-value {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -576,7 +578,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.share-error {
+.sheet-error {
   padding: 9px 11px;
   border-radius: 10px;
   font-size: 12px;
@@ -584,7 +586,7 @@
   color: color-mix(in oklch, var(--danger) 70%, white);
   background: var(--danger-1);
 }
-.share-foot {
+.sheet-foot {
   margin: 0;
   padding: 0 4px;
   font-size: 11px;

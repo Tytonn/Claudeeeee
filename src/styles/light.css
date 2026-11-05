@@ -300,7 +300,7 @@ html[data-tone="light"] .toast {
 html[data-tone="light"] .access-card {
   background: linear-gradient(180deg, rgb(var(--paper-top) / 0.95), rgb(var(--paper) / 0.96));
 }
-html[data-tone="light"] .share-link {
+html[data-tone="light"] .sheet-link {
   background: rgb(30 28 36 / 0.045);
 }
 

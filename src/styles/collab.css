@@ -90,7 +90,7 @@
 .note-meta .presence {
   margin-left: 2px;
 }
-.share-state .presence {
+.sheet-state .presence {
   margin-left: auto;
 }
 
@@ -134,7 +134,7 @@
 
 /* ── People on a shared link (owner) ─────────────────────────────────────── */
 
-.share-pop {
+.sheet-pop {
   max-height: calc(100dvh - 90px);
   overflow-y: auto;
   overscroll-behavior: contain;

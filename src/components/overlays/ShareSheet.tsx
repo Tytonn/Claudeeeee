@@ -147,37 +147,39 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
     }
   };
 
+  // (every class here is "sheet-…", never "share-…": ad blockers hide those everywhere as social
+  // share buttons — see overlays.css)
   return (
-    <Popover open={open} onClose={onClose} anchor={anchorEl} placement={placement} className="share-pop" label="Share">
-      <div className="share">
-        <header className="share-head">
-          <div className="share-title display">{record ? "Sharing live" : isBoard ? "Share your lists" : "Share note"}</div>
-          <div className="share-sub">
+    <Popover open={open} onClose={onClose} anchor={anchorEl} placement={placement} className="sheet-pop" label="Share">
+      <div className="sheet">
+        <header className="sheet-head">
+          <div className="sheet-title display">{record ? "Sharing live" : isBoard ? "Share your lists" : "Share note"}</div>
+          <div className="sheet-sub">
             <Lock size={11} strokeWidth={2} /> End-to-end encrypted
           </div>
         </header>
 
-        <div className="share-items">
+        <div className="sheet-items">
           {!isBoard && note && (
-            <div className="share-row is-fixed">
-              <span className="share-row-icon">
+            <div className="sheet-row is-fixed">
+              <span className="sheet-row-icon">
                 <FileText size={15} strokeWidth={1.7} />
               </span>
-              <span className="share-row-text">
-                <span className="share-row-title">{displayTitle(note)}</span>
-                <span className="share-row-sub">This note</span>
+              <span className="sheet-row-text">
+                <span className="sheet-row-title">{displayTitle(note)}</span>
+                <span className="sheet-row-sub">This note</span>
               </span>
-              <Check size={15} strokeWidth={2} className="share-row-check" />
+              <Check size={15} strokeWidth={2} className="sheet-row-check" />
             </div>
           )}
           {!isBoard && note && (
-            <div className="share-row" onClick={() => toggleEdit(!canEdit)}>
-              <span className="share-row-icon">
+            <div className="sheet-row" onClick={() => toggleEdit(!canEdit)}>
+              <span className="sheet-row-icon">
                 <PenLine size={15} strokeWidth={1.7} />
               </span>
-              <span className="share-row-text">
-                <span className="share-row-title">Friends can edit</span>
-                <span className="share-row-sub">{canEdit ? "Write together, live — you'll see each other's cursors" : "View only — they still see your edits live"}</span>
+              <span className="sheet-row-text">
+                <span className="sheet-row-title">Friends can edit</span>
+                <span className="sheet-row-sub">{canEdit ? "Write together, live — you'll see each other's cursors" : "View only — they still see your edits live"}</span>
               </span>
               <span onClick={(e) => e.stopPropagation()}>
                 <Switch checked={canEdit} onChange={(v) => toggleEdit(v)} label="Friends can edit" />
@@ -185,13 +187,13 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
             </div>
           )}
           {settings.todos && (
-            <div className="share-row" onClick={() => setInclude("todos", !todos)}>
-              <span className="share-row-icon">
+            <div className="sheet-row" onClick={() => setInclude("todos", !todos)}>
+              <span className="sheet-row-icon">
                 <ListChecks size={15} strokeWidth={1.7} />
               </span>
-              <span className="share-row-text">
-                <span className="share-row-title">{isBoard ? "To-do list" : "Include to-do list"}</span>
-                <span className="share-row-sub">{totalTodos ? `${openTodos} open of ${totalTodos}` : "Empty for now"}</span>
+              <span className="sheet-row-text">
+                <span className="sheet-row-title">{isBoard ? "To-do list" : "Include to-do list"}</span>
+                <span className="sheet-row-sub">{totalTodos ? `${openTodos} open of ${totalTodos}` : "Empty for now"}</span>
               </span>
               <span onClick={(e) => e.stopPropagation()}>
                 <Switch checked={todos} onChange={(v) => setInclude("todos", v)} label="Include to-do list" />
@@ -199,13 +201,13 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
             </div>
           )}
           {settings.countdowns && (
-            <div className="share-row" onClick={() => setInclude("cds", !cds)}>
-              <span className="share-row-icon">
+            <div className="sheet-row" onClick={() => setInclude("cds", !cds)}>
+              <span className="sheet-row-icon">
                 <Hourglass size={15} strokeWidth={1.7} />
               </span>
-              <span className="share-row-text">
-                <span className="share-row-title">{isBoard ? "Countdowns" : "Include countdowns"}</span>
-                <span className="share-row-sub">{countdowns ? `${countdowns} counting down` : "None yet"}</span>
+              <span className="sheet-row-text">
+                <span className="sheet-row-title">{isBoard ? "Countdowns" : "Include countdowns"}</span>
+                <span className="sheet-row-sub">{countdowns ? `${countdowns} counting down` : "None yet"}</span>
               </span>
               <span onClick={(e) => e.stopPropagation()}>
                 <Switch checked={cds} onChange={(v) => setInclude("cds", v)} label="Include countdowns" />
@@ -216,13 +218,13 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
 
         <AnimatePresence mode="wait" initial={false}>
           {record ? (
-            <motion.div key="live" className="share-live" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.2 }}>
-              <div className="share-link">
-                <span className="share-url mono" title={url}>
+            <motion.div key="live" className="sheet-live" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.2 }}>
+              <div className="sheet-link">
+                <span className="sheet-url mono" title={url}>
                   {shownUrl}
-                  <span className="share-url-key">#••••</span>
+                  <span className="sheet-url-key">#••••</span>
                 </span>
-                <button type="button" className={`share-copy ${copied ? "is-copied" : ""}`} onClick={() => void copy(url)}>
+                <button type="button" className={`sheet-copy ${copied ? "is-copied" : ""}`} onClick={() => void copy(url)}>
                   <AnimatePresence mode="wait" initial={false}>
                     <motion.span key={copied ? "y" : "n"} initial={{ opacity: 0, scale: 0.6 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.6 }} transition={{ duration: 0.14 }}>
                       {copied ? <Check size={14} strokeWidth={2.4} /> : <Copy size={14} strokeWidth={1.8} />}
@@ -231,7 +233,7 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
                   {copied ? "Copied" : "Copy"}
                 </button>
               </div>
-              <div className={`share-state ${status ?? "idle"}`}>
+              <div className={`sheet-state ${status ?? "idle"}`}>
                 <span className={`live-dot ${status === "syncing" ? "is-syncing" : ""} ${status === "error" || session?.status === "offline" ? "is-error" : ""}`} />
                 {status === "error" || session?.status === "offline"
                   ? "Can't reach the server — retrying"
@@ -243,7 +245,7 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
                 {session && <Presence session={session} withNames />}
               </div>
               <PeoplePanel anchor={anchor} />
-              <div className="share-actions">
+              <div className="sheet-actions">
                 {typeof navigator.share === "function" && (
                   <button type="button" className="ghost-btn" onClick={() => void sendNative()}>
                     <Send size={13} strokeWidth={1.8} /> Send…
@@ -255,11 +257,11 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
               </div>
             </motion.div>
           ) : (
-            <motion.div key="new" className="share-new" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.2 }}>
+            <motion.div key="new" className="sheet-new" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.2 }}>
               {username && (
-                <div className="share-name is-static">
-                  <span className="share-name-label">From</span>
-                  <span className="share-name-value">@{username}</span>
+                <div className="sheet-name is-static">
+                  <span className="sheet-name-label">From</span>
+                  <span className="sheet-name-value">@{username}</span>
                 </div>
               )}
               <button type="button" className="primary-btn wide" disabled={busy === "create" || nothing} onClick={() => void create()}>
@@ -275,8 +277,8 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
           )}
         </AnimatePresence>
 
-        {error && <div className="share-error">{error}</div>}
-        <p className="share-foot">Anyone with the link can view. The key lives inside the link itself, so the server only ever stores scrambled data.</p>
+        {error && <div className="sheet-error">{error}</div>}
+        <p className="sheet-foot">Anyone with the link can view. The key lives inside the link itself, so the server only ever stores scrambled data.</p>
       </div>
     </Popover>
   );
