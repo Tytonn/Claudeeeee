@@ -320,6 +320,18 @@ html[data-tone="light"] .switch.on .switch-knob {
   background: var(--accent-ink);
 }
 
+/* (on paper the developer's mark is ink-deep accent on a pale wash of it) */
+html[data-tone="light"] .acct-badge {
+  color: var(--accent);
+  background: linear-gradient(180deg, color-mix(in oklch, var(--accent) 14%, transparent), color-mix(in oklch, var(--accent) 6%, transparent));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklch, var(--accent) 38%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 0.6);
+}
+html[data-tone="light"] .acct-badge::after {
+  background: linear-gradient(105deg, transparent 30%, rgb(255 255 255 / 0.85) 50%, transparent 70%);
+}
+
 /* Text set on the accent is paper-light here (the accent is deep). */
 html[data-tone="light"] :is(.acct-coin, .acct-mini, .auth-go) {
   color: var(--accent-ink);

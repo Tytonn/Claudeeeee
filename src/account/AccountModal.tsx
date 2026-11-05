@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { Camera, Cloud, CloudOff, LogOut, RefreshCw, UserRound, X } from "lucide-react";
+import { Camera, Cloud, CloudOff, CodeXml, LogOut, RefreshCw, UserRound, X } from "lucide-react";
 import { useApp } from "../store/app";
 import { relativeLong } from "../lib/dates";
 import { useNow } from "../lib/hooks";
@@ -10,10 +10,25 @@ import { signOut, useAccount } from "./account";
 import { syncNow } from "./sync";
 import { AuthForm } from "./AuthForm";
 import { usePhoto } from "../components/Avatar";
+import { Tooltip } from "../components/ui/Tooltip";
 import { addProfilePicture } from "../lib/images";
 
 /** Sign in or create an account (the eclipse form). Also used on private shared links. */
 export const AccountForm = AuthForm;
+
+/** The people who make umbra: a small mark beside their own name, in their account. */
+const DEVELOPERS = new Set(["tyton"]);
+
+function DevBadge() {
+  return (
+    <Tooltip label="umbra developer" placement="top">
+      <span className="acct-badge">
+        <CodeXml size={10} strokeWidth={2.4} aria-hidden />
+        Dev
+      </span>
+    </Tooltip>
+  );
+}
 
 /** Your profile picture (for the account you're signed in to), if you've set one. */
 export function useMyPicture() {
@@ -97,7 +112,10 @@ function SignedIn({ onClose }: { onClose: () => void }) {
       <div className="acct-me">
         <MyPicture initial={user.username.slice(0, 1).toUpperCase()} />
         <span className="acct-me-text">
-          <span className="acct-name">@{user.username}</span>
+          <span className="acct-name-row">
+            <span className="acct-name">@{user.username}</span>
+            {DEVELOPERS.has(user.username) && <DevBadge />}
+          </span>
           <PictureLinks />
           <span className={`acct-sync mono is-${sync}`}>
             {sync === "offline" ? <CloudOff size={11} strokeWidth={2} /> : <Cloud size={11} strokeWidth={2} />}

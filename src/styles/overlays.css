@@ -1123,6 +1123,64 @@
   font-size: 15px;
   color: var(--fg-1);
 }
+/* The developer's mark, beside their name: a small pill of accent light with a code glyph, and
+   now and then a glint running across it, like light catching a rim. */
+.acct-name-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.acct-badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 18px;
+  padding: 0 7px 0 6px;
+  overflow: hidden;
+  border-radius: 99px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in oklch, var(--accent) 72%, white);
+  background: linear-gradient(180deg, color-mix(in oklch, var(--accent) 22%, transparent), color-mix(in oklch, var(--accent) 9%, transparent));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklch, var(--accent) 48%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 0.12),
+    0 0 16px -5px color-mix(in oklch, var(--accent) 85%, transparent);
+  cursor: default;
+  user-select: none;
+}
+.acct-badge svg {
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+.acct-badge::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 30%, rgb(255 255 255 / 0.42) 50%, transparent 70%);
+  transform: translateX(-130%);
+  animation: acct-glint 6s 0.9s cubic-bezier(0.45, 0, 0.25, 1) infinite;
+  pointer-events: none;
+}
+@keyframes acct-glint {
+  0% {
+    transform: translateX(-130%);
+  }
+  16%,
+  100% {
+    transform: translateX(130%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .acct-badge::after {
+    display: none;
+  }
+}
 .acct-sync {
   display: inline-flex;
   align-items: center;
