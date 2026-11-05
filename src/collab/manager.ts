@@ -28,17 +28,36 @@ const starting = new Set<string>();
 const prepared = new Map<string, { shareId: string; doc: Y.Doc; seq: number }>();
 const retryAt = new Map<string, number>();
 const syncTimers = new Map<string, number>();
+/** Notes whose link was just made or copied: until when to look out for visitors. */
+const expecting = new Map<string, number>();
+/** Waiting-to-be-let-in counts, as each note's session last heard them (see watch()). */
+const pendingSeen = new Map<string, number>();
 const subs = new Set<() => void>();
 let started = false;
 
 const emit = () => subs.forEach((fn) => fn());
+/** Fired (with the note's id) when a live note hears of someone new waiting to be let in. */
+export const PENDING_EVENT = "umbra:pending";
 const savedKey = (anchor: string) => `ydoc:${anchor}`;
 
-/** You, as others see you: your username (if you're signed in) and your accent color (as hex, which the caret plugin needs). */
-export function userFor(settings: Pick<Settings, "accent">, fallback = "Owner"): CollabUser {
+/**
+ * You, as others see you: your username and your accent colour (as hex, which the caret plugin
+ * needs), and your profile picture if you've set one. Not signed in: the owner is "Owner"; anyone
+ * else is a guest, in a colour of their own (see session.ts).
+ */
+export function userFor(settings: Pick<Settings, "accent" | "avatar">, as: "owner" | "guest" = "owner"): CollabUser {
   const rgb = to255(oklchToRgb((ACCENTS[settings.accent] ?? ACCENTS.iris).color));
   const hex = `#${rgb.map((v) => Math.round(Math.min(255, Math.max(0, v))).toString(16).padStart(2, "0")).join("")}`;
-  return { name: useAccount.getState().user?.username.slice(0, 40) || fallback, color: hex };
+  const user = useAccount.getState().user;
+  if (!user) return as === "guest" ? { name: "Guest", color: hex, guest: true } : { name: "Owner", color: hex };
+  const pic = settings.avatar?.uid === user.uid ? settings.avatar : null;
+  return { name: user.username.slice(0, 40), color: hex, avatar: pic ? { id: pic.id, key: pic.key, type: pic.type } : null };
+}
+
+/** Someone's likely to open this note's link soon (you just made or copied it): look out for them a little more often. */
+export function expectVisitors(anchor: string) {
+  expecting.set(anchor, Date.now() + 180_000);
+  sessions.get(anchor)?.expect();
 }
 
 /** The live session for a note, if it's shared for co-editing. */
@@ -77,7 +96,7 @@ export function startCollab() {
   sync();
   useApp.subscribe((s, prev) => {
     if (s.shares !== prev.shares || s.ready !== prev.ready) sync();
-    if (s.settings.accent !== prev.settings.accent) {
+    if (s.settings.accent !== prev.settings.accent || s.settings.avatar !== prev.settings.avatar) {
       for (const session of sessions.values()) session.setUser(userFor(s.settings));
     }
   });
@@ -161,6 +180,8 @@ async function ensure(anchor: string, record: ShareRecord) {
     });
     session.subscribe(() => watch(anchor, session));
     sessions.set(anchor, session);
+    const until = expecting.get(anchor) ?? 0;
+    if (until > Date.now()) session.expect(until - Date.now());
     session.start();
     emit();
   } finally {
@@ -209,6 +230,12 @@ function watch(anchor: string, session: CollabSession) {
     retire(anchor, true);
     void verifyShare(anchor);
     return;
+  }
+  // someone's asked to be let into a private link: the people watch takes it from here
+  if ((pendingSeen.get(anchor) ?? 0) !== session.pending) {
+    const more = session.pending > (pendingSeen.get(anchor) ?? 0);
+    pendingSeen.set(anchor, session.pending);
+    if (more) window.dispatchEvent(new CustomEvent(PENDING_EVENT, { detail: anchor }));
   }
   const record = useApp.getState().shares[anchor];
   if (record && record.id === session.shareId && session.synced && (record.editable !== false) !== session.editable) {

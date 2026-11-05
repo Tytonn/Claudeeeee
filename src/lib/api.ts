@@ -77,7 +77,10 @@ export async function fetchShare(id: string, etag?: string | null, ownerToken?: 
 // ── Live co-editing (see netlify/functions/collab.mts) ─────────────────────
 
 export type Sealed = { iv: string; data: string };
-export type DocEntry = Sealed & { n: number; c: number };
+/** `at`: when the server took it in (its clock — compare with `now` in the same response). */
+export type DocEntry = Sealed & { n: number; c: number; at?: number };
+/** Someone with the note open: their sealed card (colour, picture), what they may do, and — if they're signed in — their username, as the server knows it. */
+export type HerePerson = Sealed & { c: number; k: number; r: "owner" | "edit" | "view"; u?: string };
 export type DocCatchUp = {
   seq: number;
   upto: number;
@@ -89,20 +92,47 @@ export type DocCatchUp = {
   entries: DocEntry[];
   more: boolean;
   assigned?: number | null;
+  /** Who's here: the list's version; whether you're on it; and the list itself, if it's changed since the version you sent. */
+  here?: { v: string; you: boolean; people?: HerePerson[] };
+  /** (the owner of a private link) people waiting to be let in */
+  pending?: number;
+  /** The server's clock. */
+  now?: number;
 };
+/** Being on the "who's here" list (c: your client, k: your card's version, card: sent when asked for) and/or seeing it (hv: the version you have). */
+export type HereParams = { c?: number; k?: number; hv: string; card?: Sealed | null };
 
 const docPath = (id: string) => `/api/shares/${encodeURIComponent(id)}/doc`;
 
 /** `token` (owner or link write token) lets the owner in even when the link is private. */
-export async function fetchDoc(id: string, since: number, token?: string): Promise<DocCatchUp> {
-  const { body } = await request<DocCatchUp>(`${docPath(id)}?since=${since}`, token ? { headers: { authorization: `Bearer ${token}` } } : {});
+export async function fetchDoc(id: string, since: number, token?: string, here?: HereParams): Promise<DocCatchUp> {
+  const q = new URLSearchParams({ since: String(since) });
+  if (here) {
+    q.set("hv", here.hv);
+    if (here.c != null) {
+      q.set("c", String(here.c));
+      q.set("k", String(here.k ?? 0));
+      if (here.card) q.set("card", `${here.card.iv}.${here.card.data}`);
+    }
+  }
+  const { body } = await request<DocCatchUp>(`${docPath(id)}?${q}`, token ? { headers: { authorization: `Bearer ${token}` } } : {});
   return body!;
+}
+
+/** Leaving a note: off its "who's here" list straight away. */
+export async function leaveDoc(id: string, token: string, client: number, keepalive = false): Promise<void> {
+  await request(docPath(id), {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify({ bye: client }),
+    keepalive,
+  });
 }
 
 export async function pushDoc(
   id: string,
   token: string,
-  body: { client: number; since: number; entry?: Sealed; snap?: Sealed & { upto: number } },
+  body: { client: number; since: number; entry?: Sealed; snap?: Sealed & { upto: number }; here?: HereParams },
   opts: { keepalive?: boolean } = {},
 ): Promise<DocCatchUp> {
   const json = JSON.stringify(body);

@@ -10,6 +10,8 @@ import { sha256B64, writeTokenFor } from "../../lib/crypto";
 import { displayTitle } from "../../lib/text";
 import { openShare } from "../../lib/actions";
 import { play } from "../../lib/sound";
+import { IDLE_AFTER, lastInputAt } from "../../lib/activity";
+import { PENDING_EVENT } from "../../collab/manager";
 import { Popover } from "../ui/Popover";
 import { Menu } from "../ui/Menu";
 import type { ShareRecord } from "../../lib/types";
@@ -222,36 +224,42 @@ export function PeoplePanel({ anchor }: { anchor: string }) {
   );
 }
 
-/** Watches private links for people asking to get in, and lets you know. */
+/**
+ * Watches private links for people asking to get in, and lets you know — once every 45 seconds,
+ * and only while you're here to be told (the tab showing, someone at the keyboard). A note you
+ * have open hears of them sooner: its own check-ins carry the count (see collab/manager.ts).
+ */
 export function startPeopleWatch() {
   const seen = new Map<string, Set<string>>();
-  const tick = async () => {
-    if (!document.hidden) {
-      const s = useApp.getState();
-      for (const record of Object.values(s.shares)) {
-        if (!record.restricted) continue;
-        try {
-          const res = await getPeople(record.id, record.token);
-          const pending = res.members.filter((m) => m.role === "pending");
-          usePending.setState({ [record.anchor]: pending.length });
-          const known = seen.get(record.anchor) ?? new Set<string>();
-          for (const p of pending) {
-            if (known.has(p.uid)) continue;
-            known.add(p.uid);
-            const note = record.anchor === BOARD ? null : useApp.getState().notes[record.anchor];
-            toast(`${p.name || p.username} wants to open “${note ? displayTitle(note) : "your lists"}”`, {
-              duration: 12_000,
-              action: { label: "Review", run: () => (record.anchor === BOARD ? useApp.getState().setUI({ share: BOARD }) : (useApp.getState().selectNote(record.anchor), openShare(record.anchor))) },
-            });
-            play("chime");
-          }
-          seen.set(record.anchor, known);
-        } catch {
-          /* try again next round */
+  const check = async (only?: string) => {
+    const s = useApp.getState();
+    for (const record of Object.values(s.shares)) {
+      if (!record.restricted || (only && record.anchor !== only)) continue;
+      try {
+        const res = await getPeople(record.id, record.token);
+        const pending = res.members.filter((m) => m.role === "pending");
+        usePending.setState({ [record.anchor]: pending.length });
+        const known = seen.get(record.anchor) ?? new Set<string>();
+        for (const p of pending) {
+          if (known.has(p.uid)) continue;
+          known.add(p.uid);
+          const note = record.anchor === BOARD ? null : useApp.getState().notes[record.anchor];
+          toast(`${p.name || p.username} wants to open “${note ? displayTitle(note) : "your lists"}”`, {
+            duration: 12_000,
+            action: { label: "Review", run: () => (record.anchor === BOARD ? useApp.getState().setUI({ share: BOARD }) : (useApp.getState().selectNote(record.anchor), openShare(record.anchor))) },
+          });
+          play("chime");
         }
+        seen.set(record.anchor, known);
+      } catch {
+        /* try again next round */
       }
     }
-    window.setTimeout(tick, 15_000);
   };
+  const tick = async () => {
+    if (!document.hidden && Date.now() - lastInputAt() < IDLE_AFTER) await check();
+    window.setTimeout(tick, 45_000);
+  };
+  window.addEventListener(PENDING_EVENT, (e) => void check((e as CustomEvent<string>).detail));
   window.setTimeout(tick, 3000);
 }

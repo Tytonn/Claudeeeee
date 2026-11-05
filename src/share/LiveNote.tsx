@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { buildExtensions } from "../components/editor/extensions";
-import { useAccount } from "../account/account";
+import { onAccountChange, useAccount } from "../account/account";
 import { BubbleBar } from "../components/editor/BubbleBar";
 import { TableTools } from "../components/editor/TableTools";
 import { SlashMenu } from "../components/editor/SlashMenu";
@@ -29,16 +29,19 @@ export function useGuestSession(id: string, keyRaw: string, enabled: boolean): C
     let cancelled = false;
     void writeTokenFor(keyRaw).then((token) => {
       if (cancelled) return;
-      s = new CollabSession({ shareId: id, key: keyRaw, token, owner: false, user: userFor(useApp.getState().settings, "Friend") });
+      s = new CollabSession({ shareId: id, key: keyRaw, token, owner: false, user: userFor(useApp.getState().settings, "guest") });
       s.start();
       setSession(s);
     });
+    // (your colour and picture, and who you are — signing in or out while you're here — follow along)
     const unsub = useApp.subscribe((st, prev) => {
-      if (st.settings.accent !== prev.settings.accent) s?.setUser(userFor(st.settings, "Friend"));
+      if (st.settings.accent !== prev.settings.accent || st.settings.avatar !== prev.settings.avatar) s?.setUser(userFor(st.settings, "guest"));
     });
+    const unsubAccount = onAccountChange(() => s?.setUser(userFor(useApp.getState().settings, "guest")));
     return () => {
       cancelled = true;
       unsub();
+      unsubAccount();
       s?.stop();
       setSession(null);
     };
@@ -64,7 +67,7 @@ export function LiveNote({ session, onTitle }: { session: CollabSession; onTitle
           el.focus();
           el.setSelectionRange(el.value.length, el.value.length);
         },
-        collab: { doc: session.doc, awareness: session.awareness, user: userFor(useApp.getState().settings, "Friend") },
+        collab: { doc: session.doc, awareness: session.awareness, user: session.localUser },
         // Pictures you add here go up with this link's write token (or your account).
         imageAuth: () => (useAccount.getState().user ? { session: true } : session.uploadAuth),
       }),

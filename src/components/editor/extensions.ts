@@ -78,13 +78,15 @@ const TitleNav = Extension.create<NavOptions>({
 });
 
 /** Binds an editor to a live doc that other people are editing too. */
-export type CollabBinding = { doc: Y.Doc; awareness: Awareness; user: { name: string; color: string } };
+export type CollabBinding = { doc: Y.Doc; awareness: Awareness; user: { name: string; color: string; cid?: number } };
 
 /** Someone else's caret: a thin line of light in their color, with their name riding above it. */
 function renderCaret(user: Record<string, unknown>): HTMLElement {
   const caret = document.createElement("span");
   caret.className = "collab-caret";
   caret.style.setProperty("--c", String(user.color ?? "#9aa"));
+  // (whose it is — so clicking their picture up top can find it)
+  if (typeof user.cid === "number") caret.dataset.cid = String(user.cid);
   const label = document.createElement("span");
   label.className = "collab-label";
   label.textContent = String(user.name ?? "Someone");

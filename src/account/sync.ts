@@ -12,7 +12,7 @@ import {
   normalizeTodoLabels,
   normalizeVault,
 } from "../lib/sanitize";
-import type { Countdown, Note, NoteGroup, Settings, Todo } from "../lib/types";
+import { normalizeAvatar, type Countdown, type Note, type NoteGroup, type Settings, type Todo } from "../lib/types";
 import { untouchedSeedCountdown, untouchedSeedTodo } from "../store/seed";
 import { dataKey, onAccountChange, sessionExpired, useAccount, type AccountUser } from "./account";
 
@@ -65,6 +65,7 @@ const SYNCED_SETTINGS = [
   "clockMsDigits",
   "todoGroups",
   "todoLabels",
+  "avatar",
 ] as const;
 type SyncedSettings = Pick<Settings, (typeof SYNCED_SETTINGS)[number]>;
 
@@ -184,6 +185,7 @@ function apply(changes: Change[]) {
           const merged = { ...(next.settings ?? s.settings) } as Record<string, unknown>;
           for (const k of SYNCED_SETTINGS) if (k in incoming && typeof incoming[k] === typeof merged[k]) merged[k] = incoming[k];
           merged.todoLabels = normalizeTodoLabels(merged.todoLabels);
+          merged.avatar = normalizeAvatar(merged.avatar);
           next.settings = merged as unknown as Settings;
         }
       }

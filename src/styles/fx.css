@@ -901,7 +901,7 @@ html[data-backdrop="crystal"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(.ca
     0 1px 3px rgb(0 0 0 / 0.6),
     0 0 12px rgb(0 0 0 / 0.38);
 }
-html[data-backdrop="crystal"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(.prose pre, .prose code, .collab-label, .presence-coin) {
+html[data-backdrop="crystal"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(.prose pre, .prose code, .collab-label, .avatar, .presence-more) {
   text-shadow: none;
 }
 html[data-backdrop="crystal"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(svg, .check, .live-dot) {
@@ -968,7 +968,7 @@ html[data-backdrop="bare"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(.canva
     0 1px 3px rgb(0 0 0 / 0.6),
     0 0 12px rgb(0 0 0 / 0.38);
 }
-html[data-backdrop="bare"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(.prose pre, .prose code, .collab-label, .presence-coin) {
+html[data-backdrop="bare"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(.prose pre, .prose code, .collab-label, .avatar, .presence-more) {
   text-shadow: none;
 }
 html[data-backdrop="bare"]:is([data-fx="cosmic"], [data-fx="subtle"]) :is(svg, .check, .live-dot) {
@@ -1205,4 +1205,9 @@ html.intro-solar-out .app {
 /* No moon hangs over a friend's page in the rain, so the note sits higher. */
 html[data-scene="rain"]:is([data-fx="cosmic"], [data-fx="subtle"]) .viewer-main {
   padding-top: max(7vh, 56px);
+}
+
+/* (a guest's figure is drawn in their disc's own dark — no glass shadow behind it) */
+html[data-backdrop][data-fx] .avatar svg {
+  filter: none;
 }

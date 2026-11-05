@@ -1,7 +1,8 @@
 import * as Y from "yjs";
-import { Awareness, applyAwarenessUpdate, encodeAwarenessUpdate } from "y-protocols/awareness";
-import { ApiError, fetchDoc, pushDoc, type DocCatchUp } from "../lib/api";
+import { Awareness, applyAwarenessUpdate, encodeAwarenessUpdate, removeAwarenessStates } from "y-protocols/awareness";
+import { ApiError, fetchDoc, leaveDoc, pushDoc, type DocCatchUp, type HereParams, type HerePerson, type Sealed } from "../lib/api";
 import { openBytes, sealBytes } from "../lib/crypto";
+import { ASLEEP_AFTER, AWAY_AFTER, IDLE_AFTER, lastInputAt, onWake } from "../lib/activity";
 
 /**
  * One live, co-editable document: a Yjs doc kept in step with everyone else editing it.
@@ -10,18 +11,42 @@ import { openBytes, sealBytes } from "../lib/crypto";
  * to the shared log on the server; everyone else's updates are pulled from it and merged.
  * Yjs does the merging (a CRDT), so two people can type in the same sentence at once.
  *
- * There are no websockets on Netlify, so "live" is fast polling — but only while it
- * matters: quick when someone else is here, slow when you're alone, nothing at all when
- * the tab is hidden, and a crawl when nobody has touched anything for a couple of minutes.
+ * There are no websockets on Netlify, so "live" is polling — and every request costs a little,
+ * so it only goes fast while someone else is actually here:
+ *  - someone else here: a few times a second while either of you is typing, about once a second
+ *    otherwise (your cursor goes along too);
+ *  - nobody else here, the note open on your screen: one check every 30 seconds — enough to see
+ *    someone arrive — and what you type goes up a few seconds' worth at a time;
+ *  - the note not open, the tab hidden, or nobody at the keyboard for half an hour: nothing.
+ *
+ * Who's here comes from the server's list (see collab.mts), which those same checks keep
+ * current: each person brings a little card (their colour and picture), sealed with the link's
+ * key; the name is the server's word for it (a signed-in username — or a guest).
  */
 
 /** Origin tag for changes that came from someone else. */
 export const REMOTE = "umbra-remote";
 
-export type CollabUser = { name: string; color: string };
-export type Collaborator = CollabUser & { clientId: number; self: boolean };
+/** A profile picture: an image (see lib/images.ts), stored encrypted with a key of its own. */
+export type AvatarRef = { id: string; key: string; type: string };
+export type CollabUser = { name: string; color: string; guest?: boolean; avatar?: AvatarRef | null };
+export type Collaborator = {
+  clientId: number;
+  name: string;
+  color: string;
+  self: boolean;
+  /** What they may do, as the server sees it (null: someone on an older version of the app). */
+  role: "owner" | "edit" | "view" | null;
+  /** Not signed in. */
+  guest: boolean;
+  avatar: AvatarRef | null;
+};
 /** gone: the link was turned off · missing: no live doc for it (yet) · denied: the owner removed you, or it's private */
 export type SessionStatus = "connecting" | "live" | "offline" | "gone" | "missing" | "denied";
+
+/** Guests get a colour of their own (from a few that read well by day and by night), so two can be told apart. */
+export const GUEST_COLORS = ["#6f9df7", "#ef7d6f", "#4fbf8a", "#e8a33d", "#a77df0", "#3fb8c4", "#e676b0", "#93a84f"];
+export const guestColor = (n: number) => GUEST_COLORS[Math.abs(n) % GUEST_COLORS.length];
 
 // ── Wire format of one log entry, inside the encryption ─────────────────────
 // [version = 1][u32 doc length][doc update][u32 awareness length][awareness update]
@@ -49,24 +74,30 @@ export function decodeFrame(bytes: Uint8Array): { doc: Uint8Array | null; aw: Ui
   return { doc: dl ? bytes.subarray(5, 5 + dl) : null, aw: al ? bytes.subarray(9 + dl, 9 + dl + al) : null };
 }
 
-// When did the person at this keyboard last do anything? (Shared by every session.)
-let lastInput = Date.now();
-/** Sessions to nudge when someone comes back after a quiet spell. */
-const wakers = new Set<() => void>();
-if (typeof window !== "undefined") {
-  for (const type of ["keydown", "pointerdown", "pointermove", "wheel"] as const) {
-    addEventListener(
-      type,
-      () => {
-        const now = Date.now();
-        const gap = now - lastInput;
-        lastInput = now;
-        if (gap > 120_000) wakers.forEach((wake) => wake());
-      },
-      { passive: true, capture: true },
-    );
-  }
+// ── A person's card on the "who's here" list ────────────────────────────────
+
+type Card = { v: 1; color: string; avatar: AvatarRef | null };
+type Heard = { c: number; k: number; r: HerePerson["r"]; u: string | null; card: Card | null };
+
+const AVATAR_ID = /^[A-Za-z0-9_-]{22}$/;
+function readCard(raw: unknown): Card | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.color !== "string" || !/^#[0-9a-f]{6}$/i.test(r.color)) return null;
+  const a = r.avatar as Record<string, unknown> | null | undefined;
+  const avatar =
+    a && typeof a.id === "string" && AVATAR_ID.test(a.id) && typeof a.key === "string" && a.key.length >= 40 && a.key.length <= 64 && typeof a.type === "string" && /^image\/(webp|jpeg|png)$/.test(a.type)
+      ? { id: a.id, key: a.key, type: a.type }
+      : null;
+  return { v: 1, color: r.color, avatar };
 }
+
+/** Sending what you type when nobody else is here: once you pause this long… */
+const ALONE_FLUSH = 1_500;
+/** …or this long after the first unsent change, whichever comes first. */
+const ALONE_MAX = 5_000;
+/** An "I'm here" older than this, met while catching up, is history — not someone here now. */
+const STALE_AWARENESS = 45_000;
 
 type Options = {
   shareId: string;
@@ -83,10 +114,6 @@ type Options = {
   /** The document changed — locally or from someone else. */
   onChange?: (remote: boolean) => void;
 };
-
-const IDLE_AFTER = 120_000;
-/** Nobody has touched anything for this long: barely check, and stop saying "I'm here". */
-const ASLEEP_AFTER = 600_000;
 
 export class CollabSession {
   readonly doc: Y.Doc;
@@ -106,13 +133,20 @@ export class CollabSession {
   version = 0;
   /** True once the first catch-up has landed. */
   synced = false;
+  /** (owner, private link) how many people are waiting to be let in — as of the last check. */
+  pending = 0;
 
   private key: string;
   private token: string;
+  private user: CollabUser;
 
   /** What uploading a picture into this note needs (signed in, or this link's token). */
   get uploadAuth(): { share: string; token: string } {
     return { share: this.shareId, token: this.token };
+  }
+  /** You, as the editor's carets show you (a guest in a colour of their own; `cid` lets a click on your picture find your caret). */
+  get localUser(): { name: string; color: string; cid: number } {
+    return { name: this.user.name, color: this.user.color, cid: this.doc.clientID };
   }
   private opts: Options;
   private upto = 0;
@@ -122,6 +156,9 @@ export class CollabSession {
   private flushing = false;
   private again = false;
   private flushTimer = 0;
+  private flushDue = 0;
+  /** When the oldest change still waiting to go up was made (0: none waiting). */
+  private firstUnsent = 0;
   private pollTimer = 0;
   private saveTimer = 0;
   private polling = false;
@@ -134,6 +171,26 @@ export class CollabSession {
   private pollStarted = 0;
   private emitQueued = false;
   private subs = new Set<() => void>();
+  private unwake: () => void;
+  // who's here
+  private card: Sealed | null = null;
+  private cardK = 0;
+  private sealing: Promise<void> | null = null;
+  /** The server has your current card. */
+  private cardSent = false;
+  /** Version of the list we have ("" = none yet). */
+  private hv = "";
+  private heard = new Map<number, Heard>();
+  /** The server's clock as of the list we have (an answer that set off earlier but landed later is older news). */
+  private heardAt = 0;
+  private hereChain: Promise<void> = Promise.resolve();
+  /** We put ourselves on the list (so we owe a goodbye). */
+  private listed = false;
+  /** Someone's likely to arrive (a link just made or copied): look a little more often till then. */
+  private expectUntil = 0;
+  /** When anyone else was last seen here. */
+  private othersSeen = 0;
+  private alone = true;
 
   constructor(opts: Options) {
     this.opts = opts;
@@ -143,24 +200,31 @@ export class CollabSession {
     this.token = opts.token;
     this.doc = opts.doc ?? new Y.Doc();
     this.seq = opts.seq ?? -1;
-    if (opts.pending?.length) this.outbox.push(opts.pending);
+    if (opts.pending?.length) {
+      this.outbox.push(opts.pending);
+      this.firstUnsent = Date.now();
+    }
+    this.user = this.decorate(opts.user);
     this.awareness = new Awareness(this.doc);
-    this.awareness.setLocalState({ user: opts.user, here: false });
+    this.awareness.setLocalState({ user: this.localUser, here: false });
     this.doc.on("update", this.onDocUpdate);
     this.awareness.on("update", this.onAwareness);
     document.addEventListener("visibilitychange", this.onVisibility);
     addEventListener("pagehide", this.onPageHide);
     addEventListener("online", this.onOnline);
-    wakers.add(this.wake);
+    this.unwake = onWake(this.wake);
+    void this.sealCard();
     if (import.meta.env.DEV) ((window as unknown as { __collab?: CollabSession[] }).__collab ??= []).push(this);
   }
 
   /** Back at the keyboard: say hello again and check for news right away. */
   private wake = () => {
     if (this.stopped) return;
-    this.awDirty = true;
-    this.scheduleFlush(60);
-    this.schedulePoll(0);
+    if (this.othersHere() > 0 && this.canWrite) {
+      this.awDirty = true;
+      this.scheduleFlush(60);
+    }
+    if (this.bound || Date.now() - this.othersSeen < 120_000) this.schedulePoll(0);
   };
 
   // ── lifecycle ──────────────────────────────────────────────────────────────
@@ -179,16 +243,22 @@ export class CollabSession {
 
   unbind() {
     this.bound = Math.max(0, this.bound - 1);
-    if (!this.bound) this.setHere(false);
+    if (!this.bound) {
+      this.setHere(false);
+      this.leave();
+      // what you just typed doesn't wait for the next batch
+      if (this.outbox.length) this.scheduleFlush(30);
+    }
     this.schedulePoll();
   }
 
   stop() {
     if (this.stopped) return;
     this.setHere(false);
+    this.leave(true);
     void this.flush({ keepalive: true, final: true });
     this.stopped = true;
-    wakers.delete(this.wake);
+    this.unwake();
     window.clearTimeout(this.flushTimer);
     window.clearTimeout(this.pollTimer);
     this.saveNow();
@@ -201,8 +271,24 @@ export class CollabSession {
   }
 
   setUser(user: CollabUser) {
+    const next = this.decorate(user);
+    const prev = this.user;
+    this.user = next;
     const cur = this.awareness.getLocalState();
-    if (cur) this.awareness.setLocalState({ ...cur, user });
+    if (cur) this.awareness.setLocalState({ ...cur, user: this.localUser });
+    if (prev.color !== next.color || (prev.avatar?.id ?? null) !== (next.avatar?.id ?? null)) void this.sealCard();
+    else this.emit();
+  }
+
+  /** Someone's likely to open the link soon (you just made or copied it): look for them more often for a while. */
+  expect(ms = 180_000) {
+    this.expectUntil = Math.max(this.expectUntil, Date.now() + ms);
+    this.schedulePoll();
+  }
+
+  /** Check who's here now (the Share panel just opened), unless we only just did. */
+  peek() {
+    if (!this.polling && Date.now() - this.pollStarted > 3_000) this.schedulePoll(0);
   }
 
   get canWrite() {
@@ -210,15 +296,37 @@ export class CollabSession {
     return this.owner || (this.role ? this.role === "edit" : this.editable);
   }
 
-  /** Everyone with this doc open right now (you included). */
+  /** Everyone with this doc open right now: you first, then the owner, people signed in, and guests. */
   collaborators(): Collaborator[] {
-    const out: Collaborator[] = [];
+    const me = this.user;
+    const out: Collaborator[] = [{ clientId: this.doc.clientID, name: me.name, color: me.color, self: true, role: this.role, guest: Boolean(me.guest), avatar: me.avatar ?? null }];
+    for (const h of this.heard.values()) {
+      if (this.isMe(h)) continue;
+      out.push({
+        clientId: h.c,
+        name: h.u ?? (h.r === "owner" ? "Owner" : "Guest"),
+        color: h.card?.color ?? guestColor(h.c),
+        self: false,
+        role: h.r,
+        guest: !h.u && h.r !== "owner",
+        avatar: h.u ? (h.card?.avatar ?? null) : null,
+      });
+    }
+    // someone on an older version of the app (it doesn't use the list): their own "I'm here"
     this.awareness.getStates().forEach((state, clientId) => {
-      const user = state?.user as CollabUser | undefined;
-      if (!user || !state.here) return;
-      out.push({ clientId, name: String(user.name ?? "Someone").slice(0, 40), color: String(user.color ?? "#9aa"), self: clientId === this.doc.clientID });
+      if (clientId === this.doc.clientID || this.heard.has(clientId) || !state?.here) return;
+      const user = state.user as CollabUser | undefined;
+      if (!user) return;
+      out.push({ clientId, name: String(user.name ?? "Someone").slice(0, 40), color: String(user.color ?? "#9aa"), self: false, role: null, guest: false, avatar: null });
     });
-    return out.sort((a, b) => Number(b.self) - Number(a.self) || a.clientId - b.clientId);
+    const rank = (c: Collaborator) => (c.self ? 0 : c.role === "owner" ? 1 : c.guest ? 3 : 2);
+    return out.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name) || a.clientId - b.clientId);
+  }
+
+  /** You, on another device or tab (the same account — or, for the owner, the owner's link). */
+  private isMe(h: Heard) {
+    if (this.owner && h.r === "owner") return true;
+    return Boolean(h.u && !this.user.guest && h.u === this.user.name);
   }
 
   subscribe = (fn: () => void) => {
@@ -250,6 +358,114 @@ export class CollabSession {
     if (cur && cur.here !== here) this.awareness.setLocalState({ ...cur, here });
   }
 
+  /** A guest's colour is their own (from the guest palette), and a guest has no picture. */
+  private decorate(user: CollabUser): CollabUser {
+    return user.guest ? { ...user, color: guestColor(this.doc.clientID), avatar: null } : user;
+  }
+
+  // ── who's here ─────────────────────────────────────────────────────────────
+
+  private sealCard(): Promise<void> {
+    const card: Card = { v: 1, color: this.user.color, avatar: this.user.avatar ?? null };
+    const job = (async () => {
+      try {
+        const sealed = await sealBytes(this.key, new TextEncoder().encode(JSON.stringify(card)));
+        this.card = sealed;
+        this.cardK++;
+        this.cardSent = false;
+        // tell the others (sooner than the next check-in) if we're already on the list
+        if (this.listed && this.present()) this.schedulePoll(80);
+        this.emit();
+      } catch {
+        /* no card this time: the next check-in tries again */
+      }
+    })();
+    this.sealing = job;
+    return job;
+  }
+
+  /** On the list: the note is open on screen, and someone's at the keyboard. */
+  private present() {
+    return this.bound > 0 && !document.hidden && this.quietFor() < AWAY_AFTER && this.status !== "denied" && this.status !== "gone" && this.status !== "missing";
+  }
+
+  /** What a check-in says about you: here (with your card, if the server hasn't got it), or just asking who is. */
+  private hereParams(): HereParams {
+    if (!this.present() || !this.card) return { hv: this.hv };
+    this.listed = true;
+    return { hv: this.hv, c: this.doc.clientID, k: this.cardK, card: this.cardSent ? null : this.card };
+  }
+
+  /** Off the list at once (rather than a minute and a half later). */
+  private leave(keepalive = false) {
+    if (!this.listed) return;
+    this.listed = false;
+    this.cardSent = false;
+    void leaveDoc(this.shareId, this.token, this.doc.clientID, keepalive).catch(() => {});
+  }
+
+  private async openCard(p: Sealed): Promise<Card | null> {
+    try {
+      return readCard(JSON.parse(new TextDecoder().decode(await openBytes(this.key, p))));
+    } catch {
+      return null;
+    }
+  }
+
+  private applyHere(res: DocCatchUp, asked: HereParams | undefined) {
+    const h = res.here;
+    if (!h) return Promise.resolve();
+    if (asked?.c != null) this.cardSent = h.you;
+    if (!h.people) return Promise.resolve();
+    const people = h.people;
+    const at = res.now ?? Date.now();
+    this.hereChain = this.hereChain.then(async () => {
+      if (at < this.heardAt) return;
+      const next = new Map<number, Heard>();
+      for (const p of people) {
+        if (p.c === this.doc.clientID) continue;
+        const prev = this.heard.get(p.c);
+        const card = prev && prev.k === p.k && prev.card ? prev.card : await this.openCard(p);
+        next.set(p.c, { c: p.c, k: p.k, r: p.r, u: p.u ?? null, card });
+      }
+      if (at < this.heardAt) return;
+      // whoever left takes their cursor with them
+      const gone = [...this.heard.keys()].filter((c) => !next.has(c) && this.awareness.getStates().has(c));
+      this.heard = next;
+      this.heardAt = at;
+      this.hv = h.v;
+      if (gone.length) removeAwarenessStates(this.awareness, gone, REMOTE);
+      this.emit();
+    }).catch((err) => console.warn("Couldn't read who's here", err));
+    return this.hereChain;
+  }
+
+  /** How many others have it open (anyone on another version of the app too). */
+  private othersHere() {
+    let n = this.heard.size;
+    this.awareness.getStates().forEach((state, clientId) => {
+      if (clientId !== this.doc.clientID && !this.heard.has(clientId) && state?.here) n++;
+    });
+    return n;
+  }
+
+  /** Company arrived (or left): when they arrive, say hello with your cursor, send what's waiting, and keep up. */
+  private notice() {
+    const others = this.othersHere();
+    if (others > 0) this.othersSeen = Date.now();
+    const alone = others === 0;
+    if (this.alone && !alone && this.canWrite && this.seq >= 0) {
+      this.awDirty = true;
+      this.scheduleFlush(this.outbox.length ? 30 : 60);
+    }
+    if (this.alone !== alone) {
+      // (they've just gone: people often come straight back — keep an eye out a little longer)
+      if (alone) this.expect(300_000);
+      this.alone = alone;
+      this.schedulePoll();
+    }
+  }
+
   // ── local changes → server ─────────────────────────────────────────────────
 
   private onDocUpdate = (update: Uint8Array, origin: unknown) => {
@@ -259,27 +475,50 @@ export class CollabSession {
     }
     this.outbox.push(update);
     this.lastLocal = Date.now();
+    if (!this.firstUnsent) this.firstUnsent = this.lastLocal;
     this.opts.onChange?.(false);
     this.scheduleSave();
-    this.scheduleFlush(30);
+    this.sendSoon();
   };
+
+  /** Right away while someone else is here; on your own, a few seconds' typing at a time. */
+  private sendSoon() {
+    if (this.othersHere() > 0) {
+      this.scheduleFlush(30);
+      return;
+    }
+    if (this.stopped) return;
+    const now = Date.now();
+    const delay = Math.max(0, Math.min(ALONE_FLUSH, (this.firstUnsent || now) + ALONE_MAX - now));
+    window.clearTimeout(this.flushTimer);
+    this.flushDue = now + delay;
+    this.flushTimer = window.setTimeout(this.flushFired, delay);
+  }
 
   private onAwareness = ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }, origin: unknown) => {
     const mine = origin !== REMOTE && [...added, ...updated, ...removed].includes(this.doc.clientID);
-    // Long idle: let the periodic "still here" renewals lapse, so the others' polling relaxes.
-    if (mine && !this.asleep()) {
+    // Your cursor (and the periodic "still here" renewals) only go out while someone's here to see
+    // them — and not after a long idle, so the others' polling relaxes.
+    if (mine && !this.asleep() && this.othersHere() > 0) {
       this.awDirty = true;
       this.scheduleFlush(this.outbox.length ? 30 : 120);
     }
     this.emit();
   };
 
+  private flushFired = () => {
+    this.flushTimer = 0;
+    void this.flush();
+  };
+
+  /** Sends within `delay` ms (sooner if it's already due sooner). */
   private scheduleFlush(delay: number) {
-    if (this.stopped || this.flushTimer) return;
-    this.flushTimer = window.setTimeout(() => {
-      this.flushTimer = 0;
-      void this.flush();
-    }, delay);
+    if (this.stopped) return;
+    const due = Date.now() + delay;
+    if (this.flushTimer && this.flushDue <= due) return;
+    window.clearTimeout(this.flushTimer);
+    this.flushDue = due;
+    this.flushTimer = window.setTimeout(this.flushFired, delay);
   }
 
   private backoff() {
@@ -303,28 +542,32 @@ export class CollabSession {
     const aw = this.awDirty ? encodeAwarenessUpdate(this.awareness, [this.doc.clientID]) : null;
     this.awDirty = false;
     if (!doc && !aw) return;
+    this.firstUnsent = 0;
     this.flushing = true;
     this.inflight = doc;
     try {
       const entry = await sealBytes(this.key, encodeFrame(doc, aw));
-      const res = await pushDoc(this.shareId, this.token, { client: this.doc.clientID, since: this.seq, entry }, { keepalive });
+      // (typing away on your own, each save also says who's arrived — but a last save as you
+      // leave doesn't put you back on the list)
+      const asked = final || keepalive ? undefined : this.hereParams();
+      const res = await pushDoc(this.shareId, this.token, { client: this.doc.clientID, since: this.seq, entry, ...(asked ? { here: asked } : {}) }, { keepalive });
       this.inflight = null;
       this.failures = 0;
       if (res.assigned == null) {
         // We were too far behind to append; catch up (below) and send again.
-        if (doc) this.outbox.unshift(doc);
+        if (doc) this.unsend(doc);
         if (aw) this.awDirty = true;
         this.again = true;
       }
       if (!this.stopped) {
-        await this.apply(res);
+        await this.apply(res, asked);
         this.setStatus("live");
         this.scheduleSave();
         void this.maybeCompact();
       }
     } catch (err) {
       this.inflight = null;
-      if (doc) this.outbox.unshift(doc);
+      if (doc) this.unsend(doc);
       if (aw) this.awDirty = true;
       this.fail(err);
     } finally {
@@ -332,12 +575,20 @@ export class CollabSession {
       if (!this.stopped) {
         if (this.failures) {
           if (this.outbox.length || this.awDirty) this.scheduleFlush(this.backoff());
-        } else if (this.again || this.outbox.length || this.awDirty) {
+        } else if (this.again || this.awDirty) {
           this.scheduleFlush(30);
+        } else if (this.outbox.length) {
+          this.sendSoon();
         }
         this.again = false;
       }
     }
+  }
+
+  /** A change that didn't make it goes back to the front of the queue. */
+  private unsend(doc: Uint8Array) {
+    this.outbox.unshift(doc);
+    if (!this.firstUnsent) this.firstUnsent = Date.now();
   }
 
   // ── server → local ─────────────────────────────────────────────────────────
@@ -347,39 +598,43 @@ export class CollabSession {
     window.clearTimeout(this.pollTimer);
     this.pollTimer = 0;
     if (document.hidden || this.status === "gone" || this.status === "missing" || this.status === "denied") return;
+    const every = this.interval();
+    // (nothing to keep up with: no timer at all, until something changes that)
+    if (delay == null && !Number.isFinite(every)) return;
     // Cadence is measured from when the last poll started, so slow round trips don't add up.
-    const wait = delay ?? Math.max(0, this.interval() - (Date.now() - this.pollStarted));
+    const wait = delay ?? Math.max(0, every - (Date.now() - this.pollStarted));
     this.pollTimer = window.setTimeout(() => void this.poll(), wait);
   }
 
   private quietFor() {
-    return Date.now() - Math.max(lastInput, this.lastLocal, this.lastRemote);
+    return Date.now() - Math.max(lastInputAt(), this.lastLocal, this.lastRemote);
   }
 
   private asleep() {
     return this.quietFor() > ASLEEP_AFTER;
   }
 
-  /** How long to wait before asking again — fast only while it matters. */
+  /** How long to wait before asking again — fast only while someone else is here. */
   private interval() {
     if (this.failures) return this.backoff();
+    const now = Date.now();
     const quiet = this.quietFor();
-    // Not open anywhere on screen: just keep the note itself roughly current.
-    if (!this.bound) return quiet > ASLEEP_AFTER ? 300_000 : 60_000;
-    if (quiet > ASLEEP_AFTER) return 15_000;
-    if (this.othersHere() > 0) {
-      if (quiet > IDLE_AFTER) return 4_000;
-      return Date.now() - this.lastRemote < 8_000 ? 250 : 450;
+    const others = this.othersHere();
+    if (!this.bound) {
+      // Not open on screen (the owner's other shared notes): nothing to keep up with — unless
+      // someone's in it, whose words should reach the note (for search and the sidebar).
+      if (quiet > ASLEEP_AFTER) return Infinity;
+      return others > 0 || now - this.othersSeen < 120_000 ? 60_000 : Infinity;
     }
-    return quiet > IDLE_AFTER ? 10_000 : 2_500;
-  }
-
-  private othersHere() {
-    let n = 0;
-    this.awareness.getStates().forEach((state, clientId) => {
-      if (clientId !== this.doc.clientID && state?.here) n++;
-    });
-    return n;
+    if (quiet > AWAY_AFTER) return Infinity;
+    if (others > 0) {
+      if (quiet > ASLEEP_AFTER) return 30_000;
+      if (quiet > IDLE_AFTER) return 4_000;
+      return now - Math.max(this.lastLocal, this.lastRemote) < 8_000 ? 300 : 1_000;
+    }
+    // Nobody else here: just enough to see someone arrive.
+    if (now < this.expectUntil && quiet < IDLE_AFTER) return 5_000;
+    return quiet > IDLE_AFTER ? 60_000 : 30_000;
   }
 
   private async poll() {
@@ -387,12 +642,19 @@ export class CollabSession {
     if (this.stopped || this.polling) return;
     this.polling = true;
     this.pollStarted = Date.now();
+    let asked: HereParams | undefined;
     try {
+      if (!this.card && this.sealing) await this.sealing;
       let res: DocCatchUp;
+      let first = true;
       do {
-        res = await fetchDoc(this.shareId, this.seq, this.token);
+        // (who's here: asked once per check-in, not on every page of a long catch-up)
+        const here = first ? this.hereParams() : undefined;
+        if (first) asked = here;
+        res = await fetchDoc(this.shareId, this.seq, this.token, here);
         if (this.stopped) return;
-        await this.apply(res);
+        await this.apply(res, here);
+        first = false;
       } while (res.more);
       this.failures = 0;
       this.setStatus("live");
@@ -402,16 +664,19 @@ export class CollabSession {
       this.fail(err);
     } finally {
       this.polling = false;
-      this.schedulePoll();
+      // The server wants our card (we're new, or we were away a while): send it straight away.
+      if (!this.stopped && !this.failures && this.present() && !this.cardSent && this.card && !asked?.card) this.schedulePoll(80);
+      else this.schedulePoll();
     }
   }
 
-  private async apply(res: DocCatchUp) {
-    const sealed = [...(res.snap ? [{ ...res.snap, c: -1 }] : []), ...res.entries];
+  private async apply(res: DocCatchUp, asked?: HereParams) {
+    const sealed = [...(res.snap ? [{ ...res.snap, c: -1, at: undefined as number | undefined }] : []), ...res.entries];
+    const now = res.now;
     const opened = await Promise.all(
       sealed.map(async (e) => {
         try {
-          return { c: e.c, ...decodeFrame(await openBytes(this.key, e)) };
+          return { c: e.c, at: e.at, ...decodeFrame(await openBytes(this.key, e)) };
         } catch (err) {
           console.warn("Skipped an unreadable change", err);
           return null;
@@ -426,7 +691,9 @@ export class CollabSession {
         docs.push(part.doc);
         if (part.c !== -1) fromOthers = true;
       }
-      if (part.aw && part.c !== this.doc.clientID) {
+      // (an old "I'm here" from someone long gone, met while catching up, isn't news)
+      const fresh = part.at == null || now == null || now - part.at < STALE_AWARENESS;
+      if (part.aw && part.c !== this.doc.clientID && fresh) {
         try {
           applyAwarenessUpdate(this.awareness, part.aw, REMOTE);
         } catch {
@@ -448,11 +715,16 @@ export class CollabSession {
     this.role = role;
     this.upto = res.upto;
     this.seq = Math.max(this.seq, res.seq);
+    if (typeof res.pending === "number" && res.pending !== this.pending) {
+      this.pending = res.pending;
+      this.emit();
+    }
+    await this.applyHere(res, asked);
     if (!this.synced) {
       this.synced = true;
-      this.awDirty = true; // say hello
       this.emit();
     } else if (editableChanged || docs.length) this.emit();
+    this.notice();
   }
 
   private fail(err: unknown) {
@@ -522,25 +794,27 @@ export class CollabSession {
   private onVisibility = () => {
     if (this.stopped) return;
     if (document.hidden) {
+      // (still on the list for a minute and a half — a quick look at another tab isn't leaving)
       this.setHere(false);
       void this.flush();
       window.clearTimeout(this.pollTimer);
       this.pollTimer = 0;
     } else {
       if (this.bound) this.setHere(true);
-      this.schedulePoll(0);
+      this.schedulePoll(this.bound ? 0 : undefined);
     }
   };
 
   private onPageHide = () => {
     this.setHere(false);
+    this.leave(true);
     this.saveNow();
     void this.flush({ keepalive: true });
   };
 
   private onOnline = () => {
     this.failures = 0;
-    this.schedulePoll(0);
+    this.schedulePoll(this.bound ? 0 : undefined);
     if (this.outbox.length) this.scheduleFlush(50);
   };
 }

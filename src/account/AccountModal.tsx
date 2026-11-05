@@ -1,5 +1,5 @@
-import { useEffect, useState, useSyncExternalStore } from "react";
-import { Cloud, CloudOff, LogOut, RefreshCw, UserRound, X } from "lucide-react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Camera, Cloud, CloudOff, LogOut, RefreshCw, UserRound, X } from "lucide-react";
 import { useApp } from "../store/app";
 import { relativeLong } from "../lib/dates";
 import { useNow } from "../lib/hooks";
@@ -9,9 +9,81 @@ import { toast } from "../store/toasts";
 import { signOut, useAccount } from "./account";
 import { syncNow } from "./sync";
 import { AuthForm } from "./AuthForm";
+import { usePhoto } from "../components/Avatar";
+import { addProfilePicture } from "../lib/images";
 
 /** Sign in or create an account (the eclipse form). Also used on private shared links. */
 export const AccountForm = AuthForm;
+
+/** Your profile picture (for the account you're signed in to), if you've set one. */
+export function useMyPicture() {
+  const uid = useAccount((s) => s.user?.uid ?? null);
+  const avatar = useApp((s) => s.settings.avatar);
+  return usePhoto(uid && avatar?.uid === uid ? avatar : null);
+}
+
+/** Your picture, big: tap it to choose a photo; shown to whoever's in a shared note with you. */
+function MyPicture({ initial }: { initial: string }) {
+  const src = useMyPicture();
+  const uid = useAccount((s) => s.user?.uid ?? null);
+  const setSettings = useApp((s) => s.setSettings);
+  const [busy, setBusy] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
+  const pick = async (file: File) => {
+    if (!uid) return;
+    setBusy(true);
+    try {
+      const pic = await addProfilePicture(file);
+      setSettings({ avatar: { uid, ...pic } });
+      toast("Profile picture saved", { tone: "success" });
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Couldn't use that picture.", { tone: "error" });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <button type="button" className={`acct-coin ${src ? "has-photo" : ""} ${busy ? "is-busy" : ""}`} onClick={() => input.current?.click()} aria-label={src ? "Change your profile picture" : "Add a profile picture"} disabled={busy}>
+        {src ? <img src={src} alt="" draggable={false} /> : initial}
+        <span className="acct-coin-edit" aria-hidden>
+          <Camera size={15} strokeWidth={1.9} />
+        </span>
+      </button>
+      <input
+        ref={input}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (file) void pick(file);
+        }}
+      />
+    </>
+  );
+}
+
+function PictureLinks() {
+  const src = useMyPicture();
+  const setSettings = useApp((s) => s.setSettings);
+  return (
+    <span className="acct-pic-links">
+      <button type="button" className="link-btn" onClick={() => document.querySelector<HTMLButtonElement>(".acct-me .acct-coin")?.click()}>
+        {src ? "Change photo" : "Add a photo"}
+      </button>
+      {src && (
+        <>
+          <span className="sep" />
+          <button type="button" className="link-btn" onClick={() => setSettings({ avatar: null })}>
+            Remove
+          </button>
+        </>
+      )}
+    </span>
+  );
+}
 
 function SignedIn({ onClose }: { onClose: () => void }) {
   const { user, sync, lastSync, error } = useSyncExternalStore(useAccount.subscribe, useAccount.getState);
@@ -23,9 +95,10 @@ function SignedIn({ onClose }: { onClose: () => void }) {
   return (
     <div className="acct-panel">
       <div className="acct-me">
-        <span className="acct-coin">{user.username.slice(0, 1).toUpperCase()}</span>
+        <MyPicture initial={user.username.slice(0, 1).toUpperCase()} />
         <span className="acct-me-text">
           <span className="acct-name">@{user.username}</span>
+          <PictureLinks />
           <span className={`acct-sync mono is-${sync}`}>
             {sync === "offline" ? <CloudOff size={11} strokeWidth={2} /> : <Cloud size={11} strokeWidth={2} />}
             {sync === "syncing" ? "Syncing…" : sync === "offline" ? "Offline — will sync when you're back" : sync === "error" ? "Sync paused" : lastSync ? `Synced ${relativeLong(lastSync, now)}` : "Synced"}
@@ -94,11 +167,12 @@ export function AccountModal() {
 export function AccountButton() {
   const user = useAccount((s) => s.user);
   const sync = useAccount((s) => s.sync);
+  const pic = useMyPicture();
   const setUI = useApp((s) => s.setUI);
   return (
     <IconButton label={user ? `@${user.username} — account & sync` : "Sign in to sync"} placement="top" onClick={() => setUI({ account: true })}>
       {user ? (
-        <span className={`acct-mini is-${sync}`}>{user.username.slice(0, 1).toUpperCase()}</span>
+        <span className={`acct-mini is-${sync} ${pic ? "has-photo" : ""}`}>{pic ? <img src={pic} alt="" draggable={false} /> : user.username.slice(0, 1).toUpperCase()}</span>
       ) : (
         <UserRound size={15} strokeWidth={1.7} />
       )}

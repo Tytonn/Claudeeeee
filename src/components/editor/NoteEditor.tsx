@@ -14,10 +14,9 @@ import { SlashMenu } from "./SlashMenu";
 import { TableTools } from "./TableTools";
 import { wordCount } from "../../lib/text";
 import { formatDate } from "../../lib/dates";
-import { useCollabSession, userFor } from "../../collab/manager";
+import { useCollabSession } from "../../collab/manager";
 import { useYText } from "../../collab/useYText";
 import { TITLE } from "../../collab/fields";
-import { Presence } from "../Presence";
 import { isMac, titleAttrs } from "../../lib/theme";
 import type { VirtualElement } from "@floating-ui/react-dom";
 import { TITLE_STYLE_EVENT, TitleStyleMenu } from "./TitleStyle";
@@ -78,7 +77,7 @@ export function NoteEditor({ noteId, scroller }: Props) {
     {
       extensions: buildExtensions({
         onExitTop: focusTitleEnd,
-        collab: session ? { doc: session.doc, awareness: session.awareness, user: userFor(useApp.getState().settings) } : undefined,
+        collab: session ? { doc: session.doc, awareness: session.awareness, user: session.localUser } : undefined,
         imageAuth: () => authForNote(noteId),
       }),
       // A live doc brings its own content.
@@ -275,7 +274,6 @@ export function NoteEditor({ noteId, scroller }: Props) {
             <span className="note-meta-live">
               <span className="live-dot" /> {session ? "Live" : "Shared"}
             </span>
-            {session && <Presence session={session} />}
           </>
         )}
       </div>

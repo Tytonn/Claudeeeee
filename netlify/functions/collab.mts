@@ -11,9 +11,14 @@
  *   doc/<id>/head     { seq hint, upto, who may write }      — tiny, read on every request
  *   doc/<id>/u/<n>    one sealed update (n = 1, 2, 3 … no gaps), claimed with onlyIfNew
  *   doc/<id>/snap     a sealed snapshot of the whole document covering entries ≤ upto
+ *   doc/<id>/here     who has the note open right now (see "Who's here" below)
  *
  *   GET   /api/shares/:id/doc?since=n   → what's new after entry n (or a snapshot to catch up)
- *   POST  /api/shares/:id/doc           append an update and/or a compacted snapshot (writers)
+ *           …&hv=v          and who's here, if that's changed since version v
+ *           …&c=n&k=k       and you're here too (client n, card version k)
+ *           …&card=iv.data  (your card, when the server asks for it: "you" came back false)
+ *   POST  /api/shares/:id/doc           append an update and/or a compacted snapshot (writers);
+ *                                       { here: { c, k, hv, card? } } as above · { bye: c } you've gone
  *   PUT   /api/shares/:id/doc           start the log for a share (owner only)
  *   PATCH /api/shares/:id/doc           let friends edit, or not (owner only)
  */
@@ -54,6 +59,22 @@ type Entry = { iv: string; data: string; c: number; at: number };
 type Snap = { upto: number; iv: string; data: string; at: number };
 type Sealed = { iv: string; data: string };
 
+// ── Who's here ───────────────────────────────────────────────────────────────
+// Everyone with the note open says so as they catch up — no extra requests — and stays on the
+// list for a minute and a half after they last did. Each brings a little card: their colour and
+// picture, sealed with the link's key like everything else (this server can't read it). The
+// name beside it is the server's own word, so nobody can pass as somebody else: a signed-in
+// person's username, or none at all (a guest — or the owner, who's marked as such).
+type Here = { c: number; at: number; k: number; iv: string; data: string; r: "owner" | "edit" | "view"; u?: string };
+type HereSet = { v: 1; people: Record<string, Here> };
+/** What someone asks of the list: to be on it (c, k, maybe their card), and/or to see it (hv). */
+type HereAsk = { c: number | null; k: number; hv: string | null; card: Sealed | null };
+const HERE_TTL = 90_000;
+/** Checking in more often than this doesn't rewrite the list (the clock only needs to be roughly right). */
+const HERE_REFRESH = 20_000;
+const HERE_MAX = 40;
+const MAX_CARD = 2_000;
+
 class HttpError extends Error {
   constructor(
     public status: number,
@@ -72,6 +93,7 @@ const json = (body: unknown, status = 200) =>
 const K = (id: string) => ({
   head: `doc/${id}/head`,
   snap: `doc/${id}/snap`,
+  here: `doc/${id}/here`,
   entry: (n: number) => `doc/${id}/u/${n}`,
   prefix: `doc/${id}/`,
 });
@@ -185,7 +207,8 @@ async function readEntries(store: Store, id: string, from: number, budget: numbe
   }
 }
 
-const wire = (e: Found) => ({ n: e.n, iv: e.iv, data: e.data, c: e.c });
+/** (`at`: when the server took it in — so a page catching up can tell an old "I'm here" from a fresh one) */
+const wire = (e: Found) => ({ n: e.n, iv: e.iv, data: e.data, c: e.c, at: e.at });
 
 /** Everything a client needs to catch up from entry `since` (-1 = from scratch). */
 async function catchUp(store: Store, id: string, head: Head, since: number, first?: Probe) {
@@ -207,6 +230,135 @@ async function catchUp(store: Store, id: string, head: Head, since: number, firs
   };
 }
 
+// ── Who's here (see the top) ────────────────────────────────────────────────
+
+function parseCard(raw: string | null): Sealed | null {
+  if (!raw) return null;
+  const dot = raw.indexOf(".");
+  if (dot < 0) throw new HttpError(400, "bad_card");
+  return sealed({ iv: raw.slice(0, dot), data: raw.slice(dot + 1) }, MAX_CARD);
+}
+
+/** What a request asks of the list — from the query (GET) or a body's `here` (POST). Null: nothing. */
+function hereAsk(raw: { c?: unknown; k?: unknown; hv?: unknown; card?: unknown }): HereAsk | null {
+  const c = raw.c == null || raw.c === "" ? null : clientId(Number(raw.c));
+  const hv = typeof raw.hv === "string" && raw.hv.length <= 32 ? raw.hv : null;
+  if (c === null && hv === null) return null;
+  const k = Number(raw.k);
+  let card: Sealed | null = null;
+  try {
+    card = typeof raw.card === "string" ? parseCard(raw.card) : raw.card && typeof raw.card === "object" ? sealed(raw.card, MAX_CARD) : null;
+  } catch {
+    /* a card that isn't one: catch up all the same, just without it */
+  }
+  return { c, k: Number.isSafeInteger(k) && k >= 0 ? k : 0, hv, card };
+}
+
+/** A short fingerprint of who's on the list (not when they last checked in): it changes when someone comes or goes. */
+function hereVersion(people: Record<string, Here>): string {
+  let h = 0x811c9dc5;
+  const line = Object.values(people)
+    .map((p) => `${p.c}:${p.k}:${p.r}:${p.u ?? ""}`)
+    .sort()
+    .join("|");
+  for (let i = 0; i < line.length; i++) {
+    h ^= line.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return `${Object.keys(people).length}.${h.toString(36)}`;
+}
+
+type HereRead = { data: unknown; etag?: string } | null;
+const readHere = (store: Store, id: string) => store.getWithMetadata(K(id).here, { type: "json" }) as Promise<HereRead>;
+
+/**
+ * Puts the asker on the list (or keeps them there), and hands back who's here when that's
+ * changed since the version they have. Best effort: a list that can't be written this moment
+ * is simply written next time.
+ */
+async function presence(store: Store, id: string, ask: HereAsk | null, role: Here["r"], username: string | null, pre: HereRead) {
+  if (!ask) return undefined;
+  let cur = pre;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const now = Date.now();
+    const was = (cur?.data as HereSet | null)?.people ?? {};
+    const people: Record<string, Here> = {};
+    let pruned = false;
+    for (const [key, p] of Object.entries(was)) {
+      if (p && typeof p === "object" && now - p.at < HERE_TTL) people[key] = p;
+      else pruned = true;
+    }
+    let you = false;
+    let changed = false;
+    if (ask.c !== null) {
+      const key = String(ask.c);
+      const mine = people[key];
+      const who = username ? { u: username } : {};
+      if (ask.card) {
+        people[key] = { c: ask.c, at: now, k: ask.k, iv: ask.card.iv, data: ask.card.data, r: role, ...who };
+        you = changed = true;
+      } else if (mine && mine.k === ask.k) {
+        you = true;
+        if (now - mine.at > HERE_REFRESH || mine.r !== role || (mine.u ?? null) !== username) {
+          const { u: _u, ...rest } = mine;
+          people[key] = { ...rest, at: now, r: role, ...who };
+          changed = true;
+        }
+      }
+      // (a list can't grow without end: the longest-quiet go first)
+      const keys = Object.keys(people);
+      if (keys.length > HERE_MAX) {
+        for (const k of keys.sort((a, b) => people[a].at - people[b].at).slice(0, keys.length - HERE_MAX)) if (k !== key) delete people[k];
+      }
+    }
+    if (changed || (pruned && ask.c !== null && you)) {
+      const next: HereSet = { v: 1, people };
+      // (a list nobody has written yet is claimed; one we read is replaced only if it's still the one we read)
+      const res = !cur
+        ? await store.setJSON(K(id).here, next, { onlyIfNew: true })
+        : cur.etag
+          ? await store.setJSON(K(id).here, next, { onlyIfMatch: cur.etag })
+          : await store.setJSON(K(id).here, next);
+      if (!res.modified) {
+        // someone else checked in at the same moment: read theirs and try again
+        cur = await readHere(store, id).catch(() => null);
+        continue;
+      }
+    }
+    const v = hereVersion(people);
+    return {
+      v,
+      you,
+      ...(ask.hv === v
+        ? {}
+        : {
+            people: Object.values(people)
+              .filter((p) => p.c !== ask.c)
+              .map((p) => ({ c: p.c, k: p.k, iv: p.iv, data: p.data, r: p.r, ...(p.u ? { u: p.u } : {}) })),
+          }),
+    };
+  }
+  return undefined;
+}
+
+/** Leaving: off the list at once (rather than a minute and a half later). */
+async function leave(store: Store, id: string, c: number) {
+  let cur = await readHere(store, id).catch(() => null);
+  for (let attempt = 0; attempt < 4 && cur; attempt++) {
+    const people = { ...((cur.data as HereSet | null)?.people ?? {}) };
+    if (!people[String(c)]) return;
+    delete people[String(c)];
+    const next: HereSet = { v: 1, people };
+    const res = cur.etag ? await store.setJSON(K(id).here, next, { onlyIfMatch: cur.etag }) : await store.setJSON(K(id).here, next);
+    if (res.modified) return;
+    cur = await readHere(store, id).catch(() => null);
+  }
+}
+
+/** For the owner of a private link: how many people are waiting to be let in (rides along with catching up). */
+const pendingFor = (role: string, acl: Acl | null) =>
+  role === "owner" && acl?.mode === "restricted" ? { pending: Object.values(acl.members ?? {}).filter((m) => m?.role === "pending").length } : {};
+
 export default async (req: Request, context: Context): Promise<Response> => {
   const store = getStore({ name: STORE_NAME, consistency: "strong" });
   const id = context.params?.id ?? "";
@@ -217,32 +369,53 @@ export default async (req: Request, context: Context): Promise<Response> => {
     switch (req.method) {
       // ── Catch up ────────────────────────────────────────────────────────────
       case "GET": {
-        const raw = Number(new URL(req.url).searchParams.get("since") ?? "-1");
+        const q = new URL(req.url).searchParams;
+        const raw = Number(q.get("since") ?? "-1");
         const since = Number.isSafeInteger(raw) && raw >= -1 ? raw : -1;
-        const [head, acl, first] = await Promise.all([
+        const ask = hereAsk({ c: q.get("c"), k: q.get("k"), hv: q.get("hv"), card: q.get("card") });
+        const [head, acl, first, here] = await Promise.all([
           store.get(k.head, { type: "json" }) as Promise<Head | null>,
           readAcl(store, id),
           probe(store, id, Math.max(since, 0), FIRST_WINDOW),
+          ask ? readHere(store, id).catch(() => null) : Promise.resolve(null),
         ]);
         if (!head) return json({ error: "no_doc" }, 404);
         const a = await access(req, head, acl, false);
-        return json({ ...(await catchUp(store, id, head, since, first)), ...rights(head, acl, a.role!) });
+        const [caught, who] = await Promise.all([
+          catchUp(store, id, head, since, first),
+          presence(store, id, ask, a.role!, a.session?.username ?? null, here).catch(() => undefined),
+        ]);
+        return json({ ...caught, ...rights(head, acl, a.role!), ...pendingFor(a.role!, acl), ...(who ? { here: who } : {}), now: Date.now() });
       }
 
       // ── Append an update (and/or a compacted snapshot) ─────────────────────
       case "POST": {
         const body = await readJson(req, MAX_SNAP + MAX_ENTRY + 4_000);
+        if (body.bye != null && !body.entry && !body.snap) {
+          // Leaving (anyone who may open it — viewers too): off the list now.
+          const [head, acl] = await Promise.all([store.get(k.head, { type: "json" }) as Promise<Head | null>, readAcl(store, id)]);
+          if (!head) return json({ error: "no_doc" }, 404);
+          await access(req, head, acl, false);
+          await leave(store, id, clientId(Number(body.bye))).catch(() => {});
+          return new Response(null, { status: 204, headers: { "cache-control": "no-store" } });
+        }
         const known = typeof body.since === "number" && Number.isSafeInteger(body.since) && body.since >= -1 ? body.since : -1;
-        const [head, acl, first] = await Promise.all([
+        const ask = body.here && typeof body.here === "object" ? hereAsk(body.here as Record<string, unknown>) : null;
+        const [head, acl, first, here] = await Promise.all([
           store.get(k.head, { type: "json" }) as Promise<Head | null>,
           readAcl(store, id),
           probe(store, id, Math.max(known, 0), FIRST_WINDOW),
+          ask ? readHere(store, id).catch(() => null) : Promise.resolve(null),
         ]);
         if (!head) return json({ error: "no_doc" }, 404);
         const a = await access(req, head, acl, true);
         const c = clientId(body.client);
-        // What this writer hasn't seen yet — it goes back in the response either way.
-        const caught = await catchUp(store, id, head, known, first);
+        // What this writer hasn't seen yet — it goes back in the response either way (and,
+        // for someone typing away on their own, who's arrived since).
+        const [caught, who] = await Promise.all([
+          catchUp(store, id, head, known, first),
+          presence(store, id, ask, a.role!, a.session?.username ?? null, here).catch(() => undefined),
+        ]);
         let assigned: number | null = null;
 
         if (body.entry && !caught.more) {
@@ -298,7 +471,7 @@ export default async (req: Request, context: Context): Promise<Response> => {
           }
         }
 
-        return json({ ...caught, ...rights(head, acl, a.role!), assigned }, assigned ? 201 : 200);
+        return json({ ...caught, ...rights(head, acl, a.role!), ...pendingFor(a.role!, acl), ...(who ? { here: who } : {}), now: Date.now(), assigned }, assigned ? 201 : 200);
       }
 
       // ── Start the log for a share (owner) ───────────────────────────────────

@@ -17,6 +17,8 @@ import { pickImages } from "./editor/image";
 import { TITLE_STYLE_EVENT } from "./editor/TitleStyle";
 import { ShareSheet } from "./overlays/ShareSheet";
 import { usePending } from "./overlays/People";
+import { Presence } from "./Presence";
+import { useCollabSession } from "../collab/manager";
 
 function SaveStatus({ noteId }: { noteId: string }) {
   const savedAt = useApp((s) => s.ui.savedAt);
@@ -73,6 +75,8 @@ export function TopBar() {
   const railFeature = settings.todos || settings.countdowns;
   const openShared = useApp((s) => s.ui.openShared);
   const showNoteTools = view === "notes" && note && !note.deletedAt && !openShared;
+  // Who else has this note open (it's shared live): their faces, beside Share — like a doc's.
+  const live = useCollabSession(showNoteTools && activeId ? activeId : null);
 
   return (
     <div className="topbar">
@@ -94,6 +98,7 @@ export function TopBar() {
         {showNoteTools && activeId && <SaveStatus noteId={activeId} />}
         {showNoteTools && activeId && (
           <>
+            {live && <Presence session={live} size={isMobile ? 24 : 28} max={isMobile ? 2 : 4} className="topbar-presence" />}
             <Tooltip label={shared ? "Shared — manage link" : "Share this note"}>
               <button
                 ref={shareBtn}

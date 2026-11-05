@@ -209,6 +209,48 @@ export async function addImage(file: File, auth: ImageAuth | null): Promise<Imag
   return { id, key, w, h, ph, alt: /^(image|img|photo|screenshot)?\s*\d*$/i.test(alt) ? "" : alt, type };
 }
 
+/**
+ * A profile picture: the middle of the photo, square and small (256 px — a few kilobytes), stored
+ * like a note's pictures — encrypted with a key of its own, which only travels inside your synced
+ * settings and the cards of notes you're in. Signed in only (that's who it's for).
+ */
+export async function addProfilePicture(file: File): Promise<{ id: string; key: string; type: string }> {
+  if (!file.type.startsWith("image/")) throw new Error("That isn't an image.");
+  let src: ImageBitmap | HTMLImageElement;
+  try {
+    src = await decode(file);
+  } catch {
+    throw new Error("Couldn't read that picture.");
+  }
+  const { w, h } = sizeOf(src);
+  if (!w || !h) throw new Error("Couldn't read that picture.");
+  const side = Math.min(w, h);
+  const out = Math.min(256, side);
+  const canvas = document.createElement("canvas");
+  canvas.width = out;
+  canvas.height = out;
+  const ctx = canvas.getContext("2d")!;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(src, (w - side) / 2, (h - side) / 2, side, side, 0, 0, out, out);
+  if ("close" in src) src.close();
+  let type = "image/webp";
+  let blob = await canvasBlob(canvas, type, 0.86);
+  if (!blob || blob.type !== type) {
+    type = "image/jpeg";
+    blob = await canvasBlob(canvas, type, 0.88);
+  }
+  if (!blob) throw new Error("Couldn't read that picture.");
+  const id = toB64Url(randomBytes(16));
+  const key = toB64Url(randomBytes(32));
+  const entry: Local = { blob, key, type, uploaded: false, at: Date.now() };
+  await set(id, entry, db);
+  urls.set(id, URL.createObjectURL(blob));
+  // (it has to reach the server now: it's for other people to see)
+  if (!(await upload(id, entry, { session: true }))) throw new Error("Couldn't save it — check your connection and try again.");
+  return { id, key, type };
+}
+
 /** Every picture in a note. */
 export function imageIds(doc: JSONContent | null | undefined): string[] {
   const out: string[] = [];

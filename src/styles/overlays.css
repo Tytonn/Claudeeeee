@@ -1039,6 +1039,70 @@
   height: 19px;
   font-size: 9.5px;
 }
+/* Your picture: a photo fills the disc. The big one is a button — a camera shows on hover. */
+.acct-coin {
+  position: relative;
+  flex-shrink: 0;
+  overflow: hidden;
+  padding: 0;
+  cursor: pointer;
+  transition: transform 180ms var(--ease);
+}
+.acct-coin:hover {
+  transform: scale(1.04);
+}
+.acct-coin:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+:is(.acct-coin, .acct-mini).has-photo {
+  background: rgb(var(--tint) / 0.08);
+}
+:is(.acct-coin, .acct-mini) img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+.acct-coin-edit {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: rgb(0 0 0 / 0.42);
+  opacity: 0;
+  transition: opacity var(--t-fast);
+}
+.acct-coin:hover .acct-coin-edit,
+.acct-coin:focus-visible .acct-coin-edit,
+.acct-coin.is-busy .acct-coin-edit {
+  opacity: 1;
+}
+.acct-coin.is-busy .acct-coin-edit svg {
+  animation: acct-breathe-icon 1s ease-in-out infinite;
+}
+@keyframes acct-breathe-icon {
+  50% {
+    opacity: 0.35;
+  }
+}
+.acct-pic-links {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+}
+.acct-pic-links .link-btn {
+  font-size: 11.5px;
+}
+.acct-pic-links .sep {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--fg-4);
+}
 .acct-mini.is-syncing {
   animation: acct-breathe 1.4s ease-in-out infinite;
 }

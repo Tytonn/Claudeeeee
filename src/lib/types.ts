@@ -78,6 +78,19 @@ export type SceneId = "eclipse" | "rain" | "solar" | "ink" | "sky";
 export type SkyPaletteId = "azure" | "pastel" | "golden" | "sunset" | "twilight";
 export type RainAmountId = "drizzle" | "rain" | "downpour";
 
+/** A profile picture: which account it's for, and the (encrypted, stored-once) image — see lib/images.ts. */
+export type ProfilePicture = { uid: string; id: string; key: string; type: string };
+
+export function normalizeAvatar(raw: unknown): ProfilePicture | null {
+  if (!raw || typeof raw !== "object") return null;
+  const a = raw as Record<string, unknown>;
+  if (typeof a.uid !== "string" || !a.uid || a.uid.length > 64) return null;
+  if (typeof a.id !== "string" || !/^[A-Za-z0-9_-]{22}$/.test(a.id)) return null;
+  if (typeof a.key !== "string" || a.key.length < 40 || a.key.length > 64) return null;
+  if (typeof a.type !== "string" || !/^image\/(webp|jpeg|png)$/.test(a.type)) return null;
+  return { uid: a.uid, id: a.id, key: a.key, type: a.type };
+}
+
 export type Settings = {
   accent: AccentId;
   font: FontId;
@@ -146,6 +159,9 @@ export type Settings = {
   todoGroups: boolean;
   /** Your names for the to-do colors ("Work", "Home"…). */
   todoLabels: Partial<Record<TodoColor, string>>;
+  /** Your profile picture — shown to the others in a note you're writing together. Belongs to
+   *  the account it was set for (`uid`); the picture itself is stored encrypted, like a note's. */
+  avatar: ProfilePicture | null;
   sidebar: boolean;
   rail: boolean;
 };

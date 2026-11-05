@@ -43,6 +43,7 @@ export const DEFAULT_SETTINGS: Settings = {
   clockMsDigits: 3,
   todoGroups: false,
   todoLabels: {},
+  avatar: null,
   sidebar: true,
   rail: true,
 };

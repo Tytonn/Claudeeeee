@@ -5,6 +5,7 @@ import type { JSONContent } from "@tiptap/core";
 import NumberFlow from "@number-flow/react";
 import { ArrowRight, Download, Link2Off, Lock, Repeat } from "lucide-react";
 import { ApiError, fetchShare, joinShare } from "../lib/api";
+import { ASLEEP_AFTER, AWAY_AFTER, lastInputAt, onWake } from "../lib/activity";
 import { open, writeTokenFor } from "../lib/crypto";
 import type { SharePayload } from "../lib/types";
 import { sanitizePayload } from "../lib/sanitize";
@@ -314,18 +315,37 @@ export function ShareView({ id, keyRaw, embedded = false }: { id: string; keyRaw
     return () => fx.setMoon(null);
   }, [embedded]);
 
+  // (a live note keeps itself current; the link around it only carries any lists and the title's look)
+  const liveRef = useRef(false);
+  liveRef.current = live;
   useEffect(() => {
     if (!keyRaw) return;
     let stopped = false;
+    let parked = false;
     let timer = 0;
+    const fastest = () => (liveRef.current ? 30_000 : 4_000);
+    const slowest = () => (liveRef.current ? 120_000 : 30_000);
     let interval = 4000;
     let etag: string | null = null;
     let lastRev = -1;
 
     const schedule = () => {
       window.clearTimeout(timer);
-      if (!stopped && document.visibilityState === "visible") timer = window.setTimeout(load, interval);
+      if (stopped || document.visibilityState !== "visible") return;
+      const quiet = Date.now() - lastInputAt();
+      // Nobody at the keyboard for half an hour: stop asking until someone's back.
+      if (quiet > AWAY_AFTER) {
+        parked = true;
+        return;
+      }
+      timer = window.setTimeout(load, quiet > ASLEEP_AFTER ? slowest() : interval);
     };
+    const unwake = onWake(() => {
+      if (!parked || stopped) return;
+      parked = false;
+      interval = fastest();
+      void load();
+    });
 
     const load = async () => {
       let res: Awaited<ReturnType<typeof fetchShare>>;
@@ -345,7 +365,7 @@ export function ShareView({ id, keyRaw, embedded = false }: { id: string; keyRaw
           return;
         }
         if (!loaded.current) setPhase("error");
-        interval = Math.min(30_000, interval * 2);
+        interval = Math.min(slowest(), interval * 2);
         schedule();
         return;
       }
@@ -362,6 +382,7 @@ export function ShareView({ id, keyRaw, embedded = false }: { id: string; keyRaw
           if (data.note) data.note.doc = safeDoc(data.note.doc, data.note.text);
           etag = res.etag;
           lastRev = res.share.rev;
+          liveRef.current = data.note?.collab === true;
           setPayload(data);
           setUpdatedAt(res.share.updatedAt);
           if (loaded.current) {
@@ -376,7 +397,7 @@ export function ShareView({ id, keyRaw, embedded = false }: { id: string; keyRaw
           }
           loaded.current = true;
           setPhase("ready");
-          interval = 4000;
+          interval = fastest();
         } catch {
           if (!loaded.current) {
             setPhase("bad-key");
@@ -385,7 +406,7 @@ export function ShareView({ id, keyRaw, embedded = false }: { id: string; keyRaw
           }
         }
       } else {
-        interval = Math.min(30_000, Math.round(interval * 1.35));
+        interval = Math.min(slowest(), Math.max(fastest(), Math.round(interval * 1.35)));
       }
       schedule();
     };
@@ -395,7 +416,8 @@ export function ShareView({ id, keyRaw, embedded = false }: { id: string; keyRaw
       setVisible(isVisible);
       window.clearTimeout(timer);
       if (isVisible && !stopped) {
-        interval = 4000;
+        parked = false;
+        interval = fastest();
         void load();
       }
     };
@@ -404,6 +426,7 @@ export function ShareView({ id, keyRaw, embedded = false }: { id: string; keyRaw
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
       stopped = true;
+      unwake();
       window.clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisibility);
     };
@@ -439,7 +462,7 @@ export function ShareView({ id, keyRaw, embedded = false }: { id: string; keyRaw
           <span className="flex" />
           {phase === "ready" && (
             <>
-              {session && <Presence session={session} withNames />}
+              {session && <Presence session={session} size={26} withNames />}
               {session?.synced && !session.canWrite && <span className="viewer-chip mono">View only</span>}
               <span className={`viewer-live mono ${visible ? "" : "is-paused"} ${session?.status === "offline" ? "is-offline" : ""}`} title="Updates appear here automatically">
                 <span className="live-dot" /> {!visible ? "Paused" : session?.status === "offline" ? "Reconnecting" : session?.canWrite ? "Live · editing" : "Live"}

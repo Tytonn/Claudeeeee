@@ -12,7 +12,7 @@ import { Popover } from "../ui/Popover";
 import { Switch } from "../ui/Switch";
 import { fx } from "../../fx/engine";
 import { useScramble } from "../../fx/useScramble";
-import { setEditable, useCollabSession } from "../../collab/manager";
+import { expectVisitors, getCollabSession, setEditable, useCollabSession } from "../../collab/manager";
 import { Presence } from "../Presence";
 import { PeoplePanel } from "./People";
 import { useAccount } from "../../account/account";
@@ -58,6 +58,8 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
 
   useEffect(() => {
     if (!open) return;
+    // (who's here right now, for the line under the link)
+    if (!isBoard) getCollabSession(anchor)?.peek();
     setTodos(record ? record.includeTodos : isBoard && settings.todos);
     setCds(record ? record.includeCountdowns : isBoard && settings.countdowns);
     setError(null);
@@ -82,6 +84,8 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
   const nothing = isBoard && !todos && !cds;
 
   const copy = async (value: string) => {
+    // the link's on its way to someone: look out for them
+    if (!isBoard) expectVisitors(anchor);
     try {
       await navigator.clipboard.writeText(value);
       setCopied(true);
@@ -140,6 +144,7 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
   };
 
   const sendNative = async () => {
+    if (!isBoard) expectVisitors(anchor);
     try {
       await navigator.share({ title: note ? displayTitle(note) : "My list", url });
     } catch {
