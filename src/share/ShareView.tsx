@@ -28,6 +28,7 @@ import { Toasts } from "../components/overlays/Toasts";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { Presence } from "../components/Presence";
 import { readDoc } from "../collab/convert";
+import { TITLE } from "../collab/fields";
 import { LiveNote, useGuestSession, useSessionVersion } from "./LiveNote";
 import { useAccount } from "../account/account";
 import { AccountForm } from "../account/AccountModal";
@@ -293,17 +294,23 @@ export function ShareView({ id, keyRaw, embedded = false }: { id: string; keyRaw
     };
   }, [user, phase, id, keyRaw, ownAnchor]);
 
+  // A live note's title, once its doc has arrived — straight from the doc (null: not here yet).
+  const docTitle = live && session?.synced ? session.doc.getText(TITLE).toString() : null;
+
   // Keep it in your "Shared with you" list (synced to your account, if you have one).
   useEffect(() => {
     if (phase !== "ready" || !payload || ownAnchor || !keyRaw) return;
-    const title = (live ? liveTitle : payload.note?.title) || (payload.note ? "Untitled" : "To-dos & countdowns");
+    // (a live note's title only arrives with its doc, a moment after the link opens: until then the
+    // list keeps the title it has, rather than saying "Untitled" for a second)
+    if (live && docTitle === null) return;
+    const title = (live ? docTitle : payload.note?.title) || (payload.note ? "Untitled" : "To-dos & countdowns");
     const s = useApp.getState();
     const prev = s.shared[id];
     const now = Date.now();
     const nextRole = role === "edit" || role === "view" ? role : (prev?.role ?? null);
     if (prev && prev.title === title && prev.from === (payload.from ?? "") && prev.role === nextRole && now - prev.openedAt < 60_000) return;
     s.putShared({ id, key: keyRaw, title, from: payload.from ?? "", role: nextRole, addedAt: prev?.addedAt ?? now, openedAt: now });
-  }, [phase, payload, live, liveTitle, ownAnchor, id, keyRaw, role]);
+  }, [phase, payload, live, docTitle, ownAnchor, id, keyRaw, role]);
 
   // A vast moon hangs above the page; its corona arcs across the top of the sky.
   useEffect(() => {
