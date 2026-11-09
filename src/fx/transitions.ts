@@ -6,6 +6,7 @@ import { webkit } from "../lib/platform";
 import { play } from "../lib/sound";
 import type { AccentId, SceneId } from "../lib/types";
 import { fx } from "./engine";
+import { crossfadeLook } from "./look";
 import { oklchToRgb, to255 } from "./color";
 
 /**
@@ -31,6 +32,8 @@ const coverRadius = (x: number, y: number) => Math.hypot(Math.max(x, innerWidth 
 /** The new accent floods out from the swatch, like light spilling across the room. */
 export function changeAccent(id: AccentId, x: number, y: number) {
   const s = useApp.getState();
+  // (wearing a shared note's theme: choosing your own colour takes it off — yours, with that colour)
+  if (s.borrowed) return crossfadeLook(() => useApp.getState().setSettings({ accent: id }));
   if (s.settings.accent === id) return;
   const set = () => s.setSettings({ accent: id });
   const c = to255(oklchToRgb(accentColor(id, s.settings.scene, s.settings.inkDark)));
@@ -213,6 +216,10 @@ export { GOLDEN_ACCENT };
  */
 export function changeSolarLook(look: "corona" | "golden") {
   const s = useApp.getState();
+  if (s.borrowed) {
+    const own = s.borrowed.own;
+    return crossfadeLook(() => useApp.getState().setSettings(look === "golden" ? { solarLook: look, ...goldenFirstTime(own) } : { solarLook: look }));
+  }
   if (look === "golden") {
     if (s.settings.solarLook === "golden" && s.settings.solarGoldenTried) return;
     s.setSettings({ solarLook: look, ...goldenFirstTime(s.settings) });
@@ -226,6 +233,7 @@ export function changeSolarLook(look: "corona" | "golden") {
  */
 export function changeInkDark(on: boolean) {
   const s = useApp.getState();
+  if (s.borrowed) return crossfadeLook(() => useApp.getState().setSettings({ inkDark: on }));
   if (arrival) arrival.cancel();
   if ((s.settings.inkDark === true) === on) return;
   const set = () => s.setSettings({ inkDark: on });
@@ -240,6 +248,11 @@ export function changeScene(id: SceneId, x = innerWidth / 2, y = innerHeight / 2
   if (arrival) {
     if (arrival.to === id) return;
     arrival.cancel();
+  }
+  // (wearing a shared note's theme: choosing a scene of your own takes it off — yours, in that scene)
+  if (s.borrowed) {
+    const own = s.borrowed.own;
+    return crossfadeLook(() => useApp.getState().setSettings({ ...SCENES[id].chosen?.(own), scene: id }));
   }
   if (s.settings.scene === id) return;
   // (some scenes bring something with them: the Golden eclipse turns the accent gold)

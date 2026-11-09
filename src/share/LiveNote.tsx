@@ -6,7 +6,7 @@ import { BubbleBar } from "../components/editor/BubbleBar";
 import { TableTools } from "../components/editor/TableTools";
 import { SlashMenu } from "../components/editor/SlashMenu";
 import { LightCaret } from "../fx/LightCaret";
-import { useApp } from "../store/app";
+import { ownSettings, useApp } from "../store/app";
 import { writeTokenFor } from "../lib/crypto";
 import { CollabSession } from "../collab/session";
 import { userFor } from "../collab/manager";
@@ -29,15 +29,17 @@ export function useGuestSession(id: string, keyRaw: string, enabled: boolean): C
     let cancelled = false;
     void writeTokenFor(keyRaw).then((token) => {
       if (cancelled) return;
-      s = new CollabSession({ shareId: id, key: keyRaw, token, owner: false, user: userFor(useApp.getState().settings, "guest") });
+      s = new CollabSession({ shareId: id, key: keyRaw, token, owner: false, user: userFor(ownSettings(useApp.getState()), "guest") });
       s.start();
       setSession(s);
     });
     // (your colour and picture, and who you are — signing in or out while you're here — follow along)
     const unsub = useApp.subscribe((st, prev) => {
-      if (st.settings.accent !== prev.settings.accent || st.settings.avatar !== prev.settings.avatar) s?.setUser(userFor(st.settings, "guest"));
+      const own = ownSettings(st);
+      const was = ownSettings(prev);
+      if (own.accent !== was.accent || own.avatar !== was.avatar) s?.setUser(userFor(own, "guest"));
     });
-    const unsubAccount = onAccountChange(() => s?.setUser(userFor(useApp.getState().settings, "guest")));
+    const unsubAccount = onAccountChange(() => s?.setUser(userFor(ownSettings(useApp.getState()), "guest")));
     return () => {
       cancelled = true;
       unsub();

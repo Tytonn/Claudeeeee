@@ -11,7 +11,7 @@ import {
   normalizeVault,
 } from "../lib/sanitize";
 import { safeDoc } from "../components/editor/safeDoc";
-import { DEFAULT_SETTINGS, useApp } from "./app";
+import { DEFAULT_SETTINGS, ownSettings, useApp } from "./app";
 import { seedData } from "./seed";
 
 const db = createStore("umbra", "kv");
@@ -229,7 +229,8 @@ export function startPersistence() {
     }
     if (s.todos !== prev.todos) pending.set("todos", s.todos);
     if (s.countdowns !== prev.countdowns) pending.set("countdowns", s.countdowns);
-    if (s.settings !== prev.settings) writeLocal(SETTINGS_KEY, s.settings);
+    // (your own settings only: a shared note's theme is worn, never kept)
+    if (ownSettings(s) !== ownSettings(prev)) writeLocal(SETTINGS_KEY, ownSettings(s));
     if (s.ui.activeId !== prev.ui.activeId) writeLocal(UI_KEY, { activeId: s.ui.activeId });
     prev = s;
     if ((pending.size || deletions.size) && !timer) timer = window.setTimeout(() => void flush(), 140);
@@ -304,7 +305,7 @@ export function startPersistence() {
     if (e.key === SETTINGS_KEY && e.newValue) {
       try {
         applyingRemote = true;
-        useApp.setState({ settings: { ...DEFAULT_SETTINGS, ...JSON.parse(e.newValue) } });
+        useApp.getState().setOwnSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(e.newValue) });
       } catch {
         /* ignore */
       } finally {
@@ -335,7 +336,7 @@ export async function exportAll(): Promise<Blob> {
     vault: s.vault,
     todos: s.todos,
     countdowns: s.countdowns,
-    settings: s.settings,
+    settings: ownSettings(s),
   };
   return new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
 }

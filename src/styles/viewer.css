@@ -329,3 +329,59 @@
     display: none;
   }
 }
+
+/* "Use my theme" / "Use their theme": the way back to your own look on a note shared in its owner's
+   theme (and over again). On a phone, just its palette. */
+.viewer-look svg {
+  flex-shrink: 0;
+  transition: transform 260ms var(--ease);
+}
+.viewer-look:hover svg {
+  transform: rotate(-14deg) scale(1.08);
+}
+@media (max-width: 640px) {
+  .viewer-look {
+    width: 27px;
+    padding: 0;
+  }
+  .viewer-look-label {
+    display: none;
+  }
+}
+
+/* A shared note's bar keeps to one line however narrow it gets (inside the app, between the
+   sidebar and the to-dos, it can be): nothing in it wraps, and as room runs out the words that
+   aren't needed go first — "… is here" beside the faces, then the theme button's label (its
+   palette and tooltip stay), then who it's from. */
+.viewer-bar {
+  container-type: inline-size;
+  container-name: viewer-bar;
+}
+.viewer-bar > *,
+.viewer-bar :is(.ghost-btn, .primary-btn, .viewer-chip, .viewer-live, .presence-names, .viewer-embed-from) {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.viewer-bar > .flex {
+  flex-shrink: 1;
+  min-width: 0;
+}
+@container viewer-bar (max-width: 780px) {
+  .presence-names {
+    display: none;
+  }
+}
+@container viewer-bar (max-width: 670px) {
+  .viewer-look {
+    width: 27px;
+    padding: 0;
+  }
+  .viewer-look-label {
+    display: none;
+  }
+}
+@container viewer-bar (max-width: 560px) {
+  .viewer-embed-from {
+    display: none;
+  }
+}

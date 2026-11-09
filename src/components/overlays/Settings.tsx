@@ -1,7 +1,8 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
 import { Download, FileText, LayoutList, Link2, Upload, X } from "lucide-react";
 import { useApp } from "../../store/app";
+import { takeOffTheme } from "../../fx/look";
 import { BOARD, shareUrl, stopShare } from "../../store/shareSync";
 import { exportAll, importBackup } from "../../store/persist";
 import { toast } from "../../store/toasts";
@@ -420,6 +421,11 @@ export function SettingsModal() {
   const open = useApp((s) => s.ui.settings);
   const setUI = useApp((s) => s.setUI);
   const close = () => setUI({ settings: false });
+  // Settings is your own look: wearing a shared note's theme, it comes off as Settings opens
+  // (the note's "Use their theme" puts it back)
+  useEffect(() => {
+    if (open && useApp.getState().borrowed) takeOffTheme();
+  }, [open]);
   return (
     <Modal open={open} onClose={close} className="settings" label="Settings">
       <SettingsBody onClose={close} />

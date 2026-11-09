@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { useApp, type AppState } from "./app";
+import { ownSettings, useApp, type AppState } from "./app";
+import { sameTheme, themeOf } from "../lib/sharedTheme";
 import { toast } from "./toasts";
 import { isApplyingRemote, storageOk } from "./persist";
 import { fingerprint, newShareKey, seal, sha256B64, writeTokenFor } from "../lib/crypto";
@@ -22,7 +23,7 @@ const isGone = (err: unknown) => err instanceof ApiError && (err.code === "not_f
 
 export function buildPayload(
   anchor: string,
-  includes: Pick<ShareRecord, "includeTodos" | "includeCountdowns">,
+  includes: Pick<ShareRecord, "includeTodos" | "includeCountdowns" | "shareTheme">,
   s: AppState = useApp.getState(),
 ): SharePayload | null {
   const payload: SharePayload = { v: 1, sharedAt: Date.now() };
@@ -44,6 +45,8 @@ export function buildPayload(
     payload.countdowns = s.countdowns.map((c) => ({ title: c.title, date: c.date, time: c.time ?? null, repeat: c.repeat ?? null, createdAt: c.createdAt }));
   }
   if (!payload.note && !payload.todos && !payload.countdowns) return null;
+  // your theme, as you've set it (not one you're borrowing from a note shared with you)
+  if (includes.shareTheme) payload.theme = themeOf(ownSettings(s));
   return payload;
 }
 
@@ -51,7 +54,7 @@ const hashOf = (p: SharePayload) => fingerprint({ ...p, sharedAt: 0 });
 
 export async function startShare(
   anchor: string,
-  includes: Pick<ShareRecord, "includeTodos" | "includeCountdowns"> & { editable?: boolean },
+  includes: Pick<ShareRecord, "includeTodos" | "includeCountdowns" | "shareTheme"> & { editable?: boolean },
 ): Promise<ShareRecord> {
   const payload = buildPayload(anchor, includes);
   if (!payload) throw new Error("Nothing to share yet.");
@@ -85,6 +88,7 @@ export async function startShare(
     hash: hashOf(payload),
     rev: created.rev,
     editable: anchor === BOARD ? undefined : includes.editable !== false,
+    shareTheme: includes.shareTheme === true ? true : undefined,
   };
   useApp.getState().putShare(record);
   return record;
@@ -218,6 +222,8 @@ export function startShareSync() {
         (r.includeCountdowns && s.countdowns !== prev.countdowns) ||
         before.includeTodos !== r.includeTodos ||
         before.includeCountdowns !== r.includeCountdowns ||
+        before.shareTheme !== r.shareTheme ||
+        (r.shareTheme === true && !sameTheme(ownSettings(s), ownSettings(prev))) ||
         before.collab !== r.collab; // the note moved into its live doc: tell viewers where to look
       if (relevant) schedule(anchor);
     }

@@ -38,6 +38,7 @@ import { setSoundEnabled, setSoundTheme } from "./lib/sound";
 import { startViewportFit } from "./lib/platform";
 import { startVaultWatch } from "./lib/vault";
 import { startImageSync } from "./lib/images";
+import { swappingLook } from "./fx/look";
 import { App } from "./App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
@@ -57,7 +58,8 @@ async function boot() {
     const amount = RAIN_AMOUNT[s.rainAmount] ?? 0.5;
     const blur = typeof s.cityBlur === "number" ? Math.min(1, Math.max(0, s.cityBlur)) : 1;
     fx.setRain({ lightning: s.lightning !== false, city: s.cityLights !== false, amount, blur });
-    fx.setScene(sceneOf(s.scene), first);
+    // (a shared note's theme going on or off: its scene comes in settled — the crossfade is its arrival)
+    fx.setScene(sceneOf(s.scene), first || swappingLook());
     fx.setGalaxyEclipse(s.galaxyEclipse === true, s.galaxyEclipseSpot === "middle");
     fx.setSolar({
       clouds: s.solarClouds !== false,

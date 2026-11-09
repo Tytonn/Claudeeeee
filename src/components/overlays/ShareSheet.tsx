@@ -2,7 +2,10 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Check, Copy, FileText, Hourglass, ListChecks, Lock, PenLine, Send } from "lucide-react";
 import type { VirtualElement } from "@floating-ui/react-dom";
-import { useApp } from "../../store/app";
+import { ownSettings, useApp } from "../../store/app";
+import { themeName } from "../../lib/sharedTheme";
+import { SCENE_UI } from "../../scenes/ui";
+import { sceneOf } from "../../scenes/meta";
 import { BOARD, shareUrl, startShare, stopShare, useShareStatus, verifyShare } from "../../store/shareSync";
 import { toast } from "../../store/toasts";
 import { ApiError } from "../../lib/api";
@@ -54,6 +57,11 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
   const username = useAccount((s) => s.user?.username ?? null);
   const [justCreated, setJustCreated] = useState(false);
   const [canEdit, setCanEdit] = useState(true);
+  const [withTheme, setWithTheme] = useState(false);
+  // your own theme, as you've set it — what "Share my theme" sends
+  const myScene = useApp((s) => sceneOf(ownSettings(s).scene));
+  const myThemeName = useApp((s) => themeName(ownSettings(s)));
+  const ThemeArt = SCENE_UI[myScene].Art;
   const session = useCollabSession(isBoard ? null : anchor);
 
   useEffect(() => {
@@ -66,6 +74,7 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
     setCopied(false);
     setJustCreated(false);
     setCanEdit(record ? record.editable !== false : true);
+    setWithTheme(record ? record.shareTheme === true : false);
     // Make sure a live link really still works, rather than trusting what we remember.
     if (!record) return;
     let current = true;
@@ -104,6 +113,11 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
     if (record) patchShare(anchor, which === "todos" ? { includeTodos: value } : { includeCountdowns: value });
   };
 
+  const toggleTheme = (value: boolean) => {
+    setWithTheme(value);
+    if (record) patchShare(anchor, { shareTheme: value ? true : undefined });
+  };
+
   const toggleEdit = (value: boolean) => {
     setCanEdit(value);
     if (record) void setEditable(anchor, value);
@@ -113,7 +127,7 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
     setBusy("create");
     setError(null);
     try {
-      const r = await startShare(anchor, { includeTodos: todos, includeCountdowns: cds, editable: canEdit });
+      const r = await startShare(anchor, { includeTodos: todos, includeCountdowns: cds, editable: canEdit, shareTheme: withTheme });
       // Send it up: a beam of light rises from the button.
       if (fx.active && anchorEl && "getBoundingClientRect" in anchorEl) {
         const b = anchorEl.getBoundingClientRect();
@@ -219,6 +233,19 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
               </span>
             </div>
           )}
+          <div className="sheet-row" onClick={() => toggleTheme(!withTheme)}>
+            {/* (a little window onto your theme: its card) */}
+            <span className="sheet-row-icon is-theme" aria-hidden>
+              <ThemeArt />
+            </span>
+            <span className="sheet-row-text">
+              <span className="sheet-row-title">Share my theme</span>
+              <span className="sheet-row-sub">{withTheme ? `They'll see it in ${myThemeName}, as you do` : `Show it in ${myThemeName}, just as you see it`}</span>
+            </span>
+            <span onClick={(e) => e.stopPropagation()}>
+              <Switch checked={withTheme} onChange={toggleTheme} label="Share my theme" />
+            </span>
+          </div>
         </div>
 
         <AnimatePresence mode="wait" initial={false}>

@@ -186,6 +186,8 @@ export type ShareRecord = {
   editable?: boolean;
   /** Only people the owner lets in can open it. */
   restricted?: boolean;
+  /** It goes with your theme: friends open it the way you see it (and can switch back to theirs). */
+  shareTheme?: boolean;
 };
 
 /** A link someone shared with you — kept so you can find it again (and synced with your account). */
@@ -209,4 +211,6 @@ export type SharePayload = {
   note?: { title: string; doc: JSONContent | null; text: string; updatedAt: number; collab?: boolean; titleStyle?: TitleStyle };
   todos?: { text: string; done: boolean }[];
   countdowns?: { title: string; date: string; time?: string | null; repeat?: "yearly" | null; createdAt: number }[];
+  /** "Share my theme": how its owner sees it (see lib/sharedTheme.ts). */
+  theme?: import("./sharedTheme").SharedTheme;
 };

@@ -1,4 +1,4 @@
-import { useApp, type AppState } from "../store/app";
+import { ownSettings, useApp, type AppState } from "../store/app";
 import { ApiError, syncPull, syncPush, type SyncItem } from "../lib/api";
 import { open, seal } from "../lib/crypto";
 import {
@@ -126,7 +126,7 @@ function readLocal(key: string, s: AppState = useApp.getState()): unknown {
   if (key === "countdowns") return s.countdowns;
   if (key === "groups") return s.groups;
   if (key === "vault") return s.vault ?? undefined;
-  if (key === "settings") return pickSettings(s.settings);
+  if (key === "settings") return pickSettings(ownSettings(s));
   return undefined;
 }
 
@@ -183,11 +183,16 @@ function apply(changes: Change[]) {
         else if (key === "vault") next.vault = value ? normalizeVault(value) : null;
         else if (key === "settings" && value && typeof value === "object") {
           const incoming = value as Record<string, unknown>;
-          const merged = { ...(next.settings ?? s.settings) } as Record<string, unknown>;
+          // (into your own settings — never a shared note's theme you happen to be wearing)
+          const merged = { ...(next.borrowed?.own ?? next.settings ?? ownSettings(s)) } as Record<string, unknown>;
           for (const k of SYNCED_SETTINGS) if (k in incoming && typeof incoming[k] === typeof merged[k]) merged[k] = incoming[k];
           merged.todoLabels = normalizeTodoLabels(merged.todoLabels);
           merged.avatar = normalizeAvatar(merged.avatar);
-          next.settings = merged as unknown as Settings;
+          const own = merged as unknown as Settings;
+          if (s.borrowed) {
+            next.borrowed = { ...s.borrowed, own };
+            next.settings = { ...own, ...s.borrowed.theme };
+          } else next.settings = own;
         }
       }
       if (notes !== s.notes) next.notes = notes;
@@ -466,7 +471,10 @@ function watchStore() {
     if (s.countdowns !== prev.countdowns) mark("countdowns");
     if (s.groups !== prev.groups) mark("groups");
     if (s.vault !== prev.vault) mark("vault");
-    if (s.settings !== prev.settings && SYNCED_SETTINGS.some((k) => s.settings[k] !== prev.settings[k])) mark("settings");
+    // (your own settings: wearing or taking off a shared note's theme isn't a change to them)
+    const own = ownSettings(s);
+    const was = ownSettings(prev);
+    if (own !== was && SYNCED_SETTINGS.some((k) => own[k] !== was[k])) mark("settings");
   });
 }
 

@@ -1,7 +1,7 @@
 import * as Y from "yjs";
 import { createStore, del as idbDel, get as idbGet, set as idbSet } from "idb-keyval";
 import { useSyncExternalStore } from "react";
-import { useApp } from "../store/app";
+import { ownSettings, useApp } from "../store/app";
 import { onAccountChange, useAccount } from "../account/account";
 import { BOARD, verifyShare } from "../store/shareSync";
 import { toast } from "../store/toasts";
@@ -96,12 +96,15 @@ export function startCollab() {
   sync();
   useApp.subscribe((s, prev) => {
     if (s.shares !== prev.shares || s.ready !== prev.ready) sync();
-    if (s.settings.accent !== prev.settings.accent || s.settings.avatar !== prev.settings.avatar) {
-      for (const session of sessions.values()) session.setUser(userFor(s.settings));
+    // (you, as others see you: your own colour and picture — not a shared note's theme you're wearing)
+    const own = ownSettings(s);
+    const was = ownSettings(prev);
+    if (own.accent !== was.accent || own.avatar !== was.avatar) {
+      for (const session of sessions.values()) session.setUser(userFor(own));
     }
   });
   onAccountChange(() => {
-    for (const session of sessions.values()) session.setUser(userFor(useApp.getState().settings));
+    for (const session of sessions.values()) session.setUser(userFor(ownSettings(useApp.getState())));
   });
 }
 
@@ -171,7 +174,7 @@ async function ensure(anchor: string, record: ShareRecord) {
       key: record.key,
       token: record.token,
       owner: true,
-      user: userFor(useApp.getState().settings),
+      user: userFor(ownSettings(useApp.getState())),
       doc,
       seq,
       pending,

@@ -3,7 +3,7 @@ import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import type { JSONContent } from "@tiptap/core";
 import NumberFlow from "@number-flow/react";
-import { ArrowRight, Download, Link2Off, Lock, Repeat } from "lucide-react";
+import { ArrowRight, Download, Link2Off, Lock, Palette, Repeat } from "lucide-react";
 import { ApiError, fetchShare, joinShare } from "../lib/api";
 import { ASLEEP_AFTER, AWAY_AFTER, lastInputAt, onWake } from "../lib/activity";
 import { open, writeTokenFor } from "../lib/crypto";
@@ -20,6 +20,9 @@ import { play } from "../lib/sound";
 import { spring } from "../lib/motion";
 import { useApp } from "../store/app";
 import { toast } from "../store/toasts";
+import { takeOffTheme, wearTheme } from "../fx/look";
+import { themeName } from "../lib/sharedTheme";
+import { Tooltip } from "../components/ui/Tooltip";
 import { buildExtensions } from "../components/editor/extensions";
 import { Eclipse, Logo } from "../components/ui/Eclipse";
 import { Checkbox } from "../components/ui/Checkbox";
@@ -234,6 +237,33 @@ function AccessScreen({ phase, from, onSignedIn }: { phase: Phase; from?: string
   );
 }
 
+/** "Use my theme", remembered per link on this device (so a note you'd rather see your way stays that way). */
+function lookChoice(id: string): "mine" | null {
+  try {
+    return localStorage.getItem(`umbra:look:${id}`) === "mine" ? "mine" : null;
+  } catch {
+    return null;
+  }
+}
+function setLookChoice(id: string, choice: "mine" | null) {
+  try {
+    if (choice) localStorage.setItem(`umbra:look:${id}`, choice);
+    else localStorage.removeItem(`umbra:look:${id}`);
+  } catch {
+    /* private mode: for this visit only */
+  }
+}
+/** Whether we've already said whose theme this link is shown in (once a visit). */
+function toldLook(id: string): boolean {
+  try {
+    if (sessionStorage.getItem(`umbra:look-told:${id}`)) return true;
+    sessionStorage.setItem(`umbra:look-told:${id}`, "1");
+  } catch {
+    /* fine */
+  }
+  return false;
+}
+
 export function ShareView({ id, keyRaw, embedded = false }: { id: string; keyRaw: string; embedded?: boolean }) {
   const [phase, setPhase] = useState<Phase>(keyRaw ? "loading" : "missing-key");
   const [payload, setPayload] = useState<SharePayload | null>(null);
@@ -293,6 +323,43 @@ export function ShareView({ id, keyRaw, embedded = false }: { id: string; keyRaw
       window.clearTimeout(timer);
     };
   }, [user, phase, id, keyRaw, ownAnchor]);
+
+  // ── Their theme ("Share my theme"): the note as its owner sees it — until you go back to your
+  // own notes, or choose "Use my theme" (remembered for this link, on this device).
+  const theme = phase === "ready" && !ownAnchor ? (payload?.theme ?? null) : null;
+  const themeKey = theme ? JSON.stringify(theme) : "";
+  const by = payload?.from;
+  const [mine, setMine] = useState(() => lookChoice(id) === "mine");
+  const wearing = useApp((s) => s.borrowed?.from === id);
+  useEffect(() => {
+    if (!theme || mine) return;
+    wearTheme(theme, id, by);
+    // (a beat later: opening another shared note straight after crossfades once, not via yours)
+    return () => takeOffTheme(id, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [themeKey, mine, id, by]);
+  const toggleLook = () => {
+    if (useApp.getState().borrowed?.from === id) {
+      setLookChoice(id, "mine");
+      setMine(true);
+      takeOffTheme(id);
+    } else if (theme) {
+      setLookChoice(id, null);
+      setMine(false);
+      wearTheme(theme, id, by);
+    }
+  };
+  const toggleLookRef = useRef(toggleLook);
+  toggleLookRef.current = toggleLook;
+  // The first time a link puts its theme on (this visit): a word on whose it is, and the way back.
+  useEffect(() => {
+    if (!wearing || !theme || toldLook(id)) return;
+    toast(`Shown in ${by ? `${by}'s` : "their"} theme · ${themeName(theme)}`, {
+      duration: 6500,
+      action: { label: "Use mine", run: () => toggleLookRef.current() },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wearing]);
 
   // A live note's title, once its doc has arrived — straight from the doc (null: not here yet).
   const docTitle = live && session?.synced ? session.doc.getText(TITLE).toString() : null;
@@ -474,6 +541,14 @@ export function ShareView({ id, keyRaw, embedded = false }: { id: string; keyRaw
               <span className={`viewer-live mono ${visible ? "" : "is-paused"} ${session?.status === "offline" ? "is-offline" : ""}`} title="Updates appear here automatically">
                 <span className="live-dot" /> {!visible ? "Paused" : session?.status === "offline" ? "Reconnecting" : session?.canWrite ? "Live · editing" : "Live"}
               </span>
+              {theme && (
+                <Tooltip label={wearing ? `Shown in ${by ? `${by}'s` : "their"} theme · ${themeName(theme)}` : `See it in ${by ? `${by}'s` : "their"} theme · ${themeName(theme)}`}>
+                  <button type="button" className={`ghost-btn sm viewer-look ${wearing ? "is-theirs" : ""}`} onClick={toggleLook}>
+                    <Palette size={13} strokeWidth={1.8} aria-hidden />
+                    <span className="viewer-look-label">{wearing ? "Use my theme" : "Use their theme"}</span>
+                  </button>
+                </Tooltip>
+              )}
               {embedded && (
                 <button type="button" className="ghost-btn sm" onClick={() => navigate(`/s/${id}#${keyRaw}`)} title="Open the full page (with any lists)">
                   Full page

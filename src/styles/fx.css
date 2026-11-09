@@ -438,7 +438,8 @@ html:not([data-fx="off"]) .wordmark {
   animation: none;
   mix-blend-mode: normal;
 }
-html.vt-accent {
+html.vt-accent,
+html.vt-look {
   transition: none !important;
 }
 

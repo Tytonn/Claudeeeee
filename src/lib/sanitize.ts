@@ -1,4 +1,5 @@
 import type { JSONContent } from "@tiptap/core";
+import { sanitizeTheme } from "./sharedTheme";
 import type { Countdown, Note, NoteGroup, SharePayload, ShareRecord, SharedLink, TitleStyle, Todo, TodoColor, Vault } from "./types";
 
 /**
@@ -129,6 +130,7 @@ export function normalizeShareRecord(raw: unknown): ShareRecord | null {
     collab: raw.collab === true ? true : undefined,
     editable: raw.editable === false ? false : undefined,
     restricted: raw.restricted === true ? true : undefined,
+    shareTheme: raw.shareTheme === true ? true : undefined,
   };
 }
 
@@ -179,5 +181,7 @@ export function sanitizePayload(raw: unknown): SharePayload | null {
       }))
       .slice(0, 500);
   }
+  const theme = sanitizeTheme(raw.theme);
+  if (theme) out.theme = theme;
   return out.note || out.todos?.length || out.countdowns?.length ? out : null;
 }

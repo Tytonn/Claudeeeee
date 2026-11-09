@@ -4,6 +4,7 @@ import type { JSONContent } from "@tiptap/core";
 import type { Countdown, Note, NoteGroup, Settings, SharedLink, ShareRecord, TitleStyle, Todo, Vault } from "../lib/types";
 import { uid } from "../lib/id";
 import { isBlank } from "../lib/text";
+import { isThemeKey, type SharedTheme } from "../lib/sharedTheme";
 
 export const DEFAULT_SETTINGS: Settings = {
   accent: "iris",
@@ -87,6 +88,11 @@ type Hydration = {
   activeId: string | null;
 };
 
+/** Your own settings — even while a shared note's theme is being worn (they're what's saved and synced). */
+export function ownSettings(s: Pick<AppState, "settings" | "borrowed">): Settings {
+  return s.borrowed?.own ?? s.settings;
+}
+
 export type AppState = {
   ready: boolean;
   notes: Record<string, Note>;
@@ -96,12 +102,28 @@ export type AppState = {
   countdowns: Countdown[];
   shares: Record<string, ShareRecord>;
   shared: Record<string, SharedLink>;
+  /** What everything is drawn with — your settings, or, while you're looking at a note shared
+   *  with its owner's theme, theirs (see `borrowed`). */
   settings: Settings;
+  /**
+   * A note shared with you in its owner's theme, while it's open: that theme (`from`: the link),
+   * and your own settings, kept safe. Your own are what's saved, synced and shown as yours — the
+   * borrowed theme is only ever worn, never kept. See ownSettings().
+   */
+  borrowed: { theme: SharedTheme; own: Settings; from: string; by?: string } | null;
   ui: UIState;
 
   hydrate(data: Hydration): void;
   setUI(patch: Partial<UIState>): void;
+  /** Changes your settings. (Choosing a look of your own — a scene, an accent… — while you're
+   *  wearing someone else's theme takes it off.) */
   setSettings(patch: Partial<Settings>): void;
+  /** Settings that arrived from elsewhere (another tab, your account): your own. */
+  setOwnSettings(next: Settings): void;
+  /** Shows everything in a shared note's theme (`from`: its link; `by`: whose, "@name"), keeping your own safe. */
+  borrowTheme(theme: SharedTheme, from: string, by?: string): void;
+  /** Back to your own theme (only if it's still `from`'s, when given). */
+  returnTheme(from?: string): void;
 
   createNote(init?: Partial<Pick<Note, "title" | "doc" | "text" | "groupId" | "hidden" | "titleStyle">>): string;
   updateNote(id: string, patch: Partial<Note>, touch?: boolean): void;
@@ -176,6 +198,7 @@ export const useApp = create<AppState>()(
     shares: {},
     shared: {},
     settings: DEFAULT_SETTINGS,
+    borrowed: null,
     ui: {
       activeId: null,
       view: "notes",
@@ -221,7 +244,28 @@ export const useApp = create<AppState>()(
     },
 
     setSettings(patch) {
-      set((s) => ({ settings: { ...s.settings, ...patch } }));
+      set((s) => {
+        if (!s.borrowed) return { settings: { ...s.settings, ...patch } };
+        const own = { ...s.borrowed.own, ...patch };
+        // a look of your own, chosen while wearing theirs: yours again, with that change
+        if (Object.keys(patch).some(isThemeKey)) return { settings: own, borrowed: null };
+        return { settings: { ...own, ...s.borrowed.theme }, borrowed: { ...s.borrowed, own } };
+      });
+    },
+
+    setOwnSettings(next) {
+      set((s) => (s.borrowed ? { settings: { ...next, ...s.borrowed.theme }, borrowed: { ...s.borrowed, own: next } } : { settings: next }));
+    },
+
+    borrowTheme(theme, from, by) {
+      set((s) => {
+        const own = s.borrowed?.own ?? s.settings;
+        return { settings: { ...own, ...theme }, borrowed: { theme, own, from, ...(by ? { by } : {}) } };
+      });
+    },
+
+    returnTheme(from) {
+      set((s) => (s.borrowed && (from === undefined || s.borrowed.from === from) ? { settings: s.borrowed.own, borrowed: null } : {}));
     },
 
     // ── Notes ──────────────────────────────────────────────────────────────
