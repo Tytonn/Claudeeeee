@@ -836,3 +836,131 @@ button.todo-section-toggle:hover {
   color: var(--fg-1);
   background: var(--hover);
 }
+
+/* ── Writing (the words you've written today, your streak, the week) ─────── */
+
+.writing-streak {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px 0 7px;
+  border-radius: 99px;
+  font-size: 11px;
+  color: var(--fg-3);
+  background: rgb(var(--tint) / 0.05);
+  box-shadow: inset 0 0 0 1px var(--line);
+  cursor: default;
+}
+.writing-streak svg {
+  color: var(--fg-4);
+  transition: color var(--t-med) var(--ease);
+}
+/* (lit once you've written today) */
+.writing-streak.is-today svg {
+  color: oklch(0.76 0.16 58);
+}
+.writing-today {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 2px 6px 0;
+}
+.writing-ring-wrap {
+  position: relative;
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+}
+.writing-ring {
+  display: block;
+  width: 56px;
+  height: 56px;
+}
+.writing-ring circle {
+  fill: none;
+  stroke-width: 4.5;
+}
+.writing-ring-track {
+  stroke: rgb(var(--tint) / 0.08);
+}
+.writing-ring-fill {
+  stroke: var(--accent);
+  stroke-linecap: round;
+  transition:
+    stroke-dashoffset 900ms var(--ease-out),
+    opacity 300ms var(--ease);
+}
+.writing-today.is-done .writing-ring-fill {
+  filter: drop-shadow(0 0 4px var(--accent));
+}
+.writing-ring-mid {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  color: var(--fg-3);
+}
+.writing-today.is-done .writing-ring-mid {
+  color: var(--accent);
+}
+.writing-words {
+  min-width: 0;
+}
+.writing-count {
+  font-size: 30px;
+  line-height: 1;
+  color: var(--fg-1);
+}
+.writing-sub {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--fg-4);
+}
+.writing-week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  padding: 16px 6px 0;
+}
+.writing-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: default;
+}
+.writing-bar {
+  position: relative;
+  width: 100%;
+  max-width: 22px;
+  height: 30px;
+  border-radius: 5px;
+  background: rgb(var(--tint) / 0.045);
+  overflow: hidden;
+}
+.writing-bar-fill {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: 5px;
+  background: rgb(var(--tint) / 0.24);
+  transition: height 700ms var(--ease-out);
+}
+.writing-day.is-goal .writing-bar-fill {
+  background: color-mix(in oklch, var(--accent) 72%, transparent);
+}
+.writing-day.is-today .writing-bar-fill {
+  background: var(--accent);
+}
+.writing-day-name {
+  font-size: 10px;
+  line-height: 1;
+  color: var(--fg-4);
+}
+.writing-day.is-today .writing-day-name {
+  color: var(--fg-2);
+}

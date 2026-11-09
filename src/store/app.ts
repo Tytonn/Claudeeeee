@@ -43,6 +43,8 @@ export const DEFAULT_SETTINGS: Settings = {
   skyWind: 0.5,
   clockMs: false,
   clockMsDigits: 3,
+  writing: true,
+  writingGoal: 250,
   todoGroups: false,
   todoLabels: {},
   avatar: null,
@@ -65,6 +67,8 @@ export type UIState = {
   mobile: "list" | "editor" | "rail";
   /** On a phone: where Today (the to-dos and countdowns) was opened from — its back arrow goes there. */
   railFrom: "list" | "editor";
+  /** In a window too narrow for the side panel beside the note: it's slid out over the note. */
+  railPeek: boolean;
   savedAt: number;
   /** Hidden notes are showing (this session only — every reload starts locked). */
   unlocked: boolean;
@@ -211,6 +215,7 @@ export const useApp = create<AppState>()(
       focus: false,
       mobile: "list",
       railFrom: "list",
+      railPeek: false,
       savedAt: 0,
       unlocked: false,
       vault: null,

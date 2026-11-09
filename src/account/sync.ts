@@ -15,6 +15,7 @@ import {
 import { normalizeAvatar, type Countdown, type Note, type NoteGroup, type Settings, type Todo } from "../lib/types";
 import { untouchedSeedCountdown, untouchedSeedTodo } from "../store/seed";
 import { dataKey, onAccountChange, sessionExpired, useAccount, type AccountUser } from "./account";
+import { absorbDevice, cleanDays, isDeviceId, sameDays, setWritingAccount, useWriting } from "../lib/writing";
 
 /**
  * Keeps this device and your account in step.
@@ -64,6 +65,8 @@ const SYNCED_SETTINGS = [
   "skyWind",
   "clockMs",
   "clockMsDigits",
+  "writing",
+  "writingGoal",
   "todoGroups",
   "todoLabels",
   "avatar",
@@ -85,6 +88,7 @@ let pulling: Promise<void> | null = null;
 let again = false;
 let failures = 0;
 let unsubscribeStore: (() => void) | null = null;
+let unsubscribeWriting: (() => void) | null = null;
 
 const setSync = (sync: ReturnType<typeof useAccount.getState>["sync"]) => useAccount.setState({ sync, ...(sync === "synced" ? { lastSync: Date.now() } : {}) });
 
@@ -127,6 +131,14 @@ function readLocal(key: string, s: AppState = useApp.getState()): unknown {
   if (key === "groups") return s.groups;
   if (key === "vault") return s.vault ?? undefined;
   if (key === "settings") return pickSettings(ownSettings(s));
+  // (writing stats: one record per device — this one's, and the others' as last heard)
+  if (key.startsWith("stats:")) {
+    const w = useWriting.getState();
+    const id = key.slice(6);
+    if (id === w.device) return { days: w.days };
+    const theirs = w.account ? w.accounts[w.account]?.[id] : undefined;
+    return theirs ? { days: theirs } : undefined;
+  }
   return undefined;
 }
 
@@ -146,13 +158,20 @@ function localKeys(s: AppState = useApp.getState()): string[] {
     "groups",
     ...(s.vault ? ["vault"] : []),
     "settings",
+    ...(Object.keys(useWriting.getState().days).length ? [`stats:${useWriting.getState().device}`] : []),
   ];
 }
 
 type Change = { key: string; value: unknown };
 
 /** Applies records from the server to this device (without echoing them back). */
-function apply(changes: Change[]) {
+function apply(all: Change[]) {
+  // (your other devices' writing stats live beside the app's own state)
+  const changes: Change[] = [];
+  for (const c of all) {
+    if (!c.key.startsWith("stats:")) changes.push(c);
+    else if (isDeviceId(c.key.slice(6))) absorbDevice(c.key.slice(6), c.value && typeof c.value === "object" ? cleanDays((c.value as { days?: unknown }).days) : null);
+  }
   if (!changes.length) return;
   applying = true;
   try {
@@ -476,6 +495,13 @@ function watchStore() {
     const was = ownSettings(prev);
     if (own !== was && SYNCED_SETTINGS.some((k) => own[k] !== was[k])) mark("settings");
   });
+  // This device's writing stats: sent up when its days change (not when other devices' arrive).
+  unsubscribeWriting?.();
+  unsubscribeWriting = useWriting.subscribe((w, prev) => {
+    if (!user || !meta) return;
+    if (w.device === prev.device && sameDays(w.days, prev.days)) return;
+    mark(`stats:${w.device}`);
+  });
 }
 
 function begin(next: AccountUser | null) {
@@ -483,9 +509,13 @@ function begin(next: AccountUser | null) {
   window.clearTimeout(pullTimer);
   user = next;
   meta = next ? loadMeta(next.uid) : null;
+  // (whose other devices' writing stats count here)
+  setWritingAccount(next?.uid ?? null);
   if (!next) {
     unsubscribeStore?.();
     unsubscribeStore = null;
+    unsubscribeWriting?.();
+    unsubscribeWriting = null;
     return;
   }
   watchStore();

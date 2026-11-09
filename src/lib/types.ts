@@ -157,6 +157,10 @@ export type Settings = {
   clockMs: boolean;
   /** …to this many digits. */
   clockMsDigits: 1 | 2 | 3;
+  /** Writing stats in the side panel: the words you've written today, your streak, a daily goal. */
+  writing: boolean;
+  /** How many words a day fill the goal ring. */
+  writingGoal: number;
   /** Show to-dos in sections, one per color. */
   todoGroups: boolean;
   /** Your names for the to-do colors ("Work", "Home"…). */

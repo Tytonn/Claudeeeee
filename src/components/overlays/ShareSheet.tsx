@@ -56,7 +56,8 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
   const [copied, setCopied] = useState(false);
   const username = useAccount((s) => s.user?.username ?? null);
   const [justCreated, setJustCreated] = useState(false);
-  const [canEdit, setCanEdit] = useState(true);
+  // (a new link starts view-only: one that gets passed around shouldn't let just anyone write in it)
+  const [canEdit, setCanEdit] = useState(false);
   const [withTheme, setWithTheme] = useState(false);
   // your own theme, as you've set it — what "Share my theme" sends
   const myScene = useApp((s) => sceneOf(ownSettings(s).scene));
@@ -73,7 +74,7 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
     setError(null);
     setCopied(false);
     setJustCreated(false);
-    setCanEdit(record ? record.editable !== false : true);
+    setCanEdit(record ? record.editable !== false : false);
     setWithTheme(record ? record.shareTheme === true : false);
     // Make sure a live link really still works, rather than trusting what we remember.
     if (!record) return;
@@ -310,7 +311,10 @@ export function ShareSheet({ anchor, open, anchorEl, onClose, placement = "botto
         </AnimatePresence>
 
         {error && <div className="sheet-error">{error}</div>}
-        <p className="sheet-foot">Anyone with the link can view. The key lives inside the link itself, so the server only ever stores scrambled data.</p>
+        <p className="sheet-foot">
+          {record?.restricted ? "Only people you let in" : "Anyone with the link"} {!isBoard && canEdit ? "can view and edit" : "can view"}. The key lives inside the link itself, so the server only ever stores
+          scrambled data.
+        </p>
       </div>
     </Popover>
   );

@@ -12,6 +12,8 @@ import { CollabSession } from "../collab/session";
 import { userFor } from "../collab/manager";
 import { useYText } from "../collab/useYText";
 import { TITLE } from "../collab/fields";
+import { WordTally, recordWords } from "../lib/writing";
+import { wordCount } from "../lib/text";
 
 const noop = () => () => {};
 
@@ -59,6 +61,17 @@ export function LiveNote({ session, onTitle }: { session: CollabSession; onTitle
   const [noteEl, setNoteEl] = useState<HTMLDivElement | null>(null);
   const ytitle = useMemo(() => session.doc.getText(TITLE), [session]);
   const [title, setTitle] = useYText(ytitle, titleRef);
+  // (what you write in a friend's note counts toward your day's words too)
+  const tally = useMemo(() => new WordTally(`shared:${session.shareId}`), [session]);
+  const titlePasted = useRef(false);
+  useEffect(() => {
+    const out = () => tally.flush();
+    window.addEventListener("pagehide", out);
+    return () => {
+      window.removeEventListener("pagehide", out);
+      tally.flush();
+    };
+  }, [tally]);
 
   const editor = useEditor(
     {
@@ -74,6 +87,8 @@ export function LiveNote({ session, onTitle }: { session: CollabSession; onTitle
         imageAuth: () => (useAccount.getState().user ? { session: true } : session.uploadAuth),
       }),
       editable: canEdit,
+      onUpdate: ({ editor: ed, transaction }) => tally.change(transaction, ed.state.doc),
+      onBlur: () => tally.flush(),
       immediatelyRender: true,
       shouldRerenderOnTransaction: false,
       editorProps: {
@@ -115,7 +130,15 @@ export function LiveNote({ session, onTitle }: { session: CollabSession; onTitle
         aria-label="Title"
         readOnly={!canEdit}
         spellCheck
-        onChange={(e) => setTitle(e.target.value.replace(/[\r\n]+/g, " "))}
+        onPaste={() => {
+          titlePasted.current = true;
+        }}
+        onChange={(e) => {
+          const next = e.target.value.replace(/[\r\n]+/g, " ");
+          if (!titlePasted.current) recordWords(`shared:${session.shareId}`, wordCount(next) - wordCount(title ?? ""));
+          titlePasted.current = false;
+          setTitle(next);
+        }}
         onKeyDown={(e) => {
           if (e.nativeEvent.isComposing || !editor) return;
           const el = e.currentTarget;

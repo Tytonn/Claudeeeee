@@ -9,10 +9,12 @@ import { ALT, MOD, isMac } from "../lib/theme";
 import { displayTitle } from "../lib/text";
 import { relativeLong } from "../lib/dates";
 import { flushEditor, newNote, selectAdjacent, trashNote } from "../lib/actions";
+import { hasPanel, togglePanel, usePanelPeek, usePanelRoom } from "../lib/panel";
 import { play } from "../lib/sound";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { Rail } from "./Rail";
+import { useGoalCelebration } from "./widgets/Writing";
 import { NoteEditor } from "./editor/NoteEditor";
 import { ShareView } from "../share/ShareView";
 import { LINK_EVENT } from "./editor/BubbleBar";
@@ -60,7 +62,7 @@ function useGlobalShortcuts() {
       }
       if (mod && !e.altKey && e.key === ".") {
         e.preventDefault();
-        if (s.settings.todos || s.settings.countdowns) s.setSettings({ rail: !s.settings.rail });
+        togglePanel();
         return;
       }
       if (mod && e.shiftKey && e.code === "KeyF") {
@@ -269,6 +271,8 @@ export function Workspace() {
 
   useGlobalShortcuts();
   useTypingFade(settings.fadeWhileTyping && !isMobile);
+  // (today's writing goal, reached: a word to say so, once a day)
+  useGoalCelebration();
 
   // The browser tab follows the open note.
   const tabTitle = useApp((s) => {
@@ -279,14 +283,20 @@ export function Workspace() {
     document.title = tabTitle ? `${tabTitle} · umbra` : "umbra";
   }, [tabTitle]);
 
-  const railFeature = settings.todos || settings.countdowns;
+  const railFeature = hasPanel(settings);
   const showSidebar = !isMobile && settings.sidebar && !focus;
-  const showRail = !isMobile && railFeature && settings.rail && !focus;
+  // (in a window too narrow for it beside the note, the side panel tucks itself away — its button
+  // slides it out over the note instead: see lib/panel.ts)
+  const panelRoom = usePanelRoom();
+  const railPeek = useApp((s) => s.ui.railPeek);
+  const showRail = !isMobile && railFeature && settings.rail && !focus && panelRoom;
+  const peekRail = !isMobile && railFeature && !focus && !panelRoom && railPeek;
+  usePanelPeek(peekRail, railPeek);
 
   return (
     <MotionConfig reducedMotion="user">
       <div
-        className={`app ${showSidebar ? "has-sidebar" : ""} ${showRail ? "has-rail" : ""} ${focus ? "is-focus" : ""} ${isMobile ? "is-mobile" : ""}`}
+        className={`app ${showSidebar ? "has-sidebar" : ""} ${showRail ? "has-rail" : ""} ${!isMobile && railFeature && !panelRoom ? "rail-tucked" : ""} ${peekRail ? "rail-peek" : ""} ${focus ? "is-focus" : ""} ${isMobile ? "is-mobile" : ""}`}
         data-pane={isMobile ? mobilePane : undefined}
       >
         <Sidebar />

@@ -32,6 +32,7 @@ import {
   X,
 } from "lucide-react";
 import { useApp } from "../store/app";
+import { hasPanel } from "../lib/panel";
 import type { Note, NoteGroup } from "../lib/types";
 import { displayTitle } from "../lib/text";
 import { shortStamp } from "../lib/dates";
@@ -447,7 +448,7 @@ export function Sidebar() {
   const view = useApp((s) => s.ui.view);
   const shares = useApp((s) => s.shares);
   const setUI = useApp((s) => s.setUI);
-  const railFeature = useApp((s) => s.settings.todos || s.settings.countdowns);
+  const railFeature = useApp((s) => hasPanel(s.settings));
   const now = useNow(60_000);
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [groupMenu, setGroupMenu] = useState<{ id: string; x: number; y: number } | null>(null);

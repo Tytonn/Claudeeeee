@@ -73,6 +73,42 @@ html:not(.is-ready) .app {
   display: none;
 }
 
+/* No room for the side panel beside the note (a window under ~1150px wide: it would squeeze the
+   writing): it's tucked away off the right edge, and its button slides it out over the note on a
+   frosted pane of its own, just under the top bar (so the button stays there to put it away
+   again) — a tap anywhere else slides it back too. (It stays out of the grid either way, so the
+   note keeps its width, and it can slide back as smoothly as it came.) */
+.app.rail-tucked:not(.is-mobile) > .rail {
+  position: absolute;
+  top: calc(var(--app-top, 0px) + 54px);
+  right: 0;
+  z-index: 6;
+  width: var(--rail-w);
+  height: calc(var(--app-h, 100dvh) - var(--app-top, 0px) - var(--app-bottom, 0px) - 54px);
+  overflow: visible;
+  pointer-events: none;
+}
+.app.rail-tucked:not(.is-mobile) > .rail > .rail-inner {
+  margin: 8px !important;
+  width: calc(var(--rail-w) - 16px) !important;
+  height: calc(100% - 16px) !important;
+  border-radius: 16px !important;
+  background: var(--float) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(1.35) !important;
+  backdrop-filter: blur(22px) saturate(1.35) !important;
+  box-shadow:
+    var(--shadow-float),
+    0 0 0 1px var(--line) !important;
+  opacity: 0;
+  transform: translateX(36px);
+  pointer-events: none;
+}
+.app.rail-tucked.rail-peek:not(.is-mobile) > .rail > .rail-inner {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
 /* ── Canvas (the raised writing surface) ─────────────────────────────────── */
 
 .canvas {

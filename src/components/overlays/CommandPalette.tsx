@@ -17,6 +17,7 @@ import {
   MousePointer2,
   PanelLeft,
   PanelRight,
+  PenLine,
   Plus,
   Search,
   Settings2,
@@ -37,6 +38,7 @@ import { shortStamp } from "../../lib/dates";
 import { ACCENTS, ALT, FONTS, MOD, SHIFT, TRANSPARENCY, accentColor, sceneOf } from "../../lib/theme";
 import type { AccentId, FontId } from "../../lib/types";
 import { NEW_COUNTDOWN_EVENT, flushEditor, newGroup, newNote, openShare } from "../../lib/actions";
+import { showPanel, togglePanel, usePanelRoom } from "../../lib/panel";
 import { lockHidden, openHidden } from "../../lib/vault";
 import { exportAll } from "../../store/persist";
 import { download } from "../../lib/actions";
@@ -90,6 +92,9 @@ function useItems(query: string): Item[] {
   const settings = useApp((s) => s.settings);
   const activeId = useApp((s) => s.ui.activeId);
   const focus = useApp((s) => s.ui.focus);
+  // (in a window too narrow for the side panel, showing it slides it out over the note)
+  const panelRoom = usePanelRoom();
+  const railPeek = useApp((s) => s.ui.railPeek);
   const now = Date.now();
 
   return useMemo(() => {
@@ -142,7 +147,7 @@ function useItems(query: string): Item[] {
         }));
     }
 
-    const toggle = (key: "todos" | "countdowns" | "sidebar" | "rail" | "sounds") => () => s.setSettings({ [key]: !s.settings[key] });
+    const toggle = (key: "todos" | "countdowns" | "writing" | "sidebar" | "rail" | "sounds") => () => s.setSettings({ [key]: !s.settings[key] });
     const seeThrough = settings.backdrop === "clear" || settings.backdrop === "crystal" || settings.backdrop === "bare";
 
     const actions: Item[] = [
@@ -180,16 +185,29 @@ function useItems(query: string): Item[] {
         icon: <CalendarPlus size={15} strokeWidth={1.6} />,
         keywords: "trip birthday date days event",
         run: () => {
-          s.setSettings({ countdowns: true, rail: true });
-          s.setUI({ mobile: "rail" });
+          s.setSettings({ countdowns: true });
+          // (wherever the panel fits: beside the note, out over it in a narrow window, or a phone's own page)
+          showPanel();
           window.setTimeout(() => window.dispatchEvent(new Event(NEW_COUNTDOWN_EVENT)), 60);
         },
       },
       { id: "todos", group: "Actions", label: settings.todos ? "Hide to-do list" : "Show to-do list", icon: <ListChecks size={15} strokeWidth={1.6} />, keywords: "tasks widget toggle", run: toggle("todos") },
       { id: "cds", group: "Actions", label: settings.countdowns ? "Hide countdowns" : "Show countdowns", icon: <Hourglass size={15} strokeWidth={1.6} />, keywords: "timer days widget toggle", run: toggle("countdowns") },
+      {
+        id: "writing",
+        group: "Actions",
+        label: settings.writing ? "Hide writing stats" : "Show writing stats",
+        icon: <PenLine size={15} strokeWidth={1.6} />,
+        keywords: "words today streak goal ring stats widget toggle",
+        run: () => {
+          const on = !s.settings.writing;
+          s.setSettings({ writing: on });
+          if (on) showPanel();
+        },
+      },
       { id: "focus", group: "Actions", label: focus ? "Exit focus mode" : "Focus mode", icon: <Maximize2 size={15} strokeWidth={1.6} />, kbd: `${MOD} ${SHIFT} F`, keywords: "zen distraction", run: () => s.setUI({ focus: !s.ui.focus }) },
       { id: "sidebar", group: "Actions", label: settings.sidebar ? "Hide sidebar" : "Show sidebar", icon: <PanelLeft size={15} strokeWidth={1.6} />, kbd: `${MOD} \\`, run: toggle("sidebar") },
-      { id: "rail", group: "Actions", label: settings.rail ? "Hide side panel" : "Show side panel", icon: <PanelRight size={15} strokeWidth={1.6} />, kbd: `${MOD} .`, run: toggle("rail") },
+      { id: "rail", group: "Actions", label: (panelRoom ? settings.rail : railPeek) ? "Hide side panel" : "Show side panel", icon: <PanelRight size={15} strokeWidth={1.6} />, kbd: `${MOD} .`, run: togglePanel },
       { id: "settings", group: "Actions", label: "Settings", icon: <Settings2 size={15} strokeWidth={1.6} />, kbd: `${MOD} ,`, keywords: "preferences options", run: () => s.setUI({ settings: true }) },
       { id: "shortcuts", group: "Actions", label: "Keyboard shortcuts", icon: <Keyboard size={15} strokeWidth={1.6} />, kbd: "?", keywords: "keys help", run: () => s.setUI({ shortcuts: true }) },
       {
@@ -317,7 +335,7 @@ function useItems(query: string): Item[] {
 
     return [...vault, ...noteItems, ...matchedActions, ...(vault.length ? [] : create)];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, notes, groups, unlocked, hasVault, settings, activeId, focus]);
+  }, [query, notes, groups, unlocked, hasVault, settings, activeId, focus, panelRoom, railPeek]);
 }
 
 function PaletteBody({ onClose }: { onClose: () => void }) {

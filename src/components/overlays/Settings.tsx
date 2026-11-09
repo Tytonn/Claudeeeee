@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
 import { Download, FileText, LayoutList, Link2, Upload, X } from "lucide-react";
 import { useApp } from "../../store/app";
+import { hasPanel } from "../../lib/panel";
+import { goalOf } from "../widgets/Writing";
 import { takeOffTheme } from "../../fx/look";
 import { BOARD, shareUrl, stopShare } from "../../store/shareSync";
 import { exportAll, importBackup } from "../../store/persist";
@@ -315,7 +317,36 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
                 label="Countdowns"
               />
             </Row>
-            {(settings.todos || settings.countdowns) && (
+            <Row label="Writing stats" desc="The words you've written today, your streak and a goal ring, at the top of the side panel.">
+              <Switch
+                checked={settings.writing === true}
+                onChange={(v) =>
+                  setSettings({
+                    writing: v,
+                    rail: v || settings.todos || settings.countdowns ? true : settings.rail,
+                  })
+                }
+                label="Writing stats"
+              />
+            </Row>
+            {settings.writing && (
+              <Row label="Daily goal" desc="How many words a day fill the ring.">
+                <Segmented<"100" | "250" | "500" | "1000" | "2000">
+                  label="Daily goal"
+                  size="sm"
+                  value={String(goalOf(settings.writingGoal)) as "100" | "250" | "500" | "1000" | "2000"}
+                  options={[
+                    { value: "100", label: "100" },
+                    { value: "250", label: "250" },
+                    { value: "500", label: "500" },
+                    { value: "1000", label: "1k" },
+                    { value: "2000", label: "2k" },
+                  ]}
+                  onChange={(g) => setSettings({ writingGoal: Number(g) })}
+                />
+              </Row>
+            )}
+            {hasPanel(settings) && (
               <Row label="Milliseconds" desc="Show fractions of a second on the clock.">
                 <div className="set-inline">
                   {settings.clockMs && (

@@ -13,6 +13,7 @@ import { BubbleBar } from "./BubbleBar";
 import { SlashMenu } from "./SlashMenu";
 import { TableTools } from "./TableTools";
 import { charCount, wordCount } from "../../lib/text";
+import { WordTally, recordWords } from "../../lib/writing";
 import { formatDate } from "../../lib/dates";
 import { useCollabSession } from "../../collab/manager";
 import { useYText } from "../../collab/useYText";
@@ -49,6 +50,10 @@ export function NoteEditor({ noteId, scroller }: Props) {
   const session = useCollabSession(noteId);
   const ytitle = useMemo(() => session?.doc.getText(TITLE) ?? null, [session]);
   const [liveTitle, setLiveTitle] = useYText(ytitle, titleRef);
+  // The words you write here, for the day's writing stats (lib/writing.ts) — not pastes, undos or
+  // a friend's edits.
+  const tally = useMemo(() => new WordTally(noteId), [noteId]);
+  const titlePasted = useRef(false);
 
   const focusTitleEnd = useCallback(() => {
     const el = titleRef.current;
@@ -97,13 +102,17 @@ export function NoteEditor({ noteId, scroller }: Props) {
           return false;
         },
       },
-      onUpdate: ({ editor: ed }) => {
+      onUpdate: ({ editor: ed, transaction }) => {
+        tally.change(transaction, ed.state.doc);
         if (session) return; // the live doc's session keeps the note up to date
         pending.current = ed;
         window.clearTimeout(saveTimer.current);
         saveTimer.current = window.setTimeout(flush, 320);
       },
-      onBlur: () => flush(),
+      onBlur: () => {
+        flush();
+        tally.flush();
+      },
     },
     [noteId, session],
   );
@@ -124,6 +133,15 @@ export function NoteEditor({ noteId, scroller }: Props) {
       flush();
     };
   }, [flush]);
+  // (what you'd written when the note closes, or the page goes away, counts)
+  useEffect(() => {
+    const out = () => tally.flush();
+    window.addEventListener("pagehide", out);
+    return () => {
+      window.removeEventListener("pagehide", out);
+      tally.flush();
+    };
+  }, [tally]);
 
   // A brand-new note: put the caret in the title synchronously, in the same commit that
   // mounts it, so keystrokes typed right after "new note" can't land anywhere else.
@@ -242,8 +260,14 @@ export function NoteEditor({ noteId, scroller }: Props) {
         placeholder="Untitled"
         aria-label="Title"
         spellCheck
+        onPaste={() => {
+          titlePasted.current = true;
+        }}
         onChange={(e) => {
           const title = e.target.value.replace(/[\r\n]+/g, " ");
+          // (a title you type counts toward the day's words; one you paste in doesn't)
+          if (!titlePasted.current) recordWords(noteId, wordCount(title) - wordCount(liveTitle ?? note.title));
+          titlePasted.current = false;
           if (ytitle) setLiveTitle(title);
           else updateNote(noteId, { title });
         }}

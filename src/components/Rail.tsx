@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import NumberFlow from "@number-flow/react";
 import { ArrowLeft, Share } from "lucide-react";
 import { useApp } from "../store/app";
+import { hasPanel } from "../lib/panel";
 import { BOARD, useShareStatus } from "../store/shareSync";
 import { useIsMobile, useNow } from "../lib/hooks";
 import { openShare } from "../lib/actions";
 import { Countdowns } from "./widgets/Countdowns";
 import { Todos } from "./widgets/Todos";
+import { Writing } from "./widgets/Writing";
 import { Tooltip } from "./ui/Tooltip";
 import { IconButton } from "./ui/IconButton";
 import { ShareSheet } from "./overlays/ShareSheet";
@@ -136,10 +138,10 @@ export function Rail() {
   const shareAnchor = useRef<HTMLSpanElement>(null);
   const d = new Date(now);
 
-  if (!settings.todos && !settings.countdowns) return <aside className="rail is-empty" aria-hidden />;
+  if (!hasPanel(settings)) return <aside className="rail is-empty" aria-hidden />;
 
   return (
-    <aside className="rail" aria-label="To-dos and countdowns">
+    <aside className="rail" aria-label="Today">
       <div className="rail-inner">
         <header className="rail-head">
           {isMobile && (
@@ -182,6 +184,7 @@ export function Rail() {
           )}
           </span>
         </header>
+        {settings.writing && <Writing />}
         {settings.countdowns && <Countdowns />}
         {settings.todos && <Todos />}
       </div>

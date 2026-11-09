@@ -8,6 +8,7 @@ import { relativeLong } from "../lib/dates";
 import { useIsMobile, useNow } from "../lib/hooks";
 import { MOD, SHIFT } from "../lib/theme";
 import { openShare } from "../lib/actions";
+import { hasPanel, togglePanel, usePanelRoom } from "../lib/panel";
 import { IconButton } from "./ui/IconButton";
 import { Tooltip } from "./ui/Tooltip";
 import { Popover } from "./ui/Popover";
@@ -72,7 +73,10 @@ export function TopBar() {
   const moreBtn = useRef<HTMLButtonElement>(null);
   const [moreOpen, setMoreOpen] = useState(false);
 
-  const railFeature = settings.todos || settings.countdowns;
+  const railFeature = hasPanel(settings);
+  // (no room for the side panel beside the note: its button slides it out over the note)
+  const panelRoom = usePanelRoom();
+  const railPeek = useApp((s) => s.ui.railPeek);
   const openShared = useApp((s) => s.ui.openShared);
   const showNoteTools = view === "notes" && note && !note.deletedAt && !openShared;
   // Who else has this note open (it's shared live): their faces, beside Share — like a doc's.
@@ -146,9 +150,11 @@ export function TopBar() {
         )}
         {railFeature && !focus && (
           <IconButton
-            label={isMobile ? "To-dos & countdowns" : settings.rail ? "Hide panel" : "Show panel"}
+            className="panel-toggle"
+            label={isMobile ? "Today" : (panelRoom ? settings.rail : railPeek) ? "Hide panel" : "Show panel"}
             kbd={isMobile ? undefined : `${MOD} .`}
-            onClick={() => (isMobile ? setUI({ mobile: "rail" }) : setSettings({ rail: !settings.rail }))}
+            active={!isMobile && !panelRoom && railPeek}
+            onClick={() => (isMobile ? setUI({ mobile: "rail" }) : togglePanel())}
           >
             <PanelRight size={16} strokeWidth={1.7} />
           </IconButton>
