@@ -16,6 +16,7 @@ export const DEFAULT_SETTINGS: Settings = {
   countdowns: true,
   sounds: true,
   fadeWhileTyping: true,
+  charCount: false,
   effects: "cosmic",
   backdrop: "clear",
   scene: "eclipse",

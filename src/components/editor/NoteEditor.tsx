@@ -12,7 +12,7 @@ import { play } from "../../lib/sound";
 import { BubbleBar } from "./BubbleBar";
 import { SlashMenu } from "./SlashMenu";
 import { TableTools } from "./TableTools";
-import { wordCount } from "../../lib/text";
+import { charCount, wordCount } from "../../lib/text";
 import { formatDate } from "../../lib/dates";
 import { useCollabSession } from "../../collab/manager";
 import { useYText } from "../../collab/useYText";
@@ -181,6 +181,11 @@ export function NoteEditor({ noteId, scroller }: Props) {
   }, [editor]);
 
   const words = note ? wordCount(`${note.title} ${note.text}`) : 0;
+  // (counted only when it's shown, and only when the words change)
+  const showChars = useApp((s) => s.settings.charCount === true);
+  const title = note?.title ?? "";
+  const body = note?.text ?? "";
+  const chars = useMemo(() => (showChars ? charCount(`${title}${body}`) : null), [showChars, title, body]);
 
   // Every hundred words, a little burst of light by the counter.
   useEffect(() => {
@@ -262,6 +267,14 @@ export function NoteEditor({ noteId, scroller }: Props) {
         <span className="tabular" ref={wordsRef}>
           {words.toLocaleString()} word{words === 1 ? "" : "s"}
         </span>
+        {chars && (
+          <>
+            <span className="sep" />
+            <span className="tabular" title={`${chars.noSpaces.toLocaleString()} without spaces`}>
+              {chars.all.toLocaleString()} character{chars.all === 1 ? "" : "s"}
+            </span>
+          </>
+        )}
         {minutes >= 1 && (
           <>
             <span className="sep" />

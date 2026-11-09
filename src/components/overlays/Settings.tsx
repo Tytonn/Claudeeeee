@@ -284,6 +284,9 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
             <Row label="Fade while typing" desc="Everything except your words quietly dims as you write.">
               <Switch checked={settings.fadeWhileTyping} onChange={(v) => setSettings({ fadeWhileTyping: v })} label="Fade while typing" />
             </Row>
+            <Row label="Character count" desc="Beside the word count under each note's title. Hover it for the count without spaces.">
+              <Switch checked={settings.charCount === true} onChange={(v) => setSettings({ charCount: v })} label="Character count" />
+            </Row>
           </Section>
 
           <Section title="Widgets">

@@ -40,6 +40,7 @@ const SYNCED_SETTINGS = [
   "countdowns",
   "sounds",
   "fadeWhileTyping",
+  "charCount",
   "scene",
   "lightning",
   "cityLights",

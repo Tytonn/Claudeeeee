@@ -104,6 +104,8 @@ export type Settings = {
   countdowns: boolean;
   sounds: boolean;
   fadeWhileTyping: boolean;
+  /** A character count beside the word count under a note's title (off by default). */
+  charCount: boolean;
   effects: EffectsId;
   backdrop: BackdropId;
   scene: SceneId;

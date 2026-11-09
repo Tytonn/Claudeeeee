@@ -137,6 +137,19 @@ export function wordCount(text: string): number {
   return m ? m.length : 0;
 }
 
+/** Characters as you'd count them by eye — an emoji or an accented letter is one — not counting line breaks. */
+export function charCount(text: string): { all: number; noSpaces: number } {
+  const flat = text.replace(/[\r\n]+/g, "");
+  let all = 0;
+  let noSpaces = 0;
+  const seg = typeof Intl !== "undefined" && "Segmenter" in Intl ? new Intl.Segmenter(undefined, { granularity: "grapheme" }) : null;
+  for (const g of seg ? Array.from(seg.segment(flat), (s) => s.segment) : Array.from(flat)) {
+    all++;
+    if (!/^\s+$/u.test(g)) noSpaces++;
+  }
+  return { all, noSpaces };
+}
+
 export function displayTitle(note: Pick<Note, "title" | "text">): string {
   const t = String(note.title ?? "").trim();
   if (t) return t;
