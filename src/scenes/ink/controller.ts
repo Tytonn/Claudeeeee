@@ -2,6 +2,7 @@ import type { FxEngine, FxLevel } from "../../fx/engine";
 import type { SceneController } from "../../fx/scene";
 import type { InkStep } from "../../fx/sky";
 import { rand } from "../../fx/util";
+import { apple } from "../../lib/platform";
 import { CLEARED, FALL, REVEAL, SKIP_MS, arrivalLook, dropInk } from "./arrival";
 import { INK_BLOOMS } from "./shaders";
 import { FLUID_BLOOMS } from "./fluid";
@@ -18,6 +19,9 @@ export type InkDetail = "standard" | "high";
 
 /** How fast real water runs, against the clock (it's slow, heavy ink: a little slower than life). */
 const PACE = 0.72;
+
+/** A touch screen (a phone, a tablet): a finger, not a mouse. */
+const touch = typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches;
 
 export class InkScene implements SceneController {
   readonly id = "ink" as const;
@@ -105,10 +109,10 @@ export class InkScene implements SceneController {
       // a few drops already fallen (and falling), so the water has its ink when it's first seen
       this.inkWarm = 140;
       const column = this.columnRect();
-      // (on a phone a little ink goes a long way: a couple of drops, down the sides)
-      const n = this.narrow ? 3 : 5;
+      // (on a phone or a tablet a little ink goes a long way: a couple of drops, down the sides)
+      const n = this.handheld ? 3 : 5;
       for (let i = 0; i < n; i++) this.inkBlooms.push(this.toSide(newDrop(Math.random, this.inkT + 0.5 + i * 2.6, aspect, column, this.inkScale, this.colours)));
-      if (!this.narrow) this.inkBlooms.push(newBloom(Math.random, this.inkT + 1, aspect, rect, false, this.inkScale, this.colours));
+      if (!this.handheld) this.inkBlooms.push(newBloom(Math.random, this.inkT + 1, aspect, rect, false, this.inkScale, this.colours));
       this.inkNext = this.inkT + 14.5;
       return;
     }
@@ -135,15 +139,15 @@ export class InkScene implements SceneController {
 
   /**
    * The part of the screen kept clear of ink (behind the note), in screen heights (y up). On a
-   * phone the note is the whole screen, so the clear part is its middle: ink keeps to the sides
-   * and gathers below.
+   * phone or a tablet the clear part is the middle of the screen: ink keeps to the sides and
+   * gathers below.
    */
   private inkPanel(): [number, number, number, number] {
     const H = Math.max(1, this.fx.H);
     let { x, y, w, h } = this.fx.panel;
-    // on a phone (or a note filling the screen) all of it is writing: the ink keeps to a thin
-    // margin down the sides and gathers along the bottom
-    const full = this.fx.small || w > this.fx.W * 0.86;
+    // on a phone or a tablet (or with a note filling the screen) it's all writing: the ink keeps
+    // to a thin margin down the sides and gathers along the bottom
+    const full = this.fx.small || this.handheld || w > this.fx.W * 0.86;
     if (full) {
       x = this.fx.W * 0.07;
       w = this.fx.W * 0.86;
@@ -188,14 +192,14 @@ export class InkScene implements SceneController {
           else {
             const d = this.toSide(newDrop(Math.random, this.inkNext, aspect, column, this.inkScale, this.colours));
             this.inkBlooms.push(d);
-            if (pick > 0.8 && !this.narrow) {
+            if (pick > 0.8 && !this.handheld) {
               const twin = newDrop(Math.random, this.inkNext + rand(0.5, 1.4), aspect, column, this.inkScale, this.colours);
               twin.x = Math.min(aspect - 0.04, Math.max(0.04, d.x + rand(-0.09, 0.09)));
               this.inkBlooms.push(twin);
             }
           }
-          // (on a phone, a little less often)
-          this.inkNext += rand(4.2, 7.5) * (this.fx.calm ? 1.35 : 1) * (this.narrow ? 1.45 : 1);
+          // (on a phone or a tablet, a little less often)
+          this.inkNext += rand(4.2, 7.5) * (this.fx.calm ? 1.35 : 1) * (this.handheld ? 1.45 : 1);
           continue;
         }
         this.inkBlooms.push(newBloom(Math.random, this.inkNext, aspect, rect, false, this.inkScale));
@@ -404,10 +408,10 @@ export class InkScene implements SceneController {
       aspect: this.fx.W / H,
       panel: this.inkPanel(),
       // (with nothing over the words — Glass, Crystal, Bare — ink behind them lingers as anywhere)
-      // (on a phone the words are the whole screen: even with nothing over them, the ink thins out
-      // behind them, rather than covering everything)
-      clear: this.fluid && this.openWords ? this.inkClear * (this.narrow ? 0.5 : 0.2) : this.inkClear,
-      dissolve: this.narrow ? 1.7 : 1,
+      // (on a phone or a tablet the words are most of the screen: even with nothing over them, the
+      // ink thins out behind them, rather than covering everything)
+      clear: this.fluid && this.openWords ? this.inkClear * (this.handheld ? 0.5 : 0.2) : this.inkClear,
+      dissolve: this.handheld ? 1.7 : 1,
       stir: [this.fx.mouse.x / H, 1 - this.fx.mouse.y / H, this.stirV.x * 0.4 * this.fx.cursorK * (this.fx.small ? 0 : 1), this.stirV.y * 0.4 * this.fx.cursorK * (this.fx.small ? 0 : 1)] as [number, number, number, number],
       flow: this.fx.effective === "subtle" ? 0.7 : 1,
       behind: this.behindWords(),
@@ -480,14 +484,18 @@ export class InkScene implements SceneController {
     return true;
   }
 
-  /** A phone (or any narrow screen held upright): the words fill it, so a little ink goes a long way. */
-  private get narrow() {
-    return this.fx.small && this.fx.W / Math.max(1, this.fx.H) < 1.2;
+  /**
+   * A phone or a tablet, either way up — a touch screen, or an iPad even with a keyboard and
+   * trackpad (it says it's a Mac) — or a small window held upright: the words take up most of
+   * the screen, so a little ink goes a long way.
+   */
+  private get handheld() {
+    return touch || apple || (this.fx.small && this.fx.W / Math.max(1, this.fx.H) < 1.2);
   }
 
-  /** On a phone, ink comes in down the sides (not over the words) and lighter; elsewhere, as it is. */
+  /** On a phone or a tablet, ink comes in down the sides (not over the words) and lighter; elsewhere, as it is. */
   private toSide(b: InkBloom, move = true): InkBloom {
-    if (!this.narrow) return b;
+    if (!this.handheld) return b;
     const aspect = this.fx.W / Math.max(1, this.fx.H);
     if (move) b.x = Math.random() < 0.5 ? rand(0.015, aspect * 0.13) : rand(aspect * 0.87, aspect - 0.015);
     b.amount *= 0.75;
