@@ -24,7 +24,7 @@
 - **Settings → Transparency** *(right under Accent; it was called Background)*: how much of the scene shows through the panels, least to most — *Frosted* (smoked, frosted glass; was *Dark*), *Soft* (lighter, more of the sky; was *Glass*), *Clear* (the default: the sky almost fully, with a soft shade behind your words), *Outline* (no glass at all — just outlines over the open sky, with a crisp little drop shadow behind every word; was *Crystal*) or *Full* (nothing at all: no panels, no outlines, no shade — the sky's light even carries on behind your words instead of stopping at the page's edge; was *Bare*). Also in the command palette: *Show more of the sky*, *Frost the panels* and *Transparency: …*.
 - **Settings → Title font:** the typeface of every note's title — *Display* (the tall, narrow serif), *Display italic*, *Serif*, *Sans* or *Mono*. Right-click a title to give just that note its own look (see *Notes*).
 - On a phone, the status bar and the strip under the gesture bar take on the colors at the top and bottom of the sky, so it runs right to the edges of the screen. On iPhone and iPad the page never zooms in when you start typing (pinch to zoom still works), nothing flashes grey when you tap it, and tapping into a to-do doesn't slide the whole screen up (a note still moves up out of the keyboard's way, as it should). On a phone, *Today* (your to-dos and countdowns) goes back where you opened it from: the list, or the note you were in. Added to the Home Screen of an iPhone or iPad, umbra fills the whole screen, right to the bottom edge.
-- **Settings → About → Show version:** a small gray *v1.43* beside the logo, so a screenshot says which version it's from. The exact build (its commit and time) is listed there too, and in the command palette's *Screen info*. The number lives in `src/version.ts` and goes up with every update.
+- **Settings → About → Show version:** a small gray *v1.44* beside the logo, so a screenshot says which version it's from. The exact build (its commit and time) is listed there too, and in the command palette's *Screen info*. The number lives in `src/version.ts` and goes up with every update.
 
 **Solar eclipse** *(Settings → Scene → Solar eclipse)*
 - A real total solar eclipse, seen from the ground, drawn live on the GPU: a black moon in a golden, glowing ring, the pearly corona streaming out around it in long, fine-combed blades, pink prominences standing up off the rim, and a dusky sky with a sunset glowing all the way round the horizon — the way it really looks at totality. Venus and a few stars come out in the dark.
@@ -97,6 +97,9 @@
 - **A note's menu** (pin, share, duplicate, move to a group, copy, download, export as PDF, trash): right-click it in the list — on a phone or tablet, tap its *···* or hold your finger on it. Groups work the same way.
 - **Hidden notes:** *Hide note* takes a note out of your list, search and trash. It's in a note's menu (in your accent color) only while your hidden notes are unlocked. To unlock them, search for **hidden** and enter your 4-digit PIN; they show up in their own section until you lock them (or after a minute away from the app). Forgot the PIN? Your account password lets you choose a new one.
 - Saves instantly as you type. Pin, duplicate, copy as Markdown, download `.md`, export as PDF, trash with undo (auto-empties after 30 days). Holding <kbd>Backspace</kbd> clears a note and stops there — it never runs on into the title.
+- **Version history:** click *Saved* at the top of a note (or *Version history* in its menu, or search the command palette for it) to see its earlier versions, newest first, by day. Pick one to read it, with what changed since the version before marked — new words highlighted, words taken away struck through, a slim bar beside each changed line — or turn off *Show changes* to see it just as it looked, pictures and all. <kbd>↑</kbd> <kbd>↓</kbd> step through them. **Restore this version** puts it back (the note as it was is kept first, and *Undo* is right there); from *···*, *Restore as a new note* leaves the original just as it is, and *Name this version* keeps it for good. *Save this version…* on the current one keeps it now, with a name if you like (*First draft*).
+  - A version is kept whenever you pause, at least every ten minutes while you keep going, when you leave the note — and always before anything big: selecting everything and deleting it, restoring another version, or a change arriving from another device (marked *From another device*; if two devices clash, the side that lost is still there to bring back). Just opening a note never makes one.
+  - Versions stay on the device, compressed in the browser's own storage: nothing is uploaded, so they cost no Netlify credits. Everything from the last day is kept; after that, one an hour for a week, one a day for a month and one a week for a year. On a live shared note, a restore goes to everyone in it. Restored words never count toward your writing stats.
 - Empty notes clean themselves up. Your place in each note is remembered.
 
 **To-dos** *(optional)*
@@ -165,6 +168,7 @@ Already have a Netlify site you want to reuse? Open it → **Site configuration 
 - **What live sharing costs on Netlify's credit plans:** each check-in is one small function call (web requests are 2 credits per 10,000, plus a sliver of compute). A shared note open on your screen with nobody else in it comes to roughly *0.05 credits an hour* — it used to be around 0.6, and every other shared note added a little more all day while the app was open; now they add nothing. While someone's actually writing with you, it's live, and costs about a credit an hour each.
 - **What pictures cost on Netlify's credit plans:** a typical photo ends up around 150–400 KB. Uploading it and each device downloading it once comes to roughly *2 credits per 100 photos* (bandwidth at 20 credits/GB, plus a few function calls) — for comparison, a single deploy is 15. Notes without pictures cost nothing extra.
 - Shared links are stored on Netlify (encrypted) until you stop sharing. Manage them in **Settings → Sharing → Live links**.
+- **Version history** is kept on each device, never uploaded, and isn't part of an export. Deleting a note for good deletes its history too.
 
 ---
 
@@ -254,7 +258,7 @@ src/
   components/                  app shell, sidebar, top bar, side panel
     editor/                    TipTap editor, slash menu, formatting bubble
     widgets/                   to-dos, countdowns, date picker
-    overlays/                  command palette, settings, share sheet, the PIN pad, toasts
+    overlays/                  command palette, settings, share sheet, version history, the PIN pad, toasts
     ui/                        primitives (tooltip, popover, menu, switch, eclipse…)
   fx/                          the light engine: the sky, effects overlay, intro, scene changes, light caret, settling letters
   scenes/                      the scenes, one folder each (galaxy, solar, rain, ink): shaders, renderer, controller, UI
@@ -263,7 +267,8 @@ src/
   account/                     accounts, the sign-in eclipse, cross-device sync
   share/ShareView.tsx          what your friend sees
   store/                       state, IndexedDB persistence, live share sync
-  lib/                         crypto, dates, markdown export, sounds, pictures, hidden notes, theme
+  lib/                         crypto, dates, markdown export, sounds, pictures, hidden notes, theme,
+                               version history (history.ts: what's kept, when; diff.ts: what changed)
   styles/                      design system + component styles (light.css: the light scenes' paper)
 ```
 

@@ -14,6 +14,7 @@ import { SlashMenu } from "./SlashMenu";
 import { TableTools } from "./TableTools";
 import { charCount, wordCount } from "../../lib/text";
 import { WordTally, recordWords } from "../../lib/writing";
+import { NOTE_RELOAD_EVENT } from "../../lib/history";
 import { formatDate } from "../../lib/dates";
 import { useCollabSession } from "../../collab/manager";
 import { useYText } from "../../collab/useYText";
@@ -168,7 +169,25 @@ export function NoteEditor({ noteId, scroller }: Props) {
     if (session) return; // the live doc is the source of truth; never overwrite it
     if (editor.isFocused || pending.current) return;
     editor.commands.setContent(safeDoc(doc, useApp.getState().notes[noteId]?.text ?? "") ?? "", { emitUpdate: false });
-  }, [editor, doc, noteId, session]);
+    // (words that came from elsewhere aren't ones you wrote)
+    tally.reset();
+  }, [editor, doc, noteId, session, tally]);
+
+  // A version restored (from the version history): show it now, wherever the caret is.
+  useEffect(() => {
+    const reload = (e: Event) => {
+      if ((e as CustomEvent<string>).detail !== noteId || !editor) return;
+      tally.reset();
+      if (session) return; // (a live note's words arrive through its shared doc)
+      window.clearTimeout(saveTimer.current);
+      pending.current = null;
+      const n = useApp.getState().notes[noteId];
+      lastDoc.current = n?.doc ?? null;
+      editor.commands.setContent(safeDoc(n?.doc ?? null, n?.text ?? "") ?? "", { emitUpdate: false });
+    };
+    window.addEventListener(NOTE_RELOAD_EVENT, reload);
+    return () => window.removeEventListener(NOTE_RELOAD_EVENT, reload);
+  }, [editor, noteId, session, tally]);
 
   // Auto-grow the title where `field-sizing` isn't supported.
   useLayoutEffect(() => {

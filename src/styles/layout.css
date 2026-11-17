@@ -207,10 +207,20 @@ html:not(.is-ready) .app {
   justify-content: flex-end;
   min-width: 0;
   margin-right: 6px;
+  padding: 4px 6px;
+  border-radius: 7px;
   font-size: 11px;
   color: var(--fg-4);
   white-space: nowrap;
   overflow: hidden;
+  transition:
+    color var(--t-fast) var(--ease),
+    background-color var(--t-fast) var(--ease);
+}
+/* (it opens the version history) */
+.save-status:hover {
+  color: var(--fg-2);
+  background: rgb(var(--tint) / 0.05);
 }
 .save-saved {
   display: inline-flex;

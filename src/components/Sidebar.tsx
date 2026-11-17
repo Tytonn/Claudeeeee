@@ -14,6 +14,7 @@ import {
   FolderInput,
   FolderMinus,
   FolderPlus,
+  History,
   KeyRound,
   Keyboard,
   Link2,
@@ -33,6 +34,7 @@ import {
 } from "lucide-react";
 import { useApp } from "../store/app";
 import { hasPanel } from "../lib/panel";
+import { openHistory } from "./overlays/History";
 import type { Note, NoteGroup } from "../lib/types";
 import { displayTitle } from "../lib/text";
 import { shortStamp } from "../lib/dates";
@@ -81,6 +83,7 @@ export function noteMenuItems(note: Note, opts: { share?: boolean } = {}): MenuI
     { label: note.pinned ? "Unpin" : "Pin to top", icon: note.pinned ? <PinOff size={15} /> : <Pin size={15} />, onSelect: () => togglePin(note.id) },
     ...(opts.share !== false ? [{ label: "Share…", icon: <Link2 size={15} />, onSelect: () => openShare(note.id) } as MenuItem] : []),
     { label: "Duplicate", icon: <Copy size={15} />, onSelect: () => duplicateNote(note.id) },
+    { label: "Version history", icon: <History size={15} />, onSelect: () => openHistory(note.id) },
     ...(note.hidden ? [] : [{ label: "Move to group", icon: <FolderInput size={15} />, submenu: moveTo } as MenuItem]),
     // Hiding is only on offer while the hidden notes are unlocked (in the accent, so it's easy to spot).
     ...(!ui.unlocked

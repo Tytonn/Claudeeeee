@@ -21,6 +21,7 @@ import { LINK_EVENT } from "./editor/BubbleBar";
 import { useSlash } from "./editor/slash";
 import { CommandPalette } from "./overlays/CommandPalette";
 import { SettingsModal } from "./overlays/Settings";
+import { HistoryView } from "./overlays/History";
 import { ShortcutsModal } from "./overlays/Shortcuts";
 import { AccountModal } from "../account/AccountModal";
 import { VaultModal } from "./overlays/Vault";
@@ -341,6 +342,7 @@ export function Workspace() {
         <Rail />
         <CommandPalette />
         <SettingsModal />
+        <HistoryView />
         <ShortcutsModal />
         <AccountModal />
         <VaultModal />

@@ -25,6 +25,7 @@ import { useApp } from "./store/app";
 import { loadAll, startPersistence, storageOk } from "./store/persist";
 import { toast } from "./store/toasts";
 import { startShareSync } from "./store/shareSync";
+import { startHistory } from "./lib/history";
 import { startSync, syncNow } from "./account/sync";
 import { ACCENTS, RAIN_AMOUNT, SOLAR_TINTS, accentColor, applyTheme, hexRgb, sceneOf } from "./lib/theme";
 import type { Settings } from "./lib/types";
@@ -98,6 +99,8 @@ async function boot() {
 
   if (storageOk) {
     startPersistence();
+    // (earlier versions of every note, kept on this device as you write)
+    startHistory();
   } else {
     // Couldn't read what's saved: don't write either, or we'd overwrite it with a blank slate.
     toast("Couldn't open your saved notes in this browser, so nothing will be saved right now. Try reloading.", {

@@ -16,6 +16,7 @@ import { normalizeAvatar, type Countdown, type Note, type NoteGroup, type Settin
 import { untouchedSeedCountdown, untouchedSeedTodo } from "../store/seed";
 import { dataKey, onAccountChange, sessionExpired, useAccount, type AccountUser } from "./account";
 import { absorbDevice, cleanDays, isDeviceId, sameDays, setWritingAccount, useWriting } from "../lib/writing";
+import { asSource } from "../lib/history";
 
 /**
  * Keeps this device and your account in step.
@@ -175,7 +176,8 @@ function apply(all: Change[]) {
   if (!changes.length) return;
   applying = true;
   try {
-    useApp.setState((s) => {
+    // (for the version history: these came from another device)
+    asSource("sync", () => useApp.setState((s) => {
       let notes = s.notes;
       let shares = s.shares;
       let shared = s.shared;
@@ -225,7 +227,7 @@ function apply(all: Change[]) {
         next.ui = { ...s.ui, activeId: fallback?.id ?? null };
       }
       return next;
-    });
+    }));
   } finally {
     applying = false;
   }

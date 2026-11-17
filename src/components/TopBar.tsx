@@ -9,6 +9,7 @@ import { useIsMobile, useNow } from "../lib/hooks";
 import { MOD, SHIFT } from "../lib/theme";
 import { openShare } from "../lib/actions";
 import { hasPanel, togglePanel, usePanelRoom } from "../lib/panel";
+import { openHistory } from "./overlays/History";
 import { IconButton } from "./ui/IconButton";
 import { Tooltip } from "./ui/Tooltip";
 import { Popover } from "./ui/Popover";
@@ -40,7 +41,8 @@ function SaveStatus({ noteId }: { noteId: string }) {
   }, [savedAt]);
 
   return (
-    <div className="save-status mono" aria-live="polite">
+    <Tooltip label="Version history">
+      <button type="button" className="save-status mono" aria-live="polite" onClick={() => openHistory(noteId)}>
       <AnimatePresence mode="wait" initial={false}>
         {flash ? (
           <motion.span key="saved" className="save-saved" initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -3 }} transition={{ duration: 0.16 }}>
@@ -52,7 +54,8 @@ function SaveStatus({ noteId }: { noteId: string }) {
           </motion.span>
         )}
       </AnimatePresence>
-    </div>
+      </button>
+    </Tooltip>
   );
 }
 

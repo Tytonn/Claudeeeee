@@ -18,6 +18,7 @@ import {
   PanelLeft,
   PanelRight,
   PenLine,
+  History,
   Plus,
   Search,
   Settings2,
@@ -39,6 +40,7 @@ import { ACCENTS, ALT, FONTS, MOD, SHIFT, TRANSPARENCY, accentColor, sceneOf } f
 import type { AccentId, FontId } from "../../lib/types";
 import { NEW_COUNTDOWN_EVENT, flushEditor, newGroup, newNote, openShare } from "../../lib/actions";
 import { showPanel, togglePanel, usePanelRoom } from "../../lib/panel";
+import { openHistory } from "./History";
 import { lockHidden, openHidden } from "../../lib/vault";
 import { exportAll } from "../../store/persist";
 import { download } from "../../lib/actions";
@@ -167,6 +169,14 @@ function useItems(query: string): Item[] {
               keywords: "title font typeface size bigger smaller align center heading look",
               // (once the palette has gone)
               run: () => requestAnimationFrame(() => window.dispatchEvent(new Event(TITLE_STYLE_EVENT))),
+            },
+            {
+              id: "history",
+              group: "Actions",
+              label: "Version history…",
+              icon: <History size={15} strokeWidth={1.6} />,
+              keywords: "versions earlier restore undo revert old backup revisions changes",
+              run: () => openHistory(activeId),
             },
             {
               id: "pdf",

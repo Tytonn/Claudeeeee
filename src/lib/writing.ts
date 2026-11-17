@@ -259,6 +259,13 @@ export class WordTally {
     this.timer = window.setTimeout(() => this.flush(), 1500);
   }
 
+  /** The note's words were replaced from elsewhere (a version restored, another tab): count on from there. */
+  reset() {
+    window.clearTimeout(this.timer);
+    this.latest = null;
+    this.base = null;
+  }
+
   /** Counts what's waiting now (you've stopped, or the note is closing). */
   flush() {
     window.clearTimeout(this.timer);
