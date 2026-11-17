@@ -1,6 +1,6 @@
 import { X } from "lucide-react";
 import { useApp } from "../../store/app";
-import { ALT, MOD, SHIFT } from "../../lib/theme";
+import { ALT, MOD, SHIFT, isMac } from "../../lib/theme";
 import { Modal } from "../ui/Modal";
 import { Kbd } from "../ui/Kbd";
 import { IconButton } from "../ui/IconButton";
@@ -38,6 +38,8 @@ const GROUPS: { title: string; items: [string, string | string[]][] }[] = [
       ["Quote", [">", "space"]],
       ["Code block", ["```"]],
       ["Next table cell", "Tab"],
+      ["Find in note", `${MOD} F`],
+      ["Find and replace", isMac ? `${ALT} ${MOD} F` : "Ctrl H"],
       ["Export as PDF", `${MOD} P`],
     ],
   },

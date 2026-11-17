@@ -16,6 +16,7 @@ import { TopBar } from "./TopBar";
 import { Rail } from "./Rail";
 import { useGoalCelebration } from "./widgets/Writing";
 import { NoteEditor } from "./editor/NoteEditor";
+import { FindBar, canFind, closeFind, findStep, openFind, useFind } from "./editor/FindBar";
 import { ShareView } from "../share/ShareView";
 import { LINK_EVENT } from "./editor/BubbleBar";
 import { useSlash } from "./editor/slash";
@@ -49,6 +50,27 @@ function useGlobalShortcuts() {
           return;
         }
         s.setUI({ palette: !s.ui.palette });
+        return;
+      }
+      // Find in the open note (rather than the browser's own find) — and find and replace.
+      if (mod && !e.shiftKey && !e.altKey && key === "f") {
+        if (canFind()) {
+          e.preventDefault();
+          openFind();
+        }
+        return;
+      }
+      if (isMac ? e.metaKey && e.altKey && !e.ctrlKey && !e.shiftKey && e.code === "KeyF" : e.ctrlKey && !e.altKey && !e.shiftKey && key === "h") {
+        if (canFind()) {
+          e.preventDefault();
+          openFind({ replace: true });
+        }
+        return;
+      }
+      // (the next match, from the note too, while find is open)
+      if (useFind.getState().open && (e.key === "F3" || (mod && !e.altKey && e.code === "KeyG"))) {
+        e.preventDefault();
+        findStep(e.shiftKey ? -1 : 1);
         return;
       }
       if (e.altKey && !mod && !e.shiftKey && e.code === "KeyN") {
@@ -92,9 +114,14 @@ function useGlobalShortcuts() {
         s.setUI({ shortcuts: true });
       }
     };
-    // Esc leaves focus mode — unless something else (slash menu, a field) already used it.
+    // Esc leaves focus mode — unless something else (slash menu, a field) already used it. Find,
+    // open, closes first (the caret stays where it is, in the note).
     const onKeyUpEsc = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || e.defaultPrevented) return;
+      if (useFind.getState().open && !document.querySelector('[role="dialog"][aria-modal="true"]')) {
+        closeFind();
+        return;
+      }
       const s = app();
       if (s.ui.focus && !useSlash.getState().open) s.setUI({ focus: false });
     };
@@ -308,6 +335,7 @@ export function Workspace() {
             <div key={`dawn-${activeId}`} className="canvas-dawn" aria-hidden />
           )}
           <TopBar />
+          <FindBar />
           <div className="canvas-scroll" ref={setScroller}>
             {view === "trash" ? (
               <TrashView />

@@ -22,6 +22,7 @@ import { TITLE } from "../../collab/fields";
 import { isMac, titleAttrs } from "../../lib/theme";
 import type { VirtualElement } from "@floating-ui/react-dom";
 import { TITLE_STYLE_EVENT, TitleStyleMenu } from "./TitleStyle";
+import { useFindTarget } from "./FindBar";
 
 const supportsFieldSizing = typeof CSS !== "undefined" && CSS.supports?.("field-sizing", "content");
 
@@ -206,6 +207,15 @@ export function NoteEditor({ noteId, scroller }: Props) {
     window.addEventListener(TITLE_STYLE_EVENT, open);
     return () => window.removeEventListener(TITLE_STYLE_EVENT, open);
   }, []);
+
+  // Find and replace (Ctrl/⌘ F) works on this note: its words, and its title.
+  useFindTarget(editor, noteId, {
+    get: () => liveTitle ?? useApp.getState().notes[noteId]?.title ?? "",
+    set: (title) => {
+      if (ytitle) setLiveTitle(title);
+      else updateNote(noteId, { title });
+    },
+  });
 
   // Ctrl/⌘ K with a selection = edit link (handled by the bubble), so expose the editor.
   useEffect(() => {

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { buildExtensions } from "../components/editor/extensions";
+import { useFindTarget } from "../components/editor/FindBar";
 import { onAccountChange, useAccount } from "../account/account";
 import { BubbleBar } from "../components/editor/BubbleBar";
 import { TableTools } from "../components/editor/TableTools";
@@ -109,6 +110,14 @@ export function LiveNote({ session, onTitle }: { session: CollabSession; onTitle
   useEffect(() => {
     if (editor && editor.isEditable !== canEdit) editor.setEditable(canEdit);
   }, [editor, canEdit]);
+
+  // Find (Ctrl/⌘ F) works here too — and replace, where you can edit.
+  useFindTarget(editor, null, {
+    get: () => title ?? "",
+    set: (next) => {
+      if (session.canWrite) setTitle(next);
+    },
+  });
 
   useEffect(() => {
     session.bind();

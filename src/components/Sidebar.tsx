@@ -28,6 +28,7 @@ import {
   Search,
   Settings2,
   SquarePen,
+  TextSearch,
   Trash2,
   Users,
   X,
@@ -35,6 +36,7 @@ import {
 import { useApp } from "../store/app";
 import { hasPanel } from "../lib/panel";
 import { openHistory } from "./overlays/History";
+import { openFind } from "./editor/FindBar";
 import type { Note, NoteGroup } from "../lib/types";
 import { displayTitle } from "../lib/text";
 import { shortStamp } from "../lib/dates";
@@ -53,6 +55,7 @@ import {
   newNoteInGroup,
   openSearch,
   openShare,
+  raiseKeyboard,
   togglePin,
   trashNote,
 } from "../lib/actions";
@@ -84,6 +87,23 @@ export function noteMenuItems(note: Note, opts: { share?: boolean } = {}): MenuI
     ...(opts.share !== false ? [{ label: "Share…", icon: <Link2 size={15} />, onSelect: () => openShare(note.id) } as MenuItem] : []),
     { label: "Duplicate", icon: <Copy size={15} />, onSelect: () => duplicateNote(note.id) },
     { label: "Version history", icon: <History size={15} />, onSelect: () => openHistory(note.id) },
+    {
+      label: "Find and replace",
+      icon: <TextSearch size={15} />,
+      // (during the tap itself, so a phone's keyboard comes up for the find field)
+      immediate: true,
+      onSelect: () => {
+        raiseKeyboard();
+        // the note open already: find opens there and then, in the tap
+        if (useApp.getState().ui.activeId === note.id && !useApp.getState().ui.openShared) {
+          openFind({ replace: true });
+          return;
+        }
+        // otherwise the note opens first — then find, once its editor's there
+        useApp.getState().selectNote(note.id);
+        requestAnimationFrame(() => requestAnimationFrame(() => openFind({ replace: true })));
+      },
+    },
     ...(note.hidden ? [] : [{ label: "Move to group", icon: <FolderInput size={15} />, submenu: moveTo } as MenuItem]),
     // Hiding is only on offer while the hidden notes are unlocked (in the accent, so it's easy to spot).
     ...(!ui.unlocked

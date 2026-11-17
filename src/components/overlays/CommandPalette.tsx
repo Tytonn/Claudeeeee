@@ -19,6 +19,8 @@ import {
   PanelRight,
   PenLine,
   History,
+  TextSearch,
+  Replace,
   Plus,
   Search,
   Settings2,
@@ -36,11 +38,12 @@ import { TITLE_STYLE_EVENT } from "../editor/TitleStyle";
 import { exportPdf } from "../../lib/print";
 import { displayTitle, fuzzyScore, snippet } from "../../lib/text";
 import { shortStamp } from "../../lib/dates";
-import { ACCENTS, ALT, FONTS, MOD, SHIFT, TRANSPARENCY, accentColor, sceneOf } from "../../lib/theme";
+import { ACCENTS, ALT, FONTS, MOD, SHIFT, TRANSPARENCY, accentColor, isMac, sceneOf } from "../../lib/theme";
 import type { AccentId, FontId } from "../../lib/types";
-import { NEW_COUNTDOWN_EVENT, flushEditor, newGroup, newNote, openShare } from "../../lib/actions";
+import { NEW_COUNTDOWN_EVENT, flushEditor, newGroup, newNote, openShare, raiseKeyboard } from "../../lib/actions";
 import { showPanel, togglePanel, usePanelRoom } from "../../lib/panel";
 import { openHistory } from "./History";
+import { openFind } from "../editor/FindBar";
 import { lockHidden, openHidden } from "../../lib/vault";
 import { exportAll } from "../../store/persist";
 import { download } from "../../lib/actions";
@@ -64,6 +67,8 @@ type Item = {
   keywords?: string;
   hidden?: boolean;
   run: () => void;
+  /** Done during the tap or keypress itself, before the palette closes (a phone's keyboard, for a field about to appear). */
+  now?: () => void;
 };
 
 function Highlight({ text, query }: { text: string; query: string }) {
@@ -169,6 +174,27 @@ function useItems(query: string): Item[] {
               keywords: "title font typeface size bigger smaller align center heading look",
               // (once the palette has gone)
               run: () => requestAnimationFrame(() => window.dispatchEvent(new Event(TITLE_STYLE_EVENT))),
+            },
+            {
+              id: "find",
+              group: "Actions",
+              label: "Find in note…",
+              icon: <TextSearch size={15} strokeWidth={1.6} />,
+              kbd: `${MOD} F`,
+              keywords: "search find look for word words text highlight occurrences locate where",
+              // (once the palette has gone, and handed focus back)
+              now: raiseKeyboard,
+              run: () => requestAnimationFrame(() => requestAnimationFrame(() => openFind())),
+            },
+            {
+              id: "replace",
+              group: "Actions",
+              label: "Find and replace…",
+              icon: <Replace size={15} strokeWidth={1.6} />,
+              kbd: isMac ? `${ALT} ${MOD} F` : "Ctrl H",
+              keywords: "replace substitute swap change rename every all words text",
+              now: raiseKeyboard,
+              run: () => requestAnimationFrame(() => requestAnimationFrame(() => openFind({ replace: true }))),
             },
             {
               id: "history",
@@ -364,6 +390,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
   const run = (i: number) => {
     const item = items[i];
     if (!item) return;
+    item.now?.();
     onClose();
     requestAnimationFrame(() => item.run());
   };

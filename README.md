@@ -24,7 +24,7 @@
 - **Settings → Transparency** *(right under Accent; it was called Background)*: how much of the scene shows through the panels, least to most — *Frosted* (smoked, frosted glass; was *Dark*), *Soft* (lighter, more of the sky; was *Glass*), *Clear* (the default: the sky almost fully, with a soft shade behind your words), *Outline* (no glass at all — just outlines over the open sky, with a crisp little drop shadow behind every word; was *Crystal*) or *Full* (nothing at all: no panels, no outlines, no shade — the sky's light even carries on behind your words instead of stopping at the page's edge; was *Bare*). Also in the command palette: *Show more of the sky*, *Frost the panels* and *Transparency: …*.
 - **Settings → Title font:** the typeface of every note's title — *Display* (the tall, narrow serif), *Display italic*, *Serif*, *Sans* or *Mono*. Right-click a title to give just that note its own look (see *Notes*).
 - On a phone, the status bar and the strip under the gesture bar take on the colors at the top and bottom of the sky, so it runs right to the edges of the screen. On iPhone and iPad the page never zooms in when you start typing (pinch to zoom still works), nothing flashes grey when you tap it, and tapping into a to-do doesn't slide the whole screen up (a note still moves up out of the keyboard's way, as it should). On a phone, *Today* (your to-dos and countdowns) goes back where you opened it from: the list, or the note you were in. Added to the Home Screen of an iPhone or iPad, umbra fills the whole screen, right to the bottom edge.
-- **Settings → About → Show version:** a small gray *v1.44* beside the logo, so a screenshot says which version it's from. The exact build (its commit and time) is listed there too, and in the command palette's *Screen info*. The number lives in `src/version.ts` and goes up with every update.
+- **Settings → About → Show version:** a small gray *v1.45* beside the logo, so a screenshot says which version it's from. The exact build (its commit and time) is listed there too, and in the command palette's *Screen info*. The number lives in `src/version.ts` and goes up with every update.
 
 **Solar eclipse** *(Settings → Scene → Solar eclipse)*
 - A real total solar eclipse, seen from the ground, drawn live on the GPU: a black moon in a golden, glowing ring, the pearly corona streaming out around it in long, fine-combed blades, pink prominences standing up off the rim, and a dusky sky with a sunset glowing all the way round the horizon — the way it really looks at totality. Venus and a few stars come out in the dark.
@@ -100,6 +100,9 @@
 - **Version history:** click *Saved* at the top of a note (or *Version history* in its menu, or search the command palette for it) to see its earlier versions, newest first, by day. Pick one to read it, with what changed since the version before marked — new words highlighted, words taken away struck through, a slim bar beside each changed line — or turn off *Show changes* to see it just as it looked, pictures and all. <kbd>↑</kbd> <kbd>↓</kbd> step through them. **Restore this version** puts it back (the note as it was is kept first, and *Undo* is right there); from *···*, *Restore as a new note* leaves the original just as it is, and *Name this version* keeps it for good. *Save this version…* on the current one keeps it now, with a name if you like (*First draft*).
   - A version is kept whenever you pause, at least every ten minutes while you keep going, when you leave the note — and always before anything big: selecting everything and deleting it, restoring another version, or a change arriving from another device (marked *From another device*; if two devices clash, the side that lost is still there to bring back). Just opening a note never makes one.
   - Versions stay on the device, compressed in the browser's own storage: nothing is uploaded, so they cost no Netlify credits. Everything from the last day is kept; after that, one an hour for a week, one a day for a month and one a week for a year. On a live shared note, a restore goes to everyone in it. Restored words never count toward your writing stats.
+- **Find and replace:** <kbd>Ctrl/⌘</kbd> <kbd>F</kbd> in a note (or *Find and replace* in its menu, or the command palette). Every match is marked as you type, starting from where your caret is, and the count says where you are (*3 of 12*). <kbd>Enter</kbd> and <kbd>Shift</kbd> <kbd>Enter</kbd> step through them and bring each into view; <kbd>Esc</kbd> closes find and leaves you on the current one, selected. Capitals, accents and curly quotes don't get in the way ("cafe" finds "Café", "don't" finds "don’t"), unless you turn on **Match case** (<kbd>Alt/⌥</kbd> <kbd>C</kbd>); **Whole word** (<kbd>Alt/⌥</kbd> <kbd>W</kbd>) finds "cat" but not "concatenate". With a word selected, <kbd>Ctrl/⌘</kbd> <kbd>F</kbd> looks for that word.
+  - **Replace** (<kbd>Ctrl</kbd> <kbd>H</kbd>, or <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>F</kbd> on a Mac, or the arrow at the left of the bar): *Replace* changes the current match and moves on to the next; *Replace all* changes every one — the title's too — as a single step to undo (*Undo* is right there), and a version of the note is kept just before it. A replacement takes the case of what it replaces (replacing "train" with "bus" makes "Train" "Bus"), unless you typed capitals into it or turned on Match case.
+  - It works in a live shared note (everyone sees the replacement) and in notes shared with you (find only, where you can only view). Replacing never counts toward your writing stats, and the marks never print or end up in a PDF.
 - Empty notes clean themselves up. Your place in each note is remembered.
 
 **To-dos** *(optional)*
@@ -184,6 +187,9 @@ Already have a Netlify site you want to reuse? Open it → **Site configuration 
 | Settings | <kbd>Ctrl/⌘</kbd> <kbd>,</kbd> |
 | Blocks menu | <kbd>/</kbd> |
 | Next / previous table cell | <kbd>Tab</kbd> · <kbd>Shift</kbd> <kbd>Tab</kbd> |
+| Find in the note | <kbd>Ctrl/⌘</kbd> <kbd>F</kbd> |
+| Find and replace | <kbd>Ctrl</kbd> <kbd>H</kbd> · on a Mac <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>F</kbd> |
+| Next / previous match | <kbd>Enter</kbd> · <kbd>Shift</kbd> <kbd>Enter</kbd> (or <kbd>F3</kbd>, <kbd>Ctrl/⌘</kbd> <kbd>G</kbd>) |
 | Export as PDF (print) | <kbd>Ctrl/⌘</kbd> <kbd>P</kbd> |
 | Link (with text selected) | <kbd>Ctrl/⌘</kbd> <kbd>K</kbd> |
 | All shortcuts | <kbd>?</kbd> |
@@ -256,7 +262,7 @@ netlify/functions/images.mts   pictures in notes (stored only as ciphertext)
 netlify/lib/common.ts          shared helpers: sessions, access checks
 src/
   components/                  app shell, sidebar, top bar, side panel
-    editor/                    TipTap editor, slash menu, formatting bubble
+    editor/                    TipTap editor, slash menu, formatting bubble, find and replace
     widgets/                   to-dos, countdowns, date picker
     overlays/                  command palette, settings, share sheet, version history, the PIN pad, toasts
     ui/                        primitives (tooltip, popover, menu, switch, eclipse…)

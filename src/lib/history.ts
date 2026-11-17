@@ -76,7 +76,7 @@ export type VersionMeta = {
   hash: string;
   source: VersionSource;
   /** For a "before" version: what came next. */
-  why?: "deletion" | "restore" | "sync";
+  why?: "deletion" | "restore" | "sync" | "replace";
   /** For a "restore": when the version it brought back was from. */
   from?: number;
   /** A name you gave it: it's kept for good. */
@@ -515,6 +515,21 @@ export async function saveVersionNow(noteId: string, name?: string): Promise<Ver
     runs.delete(noteId);
   }
   return keepVersion(noteId, now, { source: "saved", ...(name?.trim() ? { name: name.trim().slice(0, 60) } : {}) });
+}
+
+/**
+ * Keeps the note as it is now, as the step back from something big you're about to do to it (a
+ * replace-all). What's kept is read at once, before the change is made.
+ */
+export function keepBefore(noteId: string, why: "replace"): Promise<VersionMeta | null> {
+  const now = current(noteId);
+  if (!now || blank(now)) return Promise.resolve(null);
+  const run = runs.get(noteId);
+  if (run) {
+    window.clearTimeout(run.timer);
+    runs.delete(noteId);
+  }
+  return keepVersion(noteId, now, { source: "before", why });
 }
 
 /** Names a version (kept for good) — or, with an empty name, lets it thin out like the rest. */

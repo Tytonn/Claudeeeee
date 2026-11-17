@@ -72,8 +72,8 @@ function copyNote(): { doc: HTMLElement; title: string } | null {
   // (nor whatever was selected: a picture or a rule isn't outlined on paper)
   body.querySelectorAll(".ProseMirror-selectednode").forEach((el) => el.classList.remove("ProseMirror-selectednode"));
   body.querySelectorAll(".note-image.is-selected").forEach((el) => el.classList.remove("is-selected"));
-  // someone else's selection, in a shared note, is just the words
-  body.querySelectorAll(".collab-selection").forEach((el) => el.replaceWith(...Array.from(el.childNodes)));
+  // someone else's selection, in a shared note, is just the words — and so is what find has marked
+  body.querySelectorAll(".collab-selection, .find-match, .find-current").forEach((el) => el.replaceWith(...Array.from(el.childNodes)));
   // a copy keeps only what's written into the page, not what's been ticked since: tick them again
   const ticks = note.body.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
   body.querySelectorAll<HTMLInputElement>('input[type="checkbox"]').forEach((box, i) => {

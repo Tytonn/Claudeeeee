@@ -19,28 +19,32 @@ export function flushEditor() {
 }
 
 /**
- * Opens search with the keyboard already up. Phones only raise the keyboard for a focus made
- * during the tap itself, and the search box doesn't exist yet at that moment — so an invisible
- * stand-in field takes the focus (and the keyboard) right away, then hands both to the search
- * box the instant it appears.
+ * Raises the keyboard, on a phone, for a field that's about to appear. Phones only raise the
+ * keyboard for a focus made during the tap itself, and the field doesn't exist yet at that
+ * moment — so an invisible stand-in field takes the focus (and the keyboard) right away, then
+ * hands both to the real one the instant it takes the focus. Call it during the tap.
  */
+export function raiseKeyboard() {
+  if (typeof matchMedia === "undefined" || !matchMedia("(pointer: coarse)").matches) return;
+  const proxy = document.createElement("input");
+  proxy.type = "text";
+  proxy.tabIndex = -1;
+  proxy.setAttribute("aria-hidden", "true");
+  proxy.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px;padding:0;border:0;opacity:0;font-size:16px;pointer-events:none;";
+  document.body.appendChild(proxy);
+  proxy.focus({ preventScroll: true });
+  const done = (e?: FocusEvent) => {
+    if (e?.target === proxy) return;
+    document.removeEventListener("focusin", done);
+    proxy.remove();
+  };
+  document.addEventListener("focusin", done);
+  window.setTimeout(done, 1500);
+}
+
+/** Opens search with the keyboard already up (see raiseKeyboard). */
 export function openSearch() {
-  if (typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches) {
-    const proxy = document.createElement("input");
-    proxy.type = "text";
-    proxy.tabIndex = -1;
-    proxy.setAttribute("aria-hidden", "true");
-    proxy.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px;padding:0;border:0;opacity:0;font-size:16px;pointer-events:none;";
-    document.body.appendChild(proxy);
-    proxy.focus({ preventScroll: true });
-    const done = (e?: FocusEvent) => {
-      if (e?.target === proxy) return;
-      document.removeEventListener("focusin", done);
-      proxy.remove();
-    };
-    document.addEventListener("focusin", done);
-    window.setTimeout(done, 1500);
-  }
+  raiseKeyboard();
   app().setUI({ palette: true });
 }
 

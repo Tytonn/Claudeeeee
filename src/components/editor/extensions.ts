@@ -34,6 +34,7 @@ import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table
 import { SlashCommand } from "./slash";
 import { NoteImage } from "./image";
 import { TableMarkdownPaste } from "./tables";
+import { Find } from "./find";
 import type { ImageAuth } from "../../lib/images";
 
 // A curated set keeps the bundle lean; auto-detection picks between these.
@@ -123,6 +124,8 @@ export function buildExtensions(opts: { onExitTop?: () => void; editable?: boole
     TableHeader,
     TableCell,
     TableMarkdownPaste,
+    // (find and replace's marks: Ctrl/⌘ F)
+    Find,
   ];
 
   if (opts.collab) {

@@ -1251,3 +1251,245 @@ html[data-font="mono"] .prose blockquote p {
   will-change: transform;
   user-select: none;
 }
+
+/* ── Find and replace ────────────────────────────────────────────────────── */
+
+/* Every match, ringed in the accent; the current one brightest — with a little flare of light as
+   it lands (each time it moves on). */
+.prose .find-match {
+  --find-ring: color-mix(in oklch, var(--accent) 42%, transparent);
+  border-radius: 3px;
+  background: color-mix(in oklch, var(--accent) 15%, transparent);
+  box-shadow: 0 0 0 1px var(--find-ring);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+.prose .find-current {
+  color: var(--fg-1);
+  background: color-mix(in oklch, var(--accent) 46%, transparent);
+  box-shadow:
+    0 0 0 1.5px var(--accent),
+    0 0 16px color-mix(in oklch, var(--accent) 45%, transparent);
+  animation: find-land 480ms var(--ease-out) both;
+}
+@keyframes find-land {
+  from {
+    box-shadow:
+      0 0 0 7px color-mix(in oklch, var(--accent) 0%, transparent),
+      0 0 32px color-mix(in oklch, var(--accent) 85%, transparent);
+  }
+}
+/* (a match drawn in pieces — across formatting — is one outline: no edges where the pieces meet) */
+.prose :is(.find-l, .find-m) {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.prose :is(.find-r, .find-m) {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+.prose .find-match.find-l {
+  box-shadow:
+    -1px 0 0 0 var(--find-ring),
+    0 -1px 0 0 var(--find-ring),
+    0 1px 0 0 var(--find-ring);
+}
+.prose .find-match.find-m {
+  box-shadow:
+    0 -1px 0 0 var(--find-ring),
+    0 1px 0 0 var(--find-ring);
+}
+.prose .find-match.find-r {
+  box-shadow:
+    1px 0 0 0 var(--find-ring),
+    0 -1px 0 0 var(--find-ring),
+    0 1px 0 0 var(--find-ring);
+}
+.prose .find-current:is(.find-l, .find-m, .find-r) {
+  animation: none;
+}
+.prose .find-current.find-l {
+  box-shadow:
+    -1.5px 0 0 0 var(--accent),
+    0 -1.5px 0 0 var(--accent),
+    0 1.5px 0 0 var(--accent),
+    0 0 16px color-mix(in oklch, var(--accent) 45%, transparent);
+}
+.prose .find-current.find-m {
+  box-shadow:
+    0 -1.5px 0 0 var(--accent),
+    0 1.5px 0 0 var(--accent),
+    0 0 16px color-mix(in oklch, var(--accent) 45%, transparent);
+}
+.prose .find-current.find-r {
+  box-shadow:
+    1.5px 0 0 0 var(--accent),
+    0 -1.5px 0 0 var(--accent),
+    0 1.5px 0 0 var(--accent),
+    0 0 16px color-mix(in oklch, var(--accent) 45%, transparent);
+}
+html[data-tone="light"] .prose .find-match {
+  --find-ring: color-mix(in oklch, var(--accent) 36%, transparent);
+  background: color-mix(in oklch, var(--accent) 13%, transparent);
+}
+html[data-tone="light"] .prose .find-match:not(.find-l, .find-m, .find-r) {
+  box-shadow: 0 0 0 1px var(--find-ring);
+}
+html[data-tone="light"] .prose .find-current {
+  background: color-mix(in oklch, var(--accent) 28%, transparent);
+}
+html[data-tone="light"] .prose .find-current:not(.find-l, .find-m, .find-r) {
+  box-shadow:
+    0 0 0 1.5px var(--accent),
+    0 3px 12px color-mix(in oklch, var(--accent) 28%, transparent);
+}
+
+/* The bar: frosted, at the top right of the note (across the top, on a phone). */
+.find-bar {
+  position: absolute;
+  top: 58px;
+  right: 14px;
+  z-index: 6;
+  width: min(472px, calc(100% - 28px));
+  padding: 6px;
+  border-radius: 14px;
+  background: var(--float);
+  -webkit-backdrop-filter: blur(22px) saturate(1.35);
+  backdrop-filter: blur(22px) saturate(1.35);
+  box-shadow:
+    var(--shadow-float),
+    inset 0 0 0 1px var(--line);
+  transform-origin: top right;
+}
+.find-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.find-replace {
+  overflow: hidden;
+}
+.find-replace .find-row {
+  padding-top: 6px;
+}
+.find-lead {
+  display: inline-grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  color: var(--fg-4);
+}
+.find-toggle-replace svg {
+  transition: transform 220ms var(--ease-out);
+}
+.find-toggle-replace.is-open svg {
+  transform: rotate(90deg);
+}
+.find-field {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+  height: 32px;
+  margin: 0 4px 0 2px;
+  border-radius: 9px;
+  background: rgb(var(--tint) / 0.05);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+  cursor: text;
+  transition:
+    box-shadow var(--t-fast) var(--ease),
+    background-color var(--t-fast) var(--ease);
+}
+.find-field:focus-within {
+  background: rgb(var(--tint) / 0.07);
+  box-shadow:
+    inset 0 0 0 1px var(--accent-3),
+    0 0 0 3px var(--accent-1);
+}
+.find-field.is-none {
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--danger) 50%, transparent);
+}
+.find-field.is-none:focus-within {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklch, var(--danger) 65%, transparent),
+    0 0 0 3px color-mix(in oklch, var(--danger) 13%, transparent);
+}
+.find-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 10px;
+  border: 0;
+  font: inherit;
+  font-size: 13.5px;
+  color: var(--fg-1);
+  background: none;
+  outline: none;
+}
+.find-input::placeholder {
+  color: var(--fg-4);
+}
+.find-count {
+  flex-shrink: 0;
+  padding-right: 10px;
+  font-size: 11.5px;
+  color: var(--fg-4);
+  white-space: nowrap;
+}
+.find-count.is-none {
+  color: color-mix(in oklch, var(--danger) 85%, var(--fg-3));
+}
+.find-sep {
+  flex-shrink: 0;
+  width: 1px;
+  height: 16px;
+  margin: 0 3px;
+  background: var(--line-2);
+}
+.find-bar .icon-btn {
+  flex-shrink: 0;
+}
+.find-bar .icon-btn:disabled {
+  opacity: 0.35;
+  pointer-events: none;
+}
+.find-bar .icon-btn.is-active {
+  color: var(--accent);
+  background: var(--accent-1);
+  box-shadow: inset 0 0 0 1px var(--accent-3);
+}
+.find-btn {
+  flex-shrink: 0;
+}
+.find-btn + .find-btn {
+  margin-left: 4px;
+}
+.find-btn.is-all:not(:disabled) {
+  color: var(--fg-1);
+  background: var(--accent-1);
+  box-shadow: inset 0 0 0 1px var(--accent-3);
+}
+.app.is-mobile .find-bar {
+  top: calc(52px + env(safe-area-inset-top) + min(14px, env(safe-area-inset-top)) + 4px);
+  left: 10px;
+  right: 10px;
+  width: auto;
+  transform-origin: top center;
+}
+.app.is-mobile .find-input {
+  font-size: 16px;
+}
+
+@media print {
+  .find-bar {
+    display: none !important;
+  }
+  .prose .find-match,
+  .prose .find-current {
+    color: inherit !important;
+    background: none !important;
+    box-shadow: none !important;
+    animation: none !important;
+  }
+}

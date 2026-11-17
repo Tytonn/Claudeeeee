@@ -86,6 +86,7 @@ function story(v: VersionMeta, newer: { words: number } | undefined, now: number
   if (v.source === "sync") return "From another device";
   if (v.why === "deletion") return newer && newer.words < v.words ? `Before ${plural(v.words - newer.words, "word")} were deleted` : "Before a big deletion";
   if (v.why === "restore") return "Before restoring";
+  if (v.why === "replace") return "Before a replace-all";
   if (v.source === "saved" && !v.name) return "Saved by you";
   return null;
 }

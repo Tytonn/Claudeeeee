@@ -228,6 +228,8 @@ const docWords = (doc: PMNode) => wordCount(doc.textBetween(0, doc.content.size,
 export function writtenByYou(tr: Transaction): boolean {
   if (tr.getMeta("paste") || tr.getMeta("uiEvent") === "paste" || tr.getMeta("uiEvent") === "drop") return false;
   if (tr.getMeta("history$")) return false;
+  // (find and replace's replacements aren't writing either)
+  if (tr.getMeta("findReplace")) return false;
   const sync = tr.getMeta("y-sync$") as { isChangeOrigin?: boolean } | undefined;
   return !(sync && sync.isChangeOrigin);
 }
