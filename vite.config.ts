@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import netlify from "@netlify/vite-plugin";
+import { offlineApp } from "./pwa/plugin.ts";
 
 /**
  * Dev only: shared links (/s/<id>) are rewritten to the SPA by netlify.toml. In dev the
@@ -62,7 +63,8 @@ function buildSha(): string {
 // `netlify()` emulates Netlify Functions + Blobs + redirects + headers inside `vite dev`,
 // so sharing works locally exactly like it does in production.
 export default defineConfig({
-  plugins: [react(), devShareRoutes(), netlify(), devCsp()],
+  // (`offlineApp()`: the built app works offline — see pwa/)
+  plugins: [react(), devShareRoutes(), netlify(), devCsp(), offlineApp()],
   // Which build this is (shown in Settings → About, and next to the logo if you like).
   define: {
     __BUILD_SHA__: JSON.stringify(buildSha()),

@@ -19,6 +19,7 @@ import {
   PanelRight,
   PenLine,
   History,
+  MonitorDown,
   TextSearch,
   Replace,
   Plus,
@@ -44,6 +45,7 @@ import { NEW_COUNTDOWN_EVENT, flushEditor, newGroup, newNote, openShare, raiseKe
 import { showPanel, togglePanel, usePanelRoom } from "../../lib/panel";
 import { openHistory } from "./History";
 import { openFind } from "../editor/FindBar";
+import { installApp, usePwa } from "../../lib/pwa";
 import { lockHidden, openHidden } from "../../lib/vault";
 import { exportAll } from "../../store/persist";
 import { download } from "../../lib/actions";
@@ -95,6 +97,7 @@ function useItems(query: string): Item[] {
   const notes = useApp((s) => s.notes);
   const groups = useApp((s) => s.groups);
   const unlocked = useApp((s) => s.ui.unlocked);
+  const canInstall = usePwa((s) => s.canInstall);
   const hasVault = useApp((s) => Boolean(s.vault));
   const settings = useApp((s) => s.settings);
   const activeId = useApp((s) => s.ui.activeId);
@@ -160,6 +163,9 @@ function useItems(query: string): Item[] {
     const actions: Item[] = [
       { id: "new", group: "Actions", label: "New note", icon: <SquarePen size={15} strokeWidth={1.6} />, kbd: `${ALT} N`, keywords: "create add write", run: () => newNote() },
       { id: "new-group", group: "Actions", label: "New group…", icon: <FolderPlus size={15} strokeWidth={1.6} />, keywords: "folder group organize collection", run: () => newGroup() },
+      ...(canInstall
+        ? [{ id: "install", group: "Actions", label: "Install umbra as an app", icon: <MonitorDown size={15} strokeWidth={1.6} />, keywords: "install app pwa window shelf taskbar dock launcher chromebook desktop offline", run: () => void installApp() }]
+        : []),
       ...(unlocked
         ? [{ id: "lock", group: "Actions", label: "Lock hidden notes", icon: <Lock size={15} strokeWidth={1.6} />, keywords: "hidden private vault pin", run: () => lockHidden() }]
         : []),
@@ -371,7 +377,7 @@ function useItems(query: string): Item[] {
 
     return [...vault, ...noteItems, ...matchedActions, ...(vault.length ? [] : create)];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, notes, groups, unlocked, hasVault, settings, activeId, focus, panelRoom, railPeek]);
+  }, [query, notes, groups, unlocked, hasVault, settings, activeId, focus, panelRoom, railPeek, canInstall]);
 }
 
 function PaletteBody({ onClose }: { onClose: () => void }) {

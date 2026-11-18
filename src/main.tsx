@@ -26,6 +26,7 @@ import { loadAll, startPersistence, storageOk } from "./store/persist";
 import { toast } from "./store/toasts";
 import { startShareSync } from "./store/shareSync";
 import { startHistory } from "./lib/history";
+import { startPwa } from "./lib/pwa";
 import { startSync, syncNow } from "./account/sync";
 import { ACCENTS, RAIN_AMOUNT, SOLAR_TINTS, accentColor, applyTheme, hexRgb, sceneOf } from "./lib/theme";
 import type { Settings } from "./lib/types";
@@ -39,6 +40,7 @@ import { setSoundEnabled, setSoundTheme } from "./lib/sound";
 import { startViewportFit } from "./lib/platform";
 import { startVaultWatch } from "./lib/vault";
 import { startImageSync } from "./lib/images";
+import { newNote, openSearch } from "./lib/actions";
 import { swappingLook } from "./fx/look";
 import { App } from "./App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -112,6 +114,8 @@ async function boot() {
   startSync();
   startVaultWatch();
   startImageSync();
+  // (the app kept on this device for offline, installing it, and its icon's shortcuts)
+  startPwa({ newNote: () => newNote(), search: () => openSearch() });
 
   // Give the fonts a beat so the first frame is already in the right type.
   await Promise.race([document.fonts?.ready, new Promise((r) => setTimeout(r, 450))]);

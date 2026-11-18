@@ -1335,3 +1335,24 @@ html[data-typing] .topbar:hover {
   font-size: 14px;
   color: var(--fg-3);
 }
+
+/* Offline: a quiet mark beside Saved (see TopBar's OfflineMark). */
+.offline-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  margin-right: 2px;
+  padding: 0 9px;
+  border-radius: 99px;
+  font-size: 11px;
+  white-space: nowrap;
+  color: color-mix(in oklch, var(--fg-2) 70%, oklch(0.8 0.12 75));
+  background: color-mix(in oklch, oklch(0.8 0.12 75) 10%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, oklch(0.8 0.12 75) 26%, transparent);
+}
+html[data-tone="light"] .offline-mark {
+  color: color-mix(in oklch, var(--fg-2) 65%, oklch(0.55 0.13 65));
+  background: color-mix(in oklch, oklch(0.6 0.13 70) 10%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, oklch(0.6 0.13 70) 30%, transparent);
+}

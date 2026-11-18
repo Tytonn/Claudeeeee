@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
-import { Download, FileText, LayoutList, Link2, Upload, X } from "lucide-react";
+import { Check, Download, FileText, LayoutList, Link2, MonitorDown, Upload, X } from "lucide-react";
 import { useApp } from "../../store/app";
 import { hasPanel } from "../../lib/panel";
 import { goalOf } from "../widgets/Writing";
@@ -22,6 +22,8 @@ import { IconButton } from "../ui/IconButton";
 import { changeAccent, changeScene } from "../../fx/transitions";
 import { BUILD_SHA, BUILD_TIME, VERSION } from "../../version";
 import { SCENES, SCENE_LIST } from "../../scenes/meta";
+import { installApp, usePwa } from "../../lib/pwa";
+import { apple } from "../../lib/platform";
 import { SCENE_UI } from "../../scenes/ui";
 import { Row, Section } from "./settingsParts";
 
@@ -50,6 +52,64 @@ function ScenePicker() {
         );
       })}
     </div>
+  );
+}
+
+/**
+ * umbra as an app: installing it (a window and an icon of its own — on a Chromebook's shelf, a
+ * computer's taskbar, a phone's home screen), and whether it opens without the internet.
+ */
+function AppRows() {
+  const canInstall = usePwa((s) => s.canInstall);
+  const installed = usePwa((s) => s.installed);
+  const offline = usePwa((s) => s.offline);
+  const ua = navigator.userAgent;
+  // (where the browser won't offer it here: how to, in this one)
+  const how = apple
+    ? "On iPhone and iPad: in Safari, tap Share, then Add to Home Screen."
+    : /Firefox\//.test(ua)
+      ? "Firefox doesn't install web apps — open umbra in Chrome or Edge to install it."
+      : /Safari\//.test(ua) && !/Chrome|Chromium|Edg\//.test(ua)
+        ? "In Safari on a Mac: File → Add to Dock."
+        : "Installed already? Open it from your launcher. If not: the install icon at the right of the address bar — or the browser's ⋮ menu → Cast, save and share → Install page as app.";
+  return (
+    <>
+      <Row
+        label="Install umbra"
+        desc={
+          installed
+            ? "You're in the app. Open it from your launcher, pin it to your shelf or taskbar — and right-click its icon for a new note."
+            : canInstall
+              ? "In a window of its own, with its own icon: in your launcher, and pinned to your shelf or taskbar if you like. Right-click the icon for a new note."
+              : how
+        }
+      >
+        {installed ? (
+          <span className="set-status is-on">
+            <Check size={13} strokeWidth={2.4} /> Installed
+          </span>
+        ) : canInstall ? (
+          <button type="button" className="primary-btn sm set-install" onClick={() => void installApp()}>
+            <MonitorDown size={14} strokeWidth={1.9} /> Install
+          </button>
+        ) : null}
+      </Row>
+      <Row label="Works offline" desc="umbra opens without the internet. Your notes are always saved on this device first — signed in, they sync by themselves once you're back online.">
+        <span className={`set-status ${offline === "ready" ? "is-on" : ""}`}>
+          {offline === "ready" ? (
+            <>
+              <Check size={13} strokeWidth={2.4} /> Ready
+            </>
+          ) : offline === "setting-up" ? (
+            "Getting ready…"
+          ) : offline === "dev" ? (
+            "Once it's deployed"
+          ) : (
+            "Not in this browser"
+          )}
+        </span>
+      </Row>
+    </>
   );
 }
 
@@ -383,6 +443,10 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
               </div>
               <LiveLinks />
             </div>
+          </Section>
+
+          <Section title="App">
+            <AppRows />
           </Section>
 
           <Section title="Your data">

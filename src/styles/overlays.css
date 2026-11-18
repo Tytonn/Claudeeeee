@@ -2355,3 +2355,34 @@ html[data-tone="light"] .overlay > .modal.history {
     padding-bottom: 12px;
   }
 }
+
+/* ── Settings → App ──────────────────────────────────────────────────────── */
+
+/* (installed, ready for offline: a quiet word, in the accent once it's so) */
+.set-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 99px;
+  font-size: 12px;
+  white-space: nowrap;
+  color: var(--fg-3);
+  background: rgb(var(--tint) / 0.05);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.set-status.is-on {
+  color: var(--fg-1);
+  background: var(--accent-1);
+  box-shadow: inset 0 0 0 1px var(--accent-3);
+}
+.set-status.is-on svg {
+  color: var(--accent);
+}
+.set-install {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}

@@ -1,15 +1,23 @@
 {
+  "id": "/",
   "name": "umbra",
   "short_name": "umbra",
-  "description": "A quiet place to write. Notes, to-dos and countdowns.",
+  "description": "A quiet place to write. Notes, to-dos and countdowns — and it works offline.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#060607",
   "theme_color": "#060607",
+  "categories": ["productivity"],
+  "launch_handler": { "client_mode": "focus-existing" },
   "icons": [
-    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
-    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512-rounded.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "shortcuts": [
+    { "name": "New note", "short_name": "New note", "url": "/?new", "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Search notes", "short_name": "Search", "url": "/?search", "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }] }
   ]
 }

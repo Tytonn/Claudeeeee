@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowLeft, Check, Ellipsis, ImagePlus, Maximize2, Minimize2, PanelLeft, PanelRight, Share, Type } from "lucide-react";
+import { ArrowLeft, Check, CloudOff, Ellipsis, ImagePlus, Maximize2, Minimize2, PanelLeft, PanelRight, Share, Type } from "lucide-react";
 import type { Editor } from "@tiptap/core";
 import { useApp } from "../store/app";
 import { useShareStatus } from "../store/shareSync";
@@ -10,6 +10,8 @@ import { MOD, SHIFT } from "../lib/theme";
 import { openShare } from "../lib/actions";
 import { hasPanel, togglePanel, usePanelRoom } from "../lib/panel";
 import { openHistory } from "./overlays/History";
+import { usePwa } from "../lib/pwa";
+import { useAccount } from "../account/account";
 import { IconButton } from "./ui/IconButton";
 import { Tooltip } from "./ui/Tooltip";
 import { Popover } from "./ui/Popover";
@@ -21,6 +23,31 @@ import { ShareSheet } from "./overlays/ShareSheet";
 import { usePending } from "./overlays/People";
 import { Presence } from "./Presence";
 import { useCollabSession } from "../collab/manager";
+
+/**
+ * Offline (or the server out of reach, signed in): a quiet mark, beside Saved. Nothing's lost —
+ * everything's kept on this device, and syncs by itself when the connection's back.
+ */
+function OfflineMark() {
+  const online = usePwa((s) => s.online);
+  const unreachable = useAccount((s) => s.user !== null && s.sync === "offline");
+  const isMobile = useIsMobile();
+  const show = !online || unreachable;
+  return (
+    <AnimatePresence initial={false}>
+      {show && (
+        <motion.span key="offline" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ duration: 0.2 }}>
+          <Tooltip label={online ? "Can't reach the server — your notes are saved on this device, and sync when it's back" : "You're offline — your notes are saved on this device, and sync when you're back online"}>
+            <span className="offline-mark mono" role="status">
+              <CloudOff size={13} strokeWidth={1.9} />
+              {!isMobile && <span>Offline</span>}
+            </span>
+          </Tooltip>
+        </motion.span>
+      )}
+    </AnimatePresence>
+  );
+}
 
 function SaveStatus({ noteId }: { noteId: string }) {
   const savedAt = useApp((s) => s.ui.savedAt);
@@ -102,6 +129,7 @@ export function TopBar() {
       </div>
 
       <div className="topbar-right">
+        <OfflineMark />
         {showNoteTools && activeId && <SaveStatus noteId={activeId} />}
         {showNoteTools && activeId && (
           <>

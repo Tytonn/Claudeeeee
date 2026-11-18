@@ -16,6 +16,13 @@
   to = "/share.html"
   status = 200
 
+# The service worker (the app kept on your device, for offline): always asked for afresh, so a
+# new version is found the next time the app opens.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
 [[headers]]
   for = "/assets/*"
   [headers.values]
